@@ -231,6 +231,34 @@ public final class IdentifyGlow {
         return out;
     }
 
+    /** The outline as drawn: {@link #outline}, with the centre first, and no smaller than {@code minPx}. */
+    @Nullable
+    static List<double[]> ring(Viewport vp, MapView mv, Identifier.Target target, Vec3 centreDir, double angR, @Nullable double[] start, double minPx) {
+        double[] centre = IdentifyPins.locate(vp, mv, target, centreDir, start);
+        // A body under minPx: solve its limb at an enlarged angle, so the solver's error is not magnified with it
+        for (int i = 0; centre != null && angR >= POINT_RADIUS && i < 5; i++) {
+            double r = 0;
+            int n = 0;
+            for (Vec3 d : limb(centreDir, angR, 4)) {
+                double[] p = IdentifyPins.locate(vp, mv, target, d, centre);
+                if (p != null) {
+                    r += Math.hypot(p[0] - centre[0], p[1] - centre[1]);
+                    n++;
+                }
+            }
+            if (n == 0 || r / n >= minPx)
+                break;
+            angR *= Math.min(1e4, 1.05 * minPx / Math.max(r / n, 0.2));
+        }
+        List<double[]> o = outline(vp, mv, target, centreDir, angR, centre);
+        if (o == null)
+            return null;
+        List<double[]> out = new ArrayList<>(o.size());
+        out.add(o.getFirst());
+        out.addAll(atLeast(o.subList(1, o.size()), o.getFirst(), minPx));
+        return out;
+    }
+
     /** One outline on the page: its colour, its points, its centre, and whether the hover pulse runs on it. */
     private record Ring(int[] rgb, List<double[]> points, double[] centre, boolean hover) {}
 
@@ -303,11 +331,11 @@ public final class IdentifyGlow {
             Vec3 dir = m.where().direction(target.observer());
             if (dir == null)
                 continue;
-            List<double[]> o = outline(vp, mv, target, dir, m.angularRadius(), hover ? pointer : null);
+            List<double[]> o = ring(vp, mv, target, dir, m.angularRadius(), hover ? pointer : null, MIN_RADIUS * scale);
             if (o == null)
                 continue;
             double[] c = o.getFirst();
-            rings.add(new Ring(IdentifySettings.iconRgb(m.kind()), atLeast(o.subList(1, o.size()), c, MIN_RADIUS * scale), c, hover));
+            rings.add(new Ring(IdentifySettings.iconRgb(m.kind()), o.subList(1, o.size()), c, hover));
         }
         if (rings.isEmpty())
             return;
