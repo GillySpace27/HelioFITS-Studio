@@ -250,6 +250,35 @@ public final class PanelKeysCheck {
         String key = PanelKeys.keyText(PanelKeys.at(true, 3));
         expect("its tooltip key follows it there (" + key + ")", key != null && key.endsWith("3"));
 
+        // A settings file from before the swap holds the old Mac default spelled out; it must not outvote the new one
+        java.lang.reflect.Field setf = org.helioviewer.jhv.app.Settings.class.getDeclaredField("settings");
+        setf.setAccessible(true);
+        if (mac) {
+            for (int n = 0; n <= 9; n++)
+                org.helioviewer.jhv.app.Settings.setProperty("keys." + (n == 0 ? "foldLeftPanelAll" : "foldLeftPanel" + n), "alt shift " + n);
+            org.helioviewer.jhv.app.Settings.setProperty("keys.foldLeftPanel9", "alt shift 9");
+            org.helioviewer.jhv.app.Settings.setProperty("keys.foldRightPanel3", "meta 3"); // a person's own binding: kept
+            ((java.util.Properties) setf.get(null)).remove("keys.panelDefaults");
+            KeyBindings.apply();
+        }
+        boolean sameSide = true;
+        for (boolean right : new boolean[]{false, true})
+            for (int n = 1; n <= 9; n++) {
+                if (mac && right && n == 3)
+                    continue; // the person's own binding
+                ActionCatalog.Entry e = ActionCatalog.get(PanelKeys.id(right, n));
+                KeyStroke ks = KeyBindings.current(e.id());
+                if (ks == null) // off a Mac, left 9 has none
+                    continue;
+                int mods = ks.getModifiers() & (InputEvent.CTRL_DOWN_MASK | InputEvent.ALT_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK | InputEvent.META_DOWN_MASK);
+                // the key in force, the hint's side for that modifier, and the command that key reaches: one sidebar
+                sameSide &= mods == PanelKeys.sideMask(right) && PanelKeyHint.sideOf(mods) == (right ? 'R' : 'L')
+                        && CommandKeys.commandFor(new KeyEvent(src, KeyEvent.KEY_PRESSED, 0, mods, KeyEvent.VK_0 + n, (char) ('0' + n))) == e.action();
+            }
+        expect("the key in force, the highlighted side and the command it runs are the same sidebar (" + (mac ? "Mac, after a stale old-default setting" : "this platform") + ")", sameSide);
+        if (mac)
+            expect("a stored old default is dropped and a different stored binding is kept", !KeyBindings.isCustom("foldLeftPanel1") && KeyBindings.isCustom("foldRightPanel3"));
+
         // Image Layers and Playback and Recording open by default (settings/layout-defaults.properties); a key in the person's own settings wins
         java.lang.reflect.Field sf = org.helioviewer.jhv.app.Settings.class.getDeclaredField("settings"); // earlier parts of this check saved fold states; Settings has no remove
         sf.setAccessible(true);
