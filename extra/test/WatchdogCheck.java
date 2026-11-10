@@ -20,6 +20,7 @@ public final class WatchdogCheck {
     }
 
     public static void main(String[] args) throws Exception {
+        System.setProperty("java.awt.headless", "true"); // a stall that needs a person opens no dialog here
         System.setProperty("user.home", java.nio.file.Files.createTempDirectory("hfs-watchdog").toString());
         org.helioviewer.jhv.app.Platform.init();
         org.helioviewer.jhv.io.Directories.createPersistentDirs();
@@ -48,6 +49,35 @@ public final class WatchdogCheck {
                 ok.statusCode() == 200 && ok.body().contains("\"cancelled\":0"));
         expect("and holds fetches", FetchGate.isPaused());
         org.helioviewer.jhv.io.api.LocalApi.stop();
+
+        long t = 1_000_000;
+        Watchdog.answered(t);
+        Watchdog.answered(t + Watchdog.QUIET_MS);
+        expect("a stop stays held until a person resumes", FetchGate.isPaused());
+        Watchdog.resume();
+        expect("and Resume lets go", !FetchGate.isPaused());
+
+        expect("a plain stall resumes itself", Watchdog.autoResumes(false, 1));
+        expect("a cancelling one does not", !Watchdog.autoResumes(true, 1));
+        expect("nor the third within the window", !Watchdog.autoResumes(false, 3));
+
+        t += 10_000_000;
+        Watchdog.onSilence(11_000);
+        Watchdog.answered(t);
+        Watchdog.answered(t + Watchdog.QUIET_MS - 1);
+        expect("still held just before the quiet period is up", FetchGate.isPaused());
+        Watchdog.answered(t + Watchdog.QUIET_MS);
+        expect("resumed once it is", !FetchGate.isPaused());
+
+        t += 10_000_000; // a burst, each stall inside the last one's quiet period: one event, and a person's
+        for (int i = 0; i < 3; i++) {
+            Watchdog.onSilence(11_000);
+            Watchdog.answered(t + i * 20_000L);
+        }
+        expect("a burst is not settled while it lasts", FetchGate.isPaused());
+        Watchdog.answered(t + 40_000 + Watchdog.QUIET_MS);
+        expect("and three in five minutes stay held", FetchGate.isPaused());
+        Watchdog.resume();
 
         System.out.println(failures == 0 ? "WatchdogCheck: all ok" : "WatchdogCheck: " + failures + " failed");
         System.exit(failures == 0 ? 0 : 1);
