@@ -90,7 +90,7 @@ public final class IdentifyPalette {
             super(new BorderLayout(0, 4));
             setBorder(BorderFactory.createEmptyBorder(9, 9, 0, 9));
             coalesce.setRepeats(false);
-            freeze.setToolTipText("Keep this result while you move the pointer, so it can be read or copied");
+            freeze.setToolTipText("Hold this result at its place on the screen while you move the pointer, so it can be read or copied. (Clicking an object selects it and follows it instead.)");
             freeze.addActionListener(e -> IdentifyHover.setFrozen(freeze.isSelected()));
             JButton copy = new JButton("Copy");
             copy.setToolTipText("Copy the settings, the result and the observers used as plain text, for a bug report");
@@ -202,7 +202,7 @@ public final class IdentifyPalette {
                     case LIVE -> "Under the pointer now";
                     case EMPTY -> "Nothing under the pointer; last match " + age(s.millis());
                     case AWAY -> "Pointer left the image; last match " + age(s.millis());
-                } + (IdentifyHover.frozen() ? " (frozen)" : "") + "</b>");
+                } + (IdentifyHover.selected() ? " (selected, followed)" : "") + (IdentifyHover.frozen() ? " (frozen)" : "") + "</b>");
             showMatches(s);
             layers.setText(layerText());
             revalidate();

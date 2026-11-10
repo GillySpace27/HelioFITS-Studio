@@ -34,6 +34,11 @@ public final class GLText {
     }
 
     public static void drawTextFloat(Viewport vp, List<String> lines, int x, int y) {
+        drawTextFloat(vp, lines, null, x, y);
+    }
+
+    /** As above, each line in its own RGBA (floats) when {@code colors} has one for it; the rest are light gray. */
+    public static void drawTextFloat(Viewport vp, List<String> lines, @javax.annotation.Nullable List<float[]> colors, int x, int y) {
         if (lines.isEmpty())
             return;
 
@@ -56,14 +61,23 @@ public final class GLText {
 
         renderer.beginRendering(vp.width, vp.height);
         int baselineY = vp.height - textY;
+        int i = 0;
         for (String line : lines) {
             renderer.setColor(SHADOW_COLOR);
             renderer.draw(line, textX + SHADOW_OFFSET_X, baselineY + SHADOW_OFFSET_Y, 0, textScaleFactor);
-            renderer.setColor(Colors.LightGrayFloat);
+            renderer.setColor(colors != null && i < colors.size() && colors.get(i) != null ? colors.get(i) : Colors.LightGrayFloat);
             renderer.draw(line, textX, baselineY, 0, textScaleFactor);
             baselineY -= lineStep;
+            i++;
         }
         renderer.endRendering();
+    }
+
+    /** The width and height, in physical pixels, that {@link #drawTextFloat} gives {@code text}. */
+    public static float[] floatTextSize(String text) {
+        SdfTextRenderer renderer = renderer();
+        int textSize = logicalToPhysicalSize(FLOAT_TEXT_SIZE);
+        return new float[]{renderer.measureWidth(text) * textSize / renderer.getFontSize(), textSize};
     }
 
     /** Lines centred in the viewport, half again the floating text size; for the empty-canvas hint. */

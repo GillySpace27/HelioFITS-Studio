@@ -29,6 +29,9 @@ public final class IdentifySettings {
     public static final String PULSE = "identify.pulse";
     public static final String ICON_BY_KIND = "identify.icon.byKind";
     public static final String ICON_COLOR = "identify.icon.color";
+    public static final String TOOLTIP_BY_KIND = "identify.tooltip.byKind";
+    public static final String SYMBOLS_INSTEAD = "identify.symbols.instead";
+    public static final String SYMBOLS_ALWAYS = "identify.symbols.always";
     public static final String HIGHLIGHT_ALL = "identify.highlightAll";
     public static final String DATA_COMETS = "identify.data.comets";
     public static final String DATA_CMES = "identify.data.cmes";
@@ -172,6 +175,21 @@ public final class IdentifySettings {
         return new int[]{c >> 16 & 255, c >> 8 & 255, c & 255};
     }
 
+    /** The label beside the pointer is written in the colour of the icon it describes (Gilly, 2026-11-10: the default). */
+    public static boolean tooltipByKind() {
+        return bool(TOOLTIP_BY_KIND, true);
+    }
+
+    /** A planet's highlight is its astronomical symbol in place of the ring. */
+    public static boolean symbolsInstead() {
+        return bool(SYMBOLS_INSTEAD, false);
+    }
+
+    /** Every planet and the Moon in view carries its symbol all the time, with no hover (Highlight All is not needed). */
+    public static boolean symbolsAlways() {
+        return bool(SYMBOLS_ALWAYS, false);
+    }
+
     public static boolean highlightAll() {
         return bool(HIGHLIGHT_ALL, false);
     }
@@ -230,6 +248,9 @@ public final class IdentifySettings {
         Settings.setProperty(PULSE, "true");
         Settings.setProperty(ICON_BY_KIND, "true");
         Settings.setProperty(ICON_COLOR, DEFAULT_ICON_COLOR);
+        Settings.setProperty(TOOLTIP_BY_KIND, "true");
+        Settings.setProperty(SYMBOLS_INSTEAD, "false");
+        Settings.setProperty(SYMBOLS_ALWAYS, "false");
         Settings.setProperty(DEEP_SKY_MAX_MAG, String.valueOf(DEFAULT_DEEP_SKY_MAX_MAG));
         fire();
     }
@@ -243,6 +264,7 @@ public final class IdentifySettings {
                 .put("tooltipDwellMillis", dwellMillis()).put("lightTime", lightTime())
                 .put("earthObserverUncertaintyKm", earthUncertaintyKm()).put("pluto", pluto())
                 .put("glow", glow()).put("pulse", pulse())
+                .put("tooltipByKind", tooltipByKind()).put("symbolsInstead", symbolsInstead()).put("symbolsAlways", symbolsAlways())
                 .put("iconByKind", iconByKind()).put("iconColor", String.format("#%06X", iconColor()))
                 .put("highlightAll", highlightAll()).put("comets", dataComets()).put("cmes", dataCmes())
                 .put("clusters", dataClusters()).put("galaxies", dataGalaxies()).put("nebulae", dataNebulae())

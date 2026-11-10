@@ -15,6 +15,7 @@ import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.math.Quat;
+import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.metadata.MetaData;
 import org.helioviewer.jhv.movie.ExportMovie;
 import org.helioviewer.jhv.opengl.GLText;
@@ -35,6 +36,8 @@ public final class IdentifyHover {
     private static final int OFFSET_Y = 25;
 
     private final List<String> label = new ArrayList<>();
+    private final List<float[]> labelColours = new ArrayList<>();
+    private String lastText;
     private final Timer dwell;
     private boolean labelShown;
     private int mouseX, mouseY;
@@ -42,6 +45,9 @@ public final class IdentifyHover {
     private List<Drawn.Hit> lastDrawn = List.of();
     private Snapshot kept = Snapshot.NONE;
     private boolean frozen;
+    /** The selected objects: they are followed through time and view changes, and hover is suspended meanwhile. */
+    private List<Mark> selMarks = List.of();
+    private Set<String> selBodies = Set.of(), selDrawn = Set.of();
     private final List<Runnable> keptListeners = new CopyOnWriteArrayList<>();
 
     /** Whether the pointer is on a result now, on the image with nothing under it, or has left the image. */
@@ -112,6 +118,137 @@ public final class IdentifyHover {
         return INSTANCE.frozen;
     }
 
+    /** The instance, so a check can pass its own targets. */
+    static IdentifyHover selectionForCheck() {
+        return INSTANCE;
+    }
+
+    /** Whether an object is selected (clicked), and so followed as time or the view changes. */
+    public static boolean selected() {
+        return !INSTANCE.selMarks.isEmpty();
+    }
+
+    /**
+     * A click on the canvas at (x, y): selects the highlighted object under the pointer (the Sun has
+     * no highlight, so it does not count); a click on the selected object, on empty space, or while
+     * a selection is held deselects it. A click on a different highlighted object selects that one.
+     * True when it selected or deselected something.
+     */
+    public static boolean clickSelect(Viewport vp, MapView mv, int x, int y) {
+        if (!IdentifySettings.enabled())
+            return false;
+        return INSTANCE.clickSelect(vp, mv, x, y, targets(vp, mv));
+    }
+
+    boolean clickSelect(Viewport vp, MapView mv, int x, int y, List<Identifier.Target> targets) {
+        Identifier.Options options = Identifier.Options.fromSettings();
+        List<Identifier.Match> matches = identify(vp, mv, x, y, options, targets);
+        List<Drawn.Hit> drawn = Drawn.at(vp, mv, x, y, options.tolerancePixels());
+        List<Mark> marks = IdentifyGlow.marks(matches, drawn);
+        boolean was = selected();
+        if (marks.isEmpty() || (was && bodyNames(matches).equals(selBodies) && drawnKeys(drawn).equals(selDrawn))) {
+            deselect();
+            return was;
+        }
+        selMarks = marks;
+        selBodies = bodyNames(matches);
+        selDrawn = drawnKeys(drawn);
+        mouseX = x;
+        mouseY = y;
+        show(matches, drawn);
+        return true;
+    }
+
+    /** Lets the selection go; hover takes over again at the next pointer move. */
+    public static void deselect() {
+        INSTANCE.deselectNow();
+    }
+
+    private void deselectNow() {
+        if (selMarks.isEmpty())
+            return;
+        selMarks = List.of();
+        selBodies = Set.of();
+        selDrawn = Set.of();
+        clear();
+        fireKept();
+    }
+
+    private static Set<String> bodyNames(List<Identifier.Match> matches) {
+        Set<String> out = new HashSet<>();
+        for (Identifier.Match m : IdentifyGlow.outlined(matches))
+            out.add(m.body().name());
+        return out;
+    }
+
+    private static Set<String> drawnKeys(List<Drawn.Hit> drawn) {
+        Set<String> out = new HashSet<>();
+        for (Drawn.Hit h : drawn)
+            if (h.mark() != null)
+                out.add(h.mark().key());
+        return out;
+    }
+
+    /** Makes (matches, drawn) the current answer: glow, label, footer text and panel readout. */
+    private void show(List<Identifier.Match> matches, List<Drawn.Hit> drawn) {
+        last = matches;
+        lastDrawn = drawn;
+        keep(matches, drawn);
+        IdentifyGlow.matched(matches, drawn);
+        label.clear();
+        labelColours.clear();
+        lastText = describe(matches, drawn);
+        labelShown = IdentifySettings.tooltip() && !label.isEmpty();
+        DisplayController.display();
+        fireKept();
+    }
+
+    /**
+     * Once per frame: moves a selected object's answer to where the object is now. Each selected
+     * object is looked up again in the sky (so time and view changes are followed, not frozen) and
+     * identified at the pixel it lands on, which updates the glow, the label, the footer and the
+     * panel together. An object that has left the page keeps its last answer.
+     */
+    public static void follow(Viewport vp, MapView mv) {
+        if (selected())
+            INSTANCE.follow(vp, mv, targets(vp, mv));
+    }
+
+    void follow(Viewport vp, MapView mv, List<Identifier.Target> targets) {
+        double[] p = null;
+        for (Mark m : selMarks) {
+            Identifier.Target t = null;
+            for (Identifier.Target c : targets)
+                if (m.layer() == null ? t == null : c.name().equals(m.layer()))
+                    t = c;
+            Vec3 dir = t == null ? null : m.where().direction(t.observer());
+            if (dir == null)
+                continue;
+            p = IdentifyPins.locate(vp, mv, t, dir, new double[]{mouseX, mouseY});
+            if (p == null)
+                p = IdentifyPins.locate(vp, mv, t, dir);
+            if (p != null)
+                break;
+        }
+        if (p == null)
+            return;
+        int x = (int) Math.round(p[0]), y = (int) Math.round(p[1]);
+        Identifier.Options options = Identifier.Options.fromSettings();
+        List<Identifier.Match> matches = new ArrayList<>();
+        for (Identifier.Match m : identify(vp, mv, x, y, options, targets))
+            if (selBodies.contains(m.body().name()))
+                matches.add(m);
+        List<Drawn.Hit> drawn = new ArrayList<>();
+        for (Drawn.Hit h : Drawn.at(vp, mv, x, y, options.tolerancePixels()))
+            if (h.mark() != null && selDrawn.contains(h.mark().key()))
+                drawn.add(h);
+        if (matches.isEmpty() && drawn.isEmpty())
+            return;
+        mouseX = x;
+        mouseY = y;
+        show(matches, drawn);
+    }
+
     /** Called (on the thread that moved the pointer) whenever the snapshot changes; coalesce in the listener. */
     public static void addSnapshotListener(Runnable r) {
         INSTANCE.keptListeners.add(r);
@@ -146,6 +283,10 @@ public final class IdentifyHover {
             clear();
             return null;
         }
+        if (selected() && lastText != null)
+            return lastText; // a selected object owns the readout; follow() keeps it current
+        if (frozen && lastText != null && (!last.isEmpty() || !lastDrawn.isEmpty()))
+            return lastText; // a frozen result holds the glow, the label and the footer where they are
         Identifier.Options options = Identifier.Options.fromSettings();
         List<Identifier.Match> matches = identify(vp, mv, x, y, options);
         List<Drawn.Hit> drawn = Drawn.at(vp, mv, x, y, options.tolerancePixels());
@@ -155,6 +296,8 @@ public final class IdentifyHover {
         IdentifyGlow.matched(matches, drawn);
         boolean wasShown = labelShown && !label.isEmpty();
         label.clear();
+        labelColours.clear();
+        lastText = null;
         labelShown = false;
         mouseX = x;
         mouseY = y;
@@ -164,6 +307,19 @@ public final class IdentifyHover {
                 DisplayController.display();
             return null;
         }
+        String text = describe(matches, drawn);
+        if (IdentifySettings.tooltip()) {
+            dwell.setInitialDelay(IdentifySettings.dwellMillis());
+            dwell.restart();
+        }
+        if (wasShown)
+            DisplayController.display();
+        lastText = text;
+        return lastText;
+    }
+
+    /** Fills the label's lines and colours for an answer and returns the footer text. */
+    private String describe(List<Identifier.Match> matches, List<Drawn.Hit> drawn) {
         StringBuilder sb = new StringBuilder();
         for (Identifier.Match m : matches) {
             if (!sb.isEmpty())
@@ -171,6 +327,9 @@ public final class IdentifyHover {
             sb.append(m.label());
             label.add(m.label());
             label.add(details(m));
+            float[] c = tint(Kind.of(m.body()));
+            labelColours.add(c);
+            labelColours.add(c);
         }
         for (Drawn.Hit h : drawn) {
             if (!sb.isEmpty())
@@ -180,14 +339,20 @@ public final class IdentifyHover {
                 continue; // the orbit plot and the event popup label their own
             label.add(h.name());
             label.add(h.details());
+            float[] c = h.mark() == null ? null : tint(h.mark().kind());
+            labelColours.add(c);
+            labelColours.add(c);
         }
-        if (IdentifySettings.tooltip()) {
-            dwell.setInitialDelay(IdentifySettings.dwellMillis());
-            dwell.restart();
-        }
-        if (wasShown)
-            DisplayController.display();
         return sb.toString();
+    }
+
+    /** The label's colour for an object of {@code kind}: its icon's, or null (the usual gray) when that is switched off. */
+    @Nullable
+    private static float[] tint(Kind kind) {
+        if (!IdentifySettings.tooltipByKind())
+            return null;
+        int[] c = IdentifySettings.iconRgb(kind);
+        return new float[]{c[0] / 255f, c[1] / 255f, c[2] / 255f, 1};
     }
 
     /** One line under each name: how far, and how far from the Sun in the sky. */
@@ -198,11 +363,14 @@ public final class IdentifyHover {
 
     /** Every body under screen point (x, y): the identification the footer shows. */
     public static List<Identifier.Match> identify(Viewport vp, MapView mv, double x, double y, Identifier.Options options) {
+        return identify(vp, mv, x, y, options, targets(vp, mv));
+    }
+
+    static List<Identifier.Match> identify(Viewport vp, MapView mv, double x, double y, Identifier.Options options, List<Identifier.Target> targets) {
         Identifier.Probe probe = Probes.at(mv, vp, x, y);
         if (probe == null)
             return List.of();
         Identifier.Probe probe1 = Probes.at(mv, vp, x + 1, y);
-        List<Identifier.Target> targets = targets(vp, mv);
         List<Identifier.Match> matches = Identifier.identify(targets, probe, probe1, options);
         return mv.isOrthographic() ? drawnOnly(matches, targets, mv.viewRotation()) : matches;
     }
@@ -251,6 +419,11 @@ public final class IdentifyHover {
     }
 
     private void clear() {
+        if ((frozen || selected()) && IdentifySettings.enabled() && (!last.isEmpty() || !lastDrawn.isEmpty()))
+            return; // leaving the canvas does not drop a frozen or selected result
+        selMarks = List.of();
+        selBodies = Set.of();
+        selDrawn = Set.of();
         dwell.stop();
         last = List.of();
         lastDrawn = List.of();
@@ -261,6 +434,7 @@ public final class IdentifyHover {
         }
         if (!label.isEmpty()) {
             label.clear();
+            labelColours.clear();
             if (labelShown)
                 DisplayController.display();
         }
@@ -273,6 +447,6 @@ public final class IdentifyHover {
         if (!h.labelShown || h.label.isEmpty() || !IdentifySettings.tooltip() || ExportMovie.isRecording())
             return;
         // The pointer is in canvas pixels; the text is placed in the viewport, which a fixed output aspect insets
-        GLText.drawTextFloat(vp, h.label, h.mouseX - vp.x + OFFSET_X, h.mouseY - vp.yAWT + OFFSET_Y);
+        GLText.drawTextFloat(vp, h.label, h.labelColours, h.mouseX - vp.x + OFFSET_X, h.mouseY - vp.yAWT + OFFSET_Y);
     }
 }

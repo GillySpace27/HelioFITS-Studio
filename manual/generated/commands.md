@@ -542,7 +542,7 @@ These are run by scripts and Search Controls rather than from a menu; the argume
   - Arguments: `observer`, `inner_deg`, `half_width_deg`, `field`, `outer_deg`, `start`, `end`, `step_minutes`
   - `identifyInField`
 * - Turn the cursor identifier and its tooltip and stars on or off, and set its tolerances; answers with every setting
-  - Arguments: `galaxies`, `highlight_all`, `earth_observer_uncertainty_km`, `nebulae`, `light_time`, `tooltip`, `star_max_magnitude`, `pluto`, `stars`, `enabled`, `icon_by_kind`, `star_names_bayer`, `tolerance_pixels`, `icon_color`, `cmes`, `tooltip_dwell_ms`, `pulse`, `deep_sky_max_magnitude`, `comets`, `star_names_iau`, `glow`, `clusters`
+  - Arguments: `galaxies`, `highlight_all`, `earth_observer_uncertainty_km`, `light_time`, `tooltip`, `enabled`, `symbols_always`, `symbols_instead`, `icon_by_kind`, `star_names_bayer`, `clusters`, `tooltip_by_kind`, `nebulae`, `star_max_magnitude`, `pluto`, `stars`, `tolerance_pixels`, `icon_color`, `cmes`, `tooltip_dwell_ms`, `pulse`, `deep_sky_max_magnitude`, `comets`, `star_names_iau`, `glow`
   - `identifySet`
 * - Pin a body's label to the view, or unpin it, or list the pins; pins follow their body and are saved with the session
   - Arguments: `pinned`, `clear`, `body`
