@@ -7,8 +7,18 @@ this page is the transport. Code: `io/api/LocalApi.java`; check: `LocalApiCheck`
 ## Switching it on
 
 Settings > General > Local API. Off by default: nothing listens until the person says so. The
-setting is `api.enabled`; `api.confirmDestructive` (on by default) puts every `destructive` command
-to the person in a dialog before it runs. Both apply at once, no restart.
+setting is `api.enabled`. `api.permission` says what is put to the person in a dialog before it runs:
+`ALL` (nothing), `REMOVALS` (the default: every `destructive` command, and the ones that write files:
+exportStill, exportMovie, saveSession, saveSessionAs, exportSessionWithData) or `EVERYTHING` (also every
+`write` command; reads and UI commands never ask). A setting from before the levels, `api.confirmDestructive=false`,
+reads as `ALL`. Both apply at once, no restart.
+
+**Timed approval.** When the question has come up three times within two minutes, its dialog gets
+"Approve all commands for the next N minutes" (N from 1 to 240, remembered as `api.approveMinutes`, 10 at first).
+Ticked, the same caller (by its client name) is not asked again for N minutes, except for the commands that discard
+the whole scene or the program: quit, closeWindow, newSession, openSession, sessionLoad, revertToSaved, openDemo.
+It is kept in memory only, so quitting ends it, as does changing the level. Each command it lets through
+is written to the activity record and the log as "auto-approved (timed, N min left)".
 
 ## Finding Studio
 

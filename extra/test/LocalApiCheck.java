@@ -170,6 +170,61 @@ public final class LocalApiCheck {
         LocalApi.setConfirmsDestructive(true);
         Reply read = post(ep.port(), "127.0.0.1", bearer, rpc("commands.invoke", new JSONObject().put("id", "listCommands")));
         expect("a read command is never put to the person", new JSONObject(read.body()).has("result") && asked[0] == 2);
+        // Levels: what each one puts to the person
+        ApiPermission.endTimedApproval();
+        int[] n = {0};
+        LocalApi.setConfirmer((spec, a) -> {
+            n[0]++;
+            return false;
+        });
+        JSONObject zoom = new JSONObject().put("id", "zoomIn");
+        JSONObject export = new JSONObject().put("id", "exportStill").put("args", new JSONObject().put("path", "/nonexistent/never.png"));
+        ApiPermission.setLevel(ApiPermission.Level.ALL);
+        post(ep.port(), "127.0.0.1", bearer, rpc("commands.invoke", remove));
+        expect("Allow everything asks nothing, a removal included", n[0] == 0);
+        ApiPermission.setLevel(ApiPermission.Level.REMOVALS);
+        post(ep.port(), "127.0.0.1", bearer, rpc("commands.invoke", zoom));
+        expect("removals level: an ordinary change is not asked", n[0] == 0);
+        post(ep.port(), "127.0.0.1", bearer, rpc("commands.invoke", export));
+        expect("removals level: a file write is asked", n[0] == 1);
+        ApiPermission.setLevel(ApiPermission.Level.EVERYTHING);
+        post(ep.port(), "127.0.0.1", bearer, rpc("commands.invoke", zoom));
+        expect("everything level: an ordinary change is asked", n[0] == 2);
+        post(ep.port(), "127.0.0.1", bearer, rpc("commands.invoke", new JSONObject().put("id", "listCommands")));
+        expect("everything level: a read is not", n[0] == 2);
+
+        // Timed approval: offered at the third question in two minutes, covers removals but not a whole scene
+        ApiPermission.setLevel(ApiPermission.Level.REMOVALS);
+        n[0] = 0;
+        org.helioviewer.jhv.gui.registry.CommandSpec rm = org.helioviewer.jhv.gui.registry.CommandRegistry.get("layerRemove");
+        long t0 = System.nanoTime();
+        ApiPermission.endTimedApproval();
+        expect("the offer comes on the third question inside two minutes, not before",
+                !ApiPermission.notePrompt(rm, t0) && !ApiPermission.notePrompt(rm, t0 + 1_000_000_000L) && ApiPermission.notePrompt(rm, t0 + 2_000_000_000L));
+        ApiPermission.endTimedApproval();
+        expect("questions more than two minutes apart do not add up",
+                !ApiPermission.notePrompt(rm, t0) && !ApiPermission.notePrompt(rm, t0 + 130_000_000_000L) && !ApiPermission.notePrompt(rm, t0 + 260_000_000_000L));
+        ApiPermission.endTimedApproval();
+        LocalApi.setConfirmer((spec, a) -> {
+            n[0]++;
+            if (n[0] == 3)
+                LocalApi.grantMinutes.set(5); // the dialog's ticked box
+            return true;
+        });
+        for (int i = 0; i < 3; i++)
+            post(ep.port(), "127.0.0.1", bearer, rpc("commands.invoke", remove));
+        expect("the third question in a row is the one that offers it", n[0] == 3);
+        post(ep.port(), "127.0.0.1", bearer, rpc("commands.invoke", remove));
+        expect("after it is ticked a removal is not asked again", n[0] == 3 && ApiPermission.timedApprovalActive());
+        JSONObject quit = new JSONObject().put("id", "quit");
+        LocalApi.setConfirmer((spec, a) -> {
+            n[0]++;
+            return false;
+        });
+        Reply scene = post(ep.port(), "127.0.0.1", bearer, rpc("commands.invoke", quit));
+        expect("a command that discards the whole scene is still asked, and declined here", kind(scene).equals("declined") && n[0] == 4);
+        ApiPermission.setLevel(ApiPermission.Level.REMOVALS);
+        expect("changing the level ends the approval", !ApiPermission.timedApprovalActive());
         LocalApi.setConfirmer(dialog);
 
         LocalApi.stop();

@@ -188,8 +188,10 @@ public final class SettingsDialog extends StandardDialog implements Interfaces.S
         JCheckBox api = new JCheckBox("<html>Allow scripts and assistants on this computer<br/><small>The heliofits Python package and the heliofits-mcp server reach Studio through a local port with a key in ~/HFStudio/api.json",
                 org.helioviewer.jhv.io.api.LocalApi.isEnabled());
         api.addActionListener(e -> org.helioviewer.jhv.io.api.LocalApi.setEnabled(api.isSelected()));
-        JCheckBox apiConfirm = new JCheckBox("Ask before a script removes or discards something", org.helioviewer.jhv.io.api.LocalApi.confirmsDestructive());
-        apiConfirm.addActionListener(e -> org.helioviewer.jhv.io.api.LocalApi.setConfirmsDestructive(apiConfirm.isSelected()));
+        javax.swing.JComboBox<org.helioviewer.jhv.io.api.ApiPermission.Level> apiConfirm = new javax.swing.JComboBox<>(org.helioviewer.jhv.io.api.ApiPermission.Level.values());
+        apiConfirm.setSelectedItem(org.helioviewer.jhv.io.api.ApiPermission.level());
+        apiConfirm.setToolTipText("What a script or assistant may do without asking you first. A timed approval, offered after three questions in two minutes, ends when this is changed.");
+        apiConfirm.addActionListener(e -> org.helioviewer.jhv.io.api.ApiPermission.setLevel((org.helioviewer.jhv.io.api.ApiPermission.Level) apiConfirm.getSelectedItem()));
 
         JCheckBox glow = new JCheckBox("<html>Glow around the window while a script or assistant drives Studio<br/><small>In the driver's colour, set in the Theme Manager; the edge is kept while the API is on, so the view does not resize",
                 org.helioviewer.jhv.activity.Driver.glowEnabled());

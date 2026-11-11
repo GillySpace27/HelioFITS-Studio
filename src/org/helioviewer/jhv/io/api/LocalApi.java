@@ -81,8 +81,9 @@ public final class LocalApi {
         return Boolean.parseBoolean(Settings.getProperty(ENABLED));
     }
 
+    /** Whether anything is put to the person at all: false only at "Allow everything". */
     public static boolean confirmsDestructive() {
-        return !"false".equals(Settings.getProperty(CONFIRM));
+        return ApiPermission.level() != ApiPermission.Level.ALL;
     }
 
     /** The settings' switch: remembers the choice and starts or stops now. */
@@ -95,7 +96,7 @@ public final class LocalApi {
     }
 
     public static void setConfirmsDestructive(boolean on) {
-        Settings.setProperty(CONFIRM, Boolean.toString(on));
+        ApiPermission.setLevel(on ? ApiPermission.Level.REMOVALS : ApiPermission.Level.ALL);
     }
 
     /** At start-up: listen when the setting says so. */
@@ -325,7 +326,7 @@ public final class LocalApi {
         long t0 = System.nanoTime();
         JSONObject answer = null;
         try {
-            answer = invoke(id, command, args);
+            answer = invoke(id, command, args, who);
             return answer;
         } finally {
             Driver.end();
@@ -335,12 +336,28 @@ public final class LocalApi {
         }
     }
 
-    private static JSONObject invoke(Object id, String command, JSONObject args) {
+    private static JSONObject invoke(Object id, String command, JSONObject args, String who) {
         CommandSpec spec = CommandRegistry.get(command);
         if (spec == null)
             return error(id, -32601, "no command '" + command + "'", "unknown-command");
-        if (spec.effect() == CommandSpec.Effect.DESTRUCTIVE && confirmsDestructive() && !confirm(spec, args))
-            return error(id, -32002, "'" + command + "' was declined", "declined");
+        if (ApiPermission.asks(spec, ApiPermission.level())) {
+            long now = System.nanoTime();
+            int left = ApiPermission.approvedMinutesLeft(spec, who, now);
+            if (left > 0) {
+                Activity.event(Activity.Kind.CMD, who, "auto-approved (timed, " + left + " min left): " + command);
+                Log.info("Local API: " + who + " " + command + " auto-approved by the timed approval, " + left + " min left");
+            } else {
+                offerTimed.set(ApiPermission.notePrompt(spec, now));
+                if (!confirm(spec, args))
+                    return error(id, -32002, "'" + command + "' was declined", "declined");
+                int minutes = grantMinutes.getAndSet(0);
+                if (minutes > 0) {
+                    ApiPermission.approve(who, minutes, now);
+                    Activity.event(Activity.Kind.CMD, who, "timed approval started: " + minutes + " min, every command but those that discard the whole scene");
+                    Log.info("Local API: " + who + " approved its commands for " + minutes + " min");
+                }
+            }
+        }
         Dispatch.Result r = Dispatch.invoke(command, args);
         if (r.ok())
             return result(id, r.value());
@@ -370,12 +387,38 @@ public final class LocalApi {
         return box[0];
     }
 
+    /** Set before a question: the dialog offers the timed approval. Read once by the dialog. */
+    private static final java.util.concurrent.atomic.AtomicBoolean offerTimed = new java.util.concurrent.atomic.AtomicBoolean();
+    /** Set by an answer that ticked the timed approval: minutes, else 0. A stand-in confirmer may set it too. */
+    static final java.util.concurrent.atomic.AtomicInteger grantMinutes = new java.util.concurrent.atomic.AtomicInteger();
+
     private static boolean askInDialog(CommandSpec spec, JSONObject args) {
+        boolean offer = offerTimed.getAndSet(false);
         String text = "A script or assistant asks Studio to run \"" + spec.id() + "\": " + spec.description() + "."
                 + (args.isEmpty() ? "" : "\nArguments: " + args)
                 + "\n\nIt changes or discards work. Allow it?"
-                + "\n(Settings > General turns this question off.)";
-        int answer = JOptionPane.showConfirmDialog(MainFrame.get(), text, "Local API", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+                + "\n(Settings > General sets what is asked.)";
+        javax.swing.JCheckBox timed = null;
+        javax.swing.JSpinner minutes = null;
+        Object message = text;
+        if (offer) {
+            timed = new javax.swing.JCheckBox("Approve all commands for the next");
+            minutes = new javax.swing.JSpinner(new javax.swing.SpinnerNumberModel(ApiPermission.minutes(), 1, 240, 1));
+            javax.swing.JPanel row = new javax.swing.JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 4, 0));
+            row.add(timed);
+            row.add(minutes);
+            row.add(new javax.swing.JLabel("minutes (not removing a whole scene)"));
+            javax.swing.JPanel box = new javax.swing.JPanel(new java.awt.BorderLayout(0, 8));
+            box.add(new javax.swing.JLabel("<html>" + text.replace("&", "&amp;").replace("<", "&lt;").replace("\n", "<br/>")), java.awt.BorderLayout.NORTH);
+            box.add(row, java.awt.BorderLayout.SOUTH);
+            message = box;
+        }
+        int answer = JOptionPane.showConfirmDialog(MainFrame.get(), message, "Local API", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (answer == JOptionPane.YES_OPTION && timed != null && timed.isSelected()) {
+            int m = (Integer) minutes.getValue();
+            ApiPermission.setMinutes(m);
+            grantMinutes.set(m);
+        }
         return answer == JOptionPane.YES_OPTION;
     }
 
