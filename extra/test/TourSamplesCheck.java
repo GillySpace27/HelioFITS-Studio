@@ -24,17 +24,19 @@ public final class TourSamplesCheck {
     public static void main(String[] args) throws Exception {
         expect("at least one sample is listed", !TourSamples.NAMES.isEmpty());
         String readme = Files.readString(new File("resources/samples/README.md").toPath());
-        for (String name : TourSamples.NAMES) {
+        List<String> all = new java.util.ArrayList<>(TourSamples.NAMES);
+        all.addAll(TourSamples.DEMO_NAMES);
+        for (String name : all) {
             expect(name + " is on the classpath", TourSamplesCheck.class.getResource("/samples/" + name) != null);
             expect(name + " has a row in resources/samples/README.md", readme.contains("| `" + name + "` |"));
         }
 
         File dir = Files.createTempDirectory("hfs-tour-samples").toFile();
         List<File> first = TourSamples.extract(dir);
-        boolean all = first.size() == TourSamples.NAMES.size();
+        boolean ok = first.size() == TourSamples.NAMES.size();
         for (File f : first)
-            all &= f.isFile() && f.length() > 2880 && f.getParentFile().equals(dir);
-        expect("each sample unpacks to a non-empty file in the folder", all);
+            ok &= f.isFile() && f.length() > 2880 && f.getParentFile().equals(dir);
+        expect("each sample unpacks to a non-empty file in the folder", ok);
         String[] left = dir.list((d, n) -> n.endsWith(".part"));
         expect("no partial copy is left behind", left != null && left.length == 0);
 
