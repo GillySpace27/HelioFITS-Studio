@@ -107,6 +107,20 @@ public final class ActionCatalog {
                 org.helioviewer.jhv.app.Commands.toggleGrid();
             }
         }, "View/Show or Hide Grid", "Turn the grid on or off: the master switch of the Grid row (G on the canvas)");
+        // The toolbar's mode toggles as commands (Gilly, 2026-11-11), so they can take a key and Cmd+K runs them; the buttons follow through ViewState
+        put("toggleTracking", toggle("Turn Tracking On or Off", () -> org.helioviewer.jhv.app.state.ViewState.setTracking(!org.helioviewer.jhv.app.state.ViewState.isTracking())),
+                "View/Turn Tracking On or Off", "Track solar rotation as the movie plays: the toolbar's Track button");
+        put("toggleDiffRotation", toggle("Turn Differential Rotation On or Off",
+                () -> org.helioviewer.jhv.app.state.ViewState.setDifferentialRotation(!org.helioviewer.jhv.app.state.ViewState.isDifferentialRotation())),
+                "View/Turn Differential Rotation On or Off", "The toolbar's Differential button");
+        put("toggleCorona", toggle("Show or Hide Corona", () -> org.helioviewer.jhv.app.state.ViewState.setShowCorona(!org.helioviewer.jhv.app.state.ViewState.isShowCorona())),
+                "View/Show or Hide Corona", "Show the off-disk corona or only the disk: the toolbar's Corona button");
+        put("toggleMultiview", toggle("Turn Multiview On or Off", () -> {
+            boolean entering = !org.helioviewer.jhv.app.state.ViewState.isMultiview();
+            org.helioviewer.jhv.app.state.ViewState.setMultiview(entering);
+            if (entering) // each view starts filled, as the toolbar button does
+                org.helioviewer.jhv.display.DisplayController.zoomFit();
+        }), "View/Turn Multiview On or Off", "Each shown image layer in a view of its own: the toolbar's Multiview button");
         // Layers
         put("newJp2Layer", new Actions.NewLayer(), "Layers/New Image Layer…", "");
         put("newSynopticLayer", new Actions.NewSynopticLayer(), "Layers/New Synoptic Layer...", "");
@@ -278,6 +292,15 @@ public final class ActionCatalog {
         defaultKey("punchLatest", java.awt.event.KeyEvent.VK_L, menu);
         // The person's own keybindings (Settings > Keybindings), applied over the defaults stated above
         org.helioviewer.jhv.gui.registry.KeyBindings.apply();
+    }
+
+    private static Action toggle(String name, Runnable run) {
+        return new AbstractAction(name) {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                run.run();
+            }
+        };
     }
 
     private static void defaultKey(String id, int key, int modifiers) {

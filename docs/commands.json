@@ -623,6 +623,78 @@
         "type": "object",
         "properties": {}
       },
+      "name": "toggleTracking",
+      "description": "Track solar rotation as the movie plays: the toolbar's Track button",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "x-effect": "write"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "toggleDiffRotation",
+      "description": "The toolbar's Differential button",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "x-effect": "write"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "toggleCorona",
+      "description": "Show the off-disk corona or only the disk: the toolbar's Corona button",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "x-effect": "write"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "toggleMultiview",
+      "description": "Each shown image layer in a view of its own: the toolbar's Multiview button",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "x-effect": "write"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
       "name": "newJp2Layer",
       "description": "New Image Layer\u2026",
       "annotations": {

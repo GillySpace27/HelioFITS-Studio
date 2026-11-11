@@ -47,9 +47,11 @@ public final class ShortcutIndexCheck {
                 accelerators++;
         int canvas = (int) CanvasKeys.ALL.stream().filter(c -> CanvasKeys.key(c.id()) >= 0).count();
         expect("one row per binding (" + accelerators + " commands + " + canvas + " canvas keys + " + ShortcutIndex.FIXED.size() + " fixed keys)",
-                rows.size() == accelerators + canvas + ShortcutIndex.FIXED.size());
+                rows.size() == accelerators + canvas + ShortcutIndex.FIXED.size() + 2); // + Shift faster, Option slower
         expect("F and V zoom and G shows or hides the grid, on the canvas", has(rows, "Zoom In", "F") && has(rows, "Zoom Out", "V")
                 && has(rows, "Show or Hide Grid", "G"));
+        expect("Shift faster and Option slower are listed", has(rows, "Hold for Faster Camera Keys (canvas)", "Shift")
+                && has(rows, "Hold for Slower Camera Keys (canvas)", "Option"));
         expect("the fixed keys are listed, J K L among them", has(rows, "Shuttle Reverse, Stop, Forward (anywhere but a text field)", "J", "K", "L")
                 && rows.stream().anyMatch(r -> r.group().equals("Fixed keys") && r.caps().equals(List.of("Space"))));
         expect("sidebar toggle is there with its symbols", has(rows, "Show or Hide Left Sidebar", menuCap, "["));

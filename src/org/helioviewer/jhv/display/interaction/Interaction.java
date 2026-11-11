@@ -186,10 +186,11 @@ public final class Interaction {
     /** True when a canvas key ({@link CanvasKeys}) took the press. */
     public boolean keyPressed(KeyInputEvent e) {
         hold(e.metaDown(), e.altDown(), e.ctrlDown());
-        if (annotating(e.shiftDown())) {
-            interactionAnnotate.keyPressed(e);
-        } else if (CanvasKeys.pressed(e)) {
+        // Canvas keys first, Shift or not (Shift is fast): none sits on N, P or Delete, the annotation keys. A pending annotation keeps every key.
+        if (!Annotations.hasPending() && CanvasKeys.pressed(e)) {
             return true; // W A S D Q E turn the scene, F and V zoom, G the grid, R resets the view, Cmd+Left and Right set the playback rate (rebindable)
+        } else if (annotating(e.shiftDown())) {
+            interactionAnnotate.keyPressed(e);
         } else if (e.key() == KeyInputEvent.Key.X || e.key() == KeyInputEvent.Key.Y || e.key() == KeyInputEvent.Key.Z) {
             if (axisKeys.add(e.key()))
                 updateAxis();

@@ -25,7 +25,7 @@ import org.helioviewer.jhv.opengl.GLText;
 /**
  * The keys the canvas answers to while it has focus (Gilly, 2026-11-08, revised 2026-11-09 and 2026-11-11):
  * W and S pitch, A and D yaw and Q and E roll the scene; F and V zoom, continuously while held; G turns the
- * grid on or off; R resets the view; Cmd+Left and Cmd+Right (Ctrl off a Mac) lower and raise the playback
+ * grid on or off; I and O trim the movie and Home and End go to its first and last frame (2026-11-11); R resets the view; Cmd+Left and Cmd+Right (Ctrl off a Mac) lower and raise the playback
  * rate. The plain arrows' stepping and Space stay where they were ({@link Interaction}).
  *
  * <p>They are bare keys on purpose: the canvas is the one place they cannot be mistaken for typing,
@@ -38,11 +38,13 @@ import org.helioviewer.jhv.opengl.GLText;
  *
  * <p>Signs are "grab the Sun": the key moves the near side of the scene the way a drag in that
  * direction would (D to the right, W up), counter-clockwise for Q. <b>Invert</b> flips pitch and
- * yaw. Option held makes any of the held keys slow, for fine framing. Zoom runs at half the turn rate,
+ * yaw. Option held makes any of the held keys slow, for fine framing, and Shift held makes them fast
+ * (Gilly, 2026-11-11); both together cancel. Zoom runs at half the turn rate,
  * in the same terms: the turn rate in radians a second is the zoom in e-folds a second, halved, so the
  * picture grows or shrinks by the same factor each second whatever its size, the way the mouse
- * wheel zooms. Shift on the canvas means annotate, and Cmd and Ctrl pick the pan and axis modes, so
- * none of those three is taken with a held key.
+ * wheel zooms. Cmd and Ctrl pick the pan and axis modes, so neither is taken with a held key. Shift
+ * with a drag, or with N, P or Delete, still annotates: no canvas key can sit on those keys, and while an
+ * annotation is pending the keys go to it ({@link Interaction}).
  *
  * <p>The turn is applied to the camera's drag rotation, as a trackball drag is, so it is part of the
  * saved scene and of undo; a hold is one undo step ({@link SceneUndo#keysDown}). It applies to the
@@ -73,6 +75,10 @@ public final class CanvasKeys {
             new Cmd("canvasZoomOut", "Zoom Out", KeyEvent.VK_V, false, "Zoom out while held, at half the turn rate"),
             new Cmd("canvasResetView", "Reset View", KeyEvent.VK_R, false, "Put the view back to its default"),
             new Cmd("canvasToggleGrid", "Show or Hide Grid", KeyEvent.VK_G, false, "Turn the grid on or off: the master switch of the Grid row"),
+            new Cmd("canvasTrimStart", "Trim Start Here", KeyEvent.VK_I, false, "Start the movie at this frame, as I does on the time slider"),
+            new Cmd("canvasTrimEnd", "Trim End Here", KeyEvent.VK_O, false, "End the movie at this frame, as O does on the time slider"),
+            new Cmd("canvasFirstFrame", "First Frame", KeyEvent.VK_HOME, false, "Go to the first frame of the movie (its trimmed start)"),
+            new Cmd("canvasLastFrame", "Last Frame", KeyEvent.VK_END, false, "Go to the last frame of the movie (its trimmed end)"),
             new Cmd("canvasFasterPlayback", "Faster Playback (with Cmd)", KeyEvent.VK_RIGHT, true, "Raise the playback rate by one"),
             new Cmd("canvasSlowerPlayback", "Slower Playback (with Cmd)", KeyEvent.VK_LEFT, true, "Lower the playback rate by one"));
 
@@ -85,6 +91,8 @@ public final class CanvasKeys {
     /** Turn rate, degrees a second (judgement: a quarter turn in two seconds), and the factor Option takes off it. */
     public static final double DEFAULT_DEGREES_PER_SECOND = 45;
     static final double SLOW = 0.2;
+    /** The factor Shift puts on it: the inverse of Option's. */
+    static final double FAST = 1 / SLOW;
     /** Zoom runs at this fraction of the turn rate: radians a second of turn, e-folds a second of zoom. Gilly: about half. */
     static final double ZOOM_FRACTION = 0.5;
     static final int TICK_MS = 16;
@@ -95,6 +103,7 @@ public final class CanvasKeys {
         final Set<String> down = new LinkedHashSet<>();
         final Set<String> shot = new LinkedHashSet<>(); // one-press commands whose key is still down: a held key does not repeat them
         boolean slow;
+        boolean fast;
         long lastNanos;
         boolean sky; // a look-around was steered: commit it when the keys are let go
         String toast = "";
@@ -276,15 +285,18 @@ public final class CanvasKeys {
 
     /** A key went down. True when the canvas keys took it. */
     static boolean pressed(KeyInputEvent e) {
-        if (e.shiftDown() || otherMod(e))
+        STATE.slow = e.altDown(); // first, so Option or Shift pressed during a hold changes its speed at once
+        STATE.fast = e.shiftDown();
+        if (otherMod(e))
             return false;
         boolean withCmd = cmd(e);
+        if (withCmd && e.shiftDown())
+            return false; // Cmd+Shift is the menus' (Cmd+Shift+Left and Right select text)
         Cmd c = command(e.code(), withCmd);
         if (c == null)
             return false;
         if (withCmd && e.altDown())
             return false; // Cmd+Option+Left and Right are the Step Frame menu items
-        STATE.slow = e.altDown();
         switch (c.id()) {
             case "canvasFasterPlayback" -> {
                 if (STATE.shot.add(c.id()))
@@ -300,6 +312,10 @@ public final class CanvasKeys {
                     toast("View reset");
                 }
             }
+            case "canvasTrimStart" -> once(c, Commands::trimStartHere);
+            case "canvasTrimEnd" -> once(c, Commands::trimEndHere);
+            case "canvasFirstFrame" -> once(c, Commands::firstFrame);
+            case "canvasLastFrame" -> once(c, Commands::lastFrame);
             case "canvasToggleGrid" -> {
                 if (STATE.shot.add(c.id()) && !recordingLocked()) {
                     Boolean on = Commands.toggleGrid();
@@ -318,9 +334,21 @@ public final class CanvasKeys {
         return true;
     }
 
+    /** A one-press command: runs on the press, not again while the key repeats. */
+    private static void once(Cmd c, Runnable run) {
+        if (STATE.shot.add(c.id()))
+            run.run();
+    }
+
+    /** The factor on the turn and zoom rate: Option slow, Shift fast, both cancel. */
+    static double speed(boolean slow, boolean fast) {
+        return (slow ? SLOW : 1) * (fast ? FAST : 1);
+    }
+
     /** A key came up. Whatever the modifiers were, the key's own commands end. */
     static void released(KeyInputEvent e) {
         STATE.slow = e.altDown();
+        STATE.fast = e.shiftDown();
         for (Cmd c : ALL)
             if (key(c.id()) == e.code()) {
                 STATE.down.remove(c.id());
@@ -354,7 +382,7 @@ public final class CanvasKeys {
         STATE.lastNanos = now;
         if (STATE.down.isEmpty() || recordingLocked())
             return;
-        double step = Math.toRadians(degreesPerSecond()) * dt * (STATE.slow ? SLOW : 1);
+        double step = Math.toRadians(degreesPerSecond()) * dt * speed(STATE.slow, STATE.fast);
         boolean changed = false;
         double[] turn = turn(STATE.down, step, invert());
         boolean three = Display.mode.rendersIn3D();

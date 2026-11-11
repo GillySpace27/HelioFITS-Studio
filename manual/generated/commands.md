@@ -170,6 +170,18 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - View > Show or Hide Grid
   - Turn the grid on or off: the master switch of the Grid row (G on the canvas)
   - `toggleGrid`
+* - View > Turn Tracking On or Off
+  - Track solar rotation as the movie plays: the toolbar's Track button
+  - `toggleTracking`
+* - View > Turn Differential Rotation On or Off
+  - The toolbar's Differential button
+  - `toggleDiffRotation`
+* - View > Show or Hide Corona
+  - Show the off-disk corona or only the disk: the toolbar's Corona button
+  - `toggleCorona`
+* - View > Turn Multiview On or Off
+  - Each shown image layer in a view of its own: the toolbar's Multiview button
+  - `toggleMultiview`
 * - View > Left Sidebar Panels > Collapse All, Left First
   - Collapse all, never unfolding: press 1 folds every section of the left sidebar, press 2 within 5 seconds the other sidebar's too, press 3 collapses both sidebars and the timeline strip
   - `foldLeftPanelAll`

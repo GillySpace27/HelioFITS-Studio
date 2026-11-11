@@ -113,6 +113,16 @@ public final class Commands {
         Player.setFrame(frame);
     }
 
+    /** The first frame of the playback range (the trimmed movie). */
+    public static void firstFrame() {
+        Player.setFrame(ViewState.playbackData().firstFrame());
+    }
+
+    /** The last frame of the playback range. */
+    public static void lastFrame() {
+        Player.setFrame(ViewState.playbackData().lastFrame());
+    }
+
     public static void seekTime(JHVTime time) {
         Player.setTime(time);
     }
