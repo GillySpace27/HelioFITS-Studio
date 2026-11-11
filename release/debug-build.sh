@@ -1,7 +1,7 @@
 #!/bin/bash
 # Debug build: merge every open PR that is green and conflict-free onto a throwaway branch, build an unsigned
 # app, launch it against its own data folder, and say what is in it. For looking at what the current work does,
-# not for shipping: it never tags, releases, notarizes, signs with the Developer ID, pushes, or touches master.
+# not for shipping: it never tags, releases, notarizes, signs with the Developer ID, pushes, or touches master. Base: origin/dev if it exists (else the default branch).
 #
 #   release/debug-build.sh [--target studio] [--dry-run] [--no-launch] [--only 12,15] [--skip 20]
 #
@@ -36,6 +36,10 @@ cd "$CLONE"
 git merge --abort 2>/dev/null || true
 git fetch --quiet origin
 MAIN=$(git remote show origin | sed -n 's/.*HEAD branch: //p')   # master for Studio, main for Peek and pyHelioFITS
+# Debug builds start from the integration branch (dev) when the repo has one, so a build is always the combined
+# state of everything merged for testing; HFS_DEBUG_BASE overrides, and a repo without dev falls back to MAIN.
+BASE_BRANCH="${HFS_DEBUG_BASE:-dev}"; git rev-parse --verify --quiet "origin/$BASE_BRANCH" >/dev/null || BASE_BRANCH=$MAIN
+MAIN=$BASE_BRANCH
 git checkout --quiet -f -B rc/debug "origin/$MAIN"
 git clean -fdq -e 'release/.runtime' >/dev/null 2>&1 || true
 BASE=$(git rev-parse --short HEAD)

@@ -301,12 +301,21 @@ this repository or at upstream.
   `archive/README.md`.
 - Fork-only files (this one, `.editorconfig`, `ATTIC.md`) never go into an upstream pull request.
 
+## Branches
+
+`dev` is the integration branch and `master` is prod. Work branches fork from `dev` and pull
+requests open with `--base dev` (the repository default branch is still `master`, so `gh pr create`
+needs the flag). `master` changes only when Gilly asks to merge `dev` into it, and releases ship
+from `master` as before. Debug builds (`release/debug-build.sh`) start from `origin/dev`, so a debug
+build is always the combined state of everything merged for testing; a pull request not based on
+`dev` is skipped in its report. After a hotfix lands on `master` first, merge `master` back into `dev`.
+
 ## CI
 
 | Workflow | Runs on | Proves |
 |---|---|---|
-| `checks.yml` | push to master, pull requests, dispatch | `ant test` on Linux (xvfb), Windows, macOS arm64 and Intel, plus `OpenJpegDecodeCheck` against the shipped library |
-| `launch.yml` | push to master, pull requests, dispatch | the zip launchers start, open a synthetic AIA FITS and draw it |
+| `checks.yml` | push to master or dev, pull requests, dispatch | `ant test` on Linux (xvfb), Windows, macOS arm64 and Intel, plus `OpenJpegDecodeCheck` against the shipped library |
+| `launch.yml` | push to master or dev, pull requests, dispatch | the zip launchers start, open a synthetic AIA FITS and draw it |
 | `package.yml` | push to master, `release: published`, dispatch | Windows and Linux packages start and draw; on a release the attach job adds them |
 
 Read results with `gh run list --repo GillySpace27/HelioFITS-Studio --branch <branch> --limit 5` and
