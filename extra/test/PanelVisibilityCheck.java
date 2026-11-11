@@ -130,6 +130,17 @@ public final class PanelVisibilityCheck {
                         PanelVisibility.headerFill(Theme.current(), false)) >= Theme.TEXT_MIN);
         Settings.setProperty(PanelVisibility.TITLE, "true");
 
+        // A colour picked in the editor is shown as picked, however strong the headers are asked to be.
+        Theme base0 = Theme.builtIns().getFirst();
+        Color pickedFill = base0.get(Theme.Token.Background); // as weak a band as there is: the strong options would push it away
+        Color pickedText = new Color(0x123456);
+        java.util.EnumMap<Theme.Token, Color> stated = new java.util.EnumMap<>(Theme.Token.class);
+        stated.put(Theme.Token.HeaderFill, pickedFill);
+        stated.put(Theme.Token.HeaderTextStrong, pickedText);
+        Theme mine = Theme.userTheme("picked-check", "Picked check", base0, stated);
+        expect("a picked header band is not pushed away", PanelVisibility.headerFill(mine, false).equals(pickedFill));
+        expect("a picked strong title is not nudged", PanelVisibility.headerText(mine, pickedFill).equals(pickedText));
+
         System.out.println(failures == 0 ? "PanelVisibilityCheck: PASS" : "PanelVisibilityCheck: " + failures + " FAIL");
         // Exit explicitly: CollapsiblePane.side() reaches RightSidebar, which starts the AWT event thread, and
         // that non-daemon thread would otherwise keep the JVM (and CI) alive after the check has passed.

@@ -124,11 +124,16 @@ public final class PanelVisibility {
         return stripe() ? 4 : 0;
     }
 
+    /** A colour someone picked in the theme editor: stated by a saved theme and different from its parent's. Never adjusted here. */
+    private static boolean picked(Theme theme, Theme.Token token) {
+        return !theme.builtIn() && theme.overrides().containsKey(token);
+    }
+
     /** The top-level band, pushed away from the panel until it is clearly a band, if the title still reads on it. */
     public static Color headerFill(Theme theme, boolean child) {
         Color base = theme.get(Theme.Token.HeaderFill);
         Color band = base;
-        if (headers()) {
+        if (headers() && !picked(theme, Theme.Token.HeaderFill)) {
             Color panel = theme.get(Theme.Token.Background);
             Color text = theme.get(title() ? Theme.Token.HeaderTextStrong : Theme.Token.HeaderText);
             double min = title() ? Theme.STRONG_TEXT_MIN : Theme.TEXT_MIN;
@@ -142,7 +147,7 @@ public final class PanelVisibility {
         }
         if (!child)
             return band;
-        if (band.equals(base))
+        if (picked(theme, Theme.Token.ChildHeaderFill) || band.equals(base))
             return theme.get(Theme.Token.ChildHeaderFill);
         // The same step down from the stronger band that the theme takes from its own.
         Color panel = theme.get(Theme.Token.Background);
@@ -152,6 +157,9 @@ public final class PanelVisibility {
 
     /** The title colour for a band, held to 4.5:1 (3.5:1 for the strong one) on whichever fill is in use: the strong one when headers are strong. */
     public static Color headerText(Theme theme, Color fill) {
+        Theme.Token token = title() ? Theme.Token.HeaderTextStrong : Theme.Token.HeaderText;
+        if (picked(theme, token))
+            return theme.get(token); // picked colours win over the legibility nudge
         if (title())
             return Theme.legibleOn(theme.get(Theme.Token.HeaderTextStrong), fill, Theme.STRONG_TEXT_MIN);
         return Theme.legibleOn(theme.get(Theme.Token.HeaderText), fill, Theme.TEXT_MIN);
