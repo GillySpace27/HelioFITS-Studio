@@ -163,6 +163,11 @@ public final class UIGlobals {
      * ({@link TimeSlider#refreshColors}), and the plain borders and fills registered through
      * {@link #themed}. The section headers need nothing: they read the theme while painting.
      */
+    /** Put a theme on for this run only: nothing is chosen or remembered, so a restart returns to the saved choice. */
+    public static void useTheme(Theme theme) {
+        installTheme(theme);
+    }
+
     public static void switchTheme(Theme theme) {
         Theme.choose(theme); // an explicit pick is also a statement of which kind is wanted
         installTheme(theme);

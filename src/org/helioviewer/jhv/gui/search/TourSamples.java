@@ -29,15 +29,31 @@ final class TourSamples {
     /** In load order: the first becomes the master layer. */
     static final List<String> NAMES = List.of("aia_171_20120831T173411_1024.fits");
 
+    /**
+     * The demo scene's files (2025-08-14 about 09:00 UTC), AIA first so it is the master layer, then
+     * outward in the field of view. Block-median reduced; see resources/samples/README.md.
+     */
+    static final List<String> DEMO_NAMES = List.of(
+            "aia_171_20250814T090009_512.fits",
+            "aia_193_20250814T090004_512.fits",
+            "aspiics_bt_20250814T090012_512.fits",
+            "lasco_c2_20250814T090005_512.fits",
+            "lasco_c3_20250814T085406_512.fits",
+            "punch_cam_20250814T084800_512.fits");
+
     static File folder() {
         return new File(Directories.HOME.getFile(), "Samples");
     }
 
     /** Copy each bundled sample into {@code dir} unless a complete copy is already there; returns the files. */
     static List<File> extract(File dir) throws IOException {
+        return extract(dir, NAMES);
+    }
+
+    static List<File> extract(File dir, List<String> names) throws IOException {
         Files.createDirectories(dir.toPath());
-        List<File> files = new ArrayList<>(NAMES.size());
-        for (String name : NAMES) {
+        List<File> files = new ArrayList<>(names.size());
+        for (String name : names) {
             File file = new File(dir, name);
             if (!file.isFile() || file.length() == 0) {
                 File part = new File(dir, name + ".part"); // never a half-written sample under the real name

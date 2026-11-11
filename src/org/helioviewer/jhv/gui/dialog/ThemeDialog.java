@@ -1,5 +1,6 @@
 package org.helioviewer.jhv.gui.dialog;
 
+import javax.annotation.Nullable;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
@@ -282,7 +283,7 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
 
     @Override
     public ButtonPanel createButtonPanel() {
-        AbstractAction save = new AbstractAction("Save and use") {
+        AbstractAction save = new AbstractAction("Save") {
             @Override
             public void actionPerformed(ActionEvent e) {
                 save();
@@ -300,7 +301,14 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
                 delete();
             }
         };
-        AbstractAction close = new AbstractAction("Close") {
+        AbstractAction use = new AbstractAction("Use") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                use();
+                setVisible(false);
+            }
+        };
+        AbstractAction close = new AbstractAction("Cancel") {
             @Override
             public void actionPerformed(ActionEvent e) {
                 setVisible(false);
@@ -312,10 +320,12 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
         JButton deriveButton = new JButton(derive);
         deleteButton.setAction(delete);
         JButton closeButton = new JButton(close);
-        setInitFocusedComponent(closeButton);
+        JButton useButton = new JButton(use);
+        setInitFocusedComponent(useButton);
 
         ButtonPanel panel = new ButtonPanel();
-        panel.add(saveButton, ButtonPanel.AFFIRMATIVE_BUTTON);
+        panel.add(useButton, ButtonPanel.AFFIRMATIVE_BUTTON);
+        panel.add(saveButton, ButtonPanel.OTHER_BUTTON);
         panel.add(deriveButton, ButtonPanel.OTHER_BUTTON);
         panel.add(deleteButton, ButtonPanel.OTHER_BUTTON);
         panel.add(closeButton, ButtonPanel.CANCEL_BUTTON);
@@ -449,22 +459,44 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
         showRatios();
         nameField.setText(name);
         save();
+        use(); // the derivation is the point of the button, so it goes on at once, as it always did
         // After save(), which reloads the combo and so runs load(), which clears this.
         adjustedNote.setText(adjusted.isEmpty() ? "" : String.join("; ", adjusted));
     }
 
-    private void save() {
+    /** The round trip, not the working map: a theme is stored as overrides on its parent and rebuilt from them, so what is applied and what is in the file are the same theme. */
+    @Nullable
+    private Theme candidate() {
         String name = nameField.getText().strip();
         if (name.isEmpty())
-            return;
+            return null;
         Theme parent = parent();
-        // Save the round trip, not the working map: a theme is stored as overrides on its parent
-        // and rebuilt from them on the next launch, so applying anything else now would mean the
-        // colours on screen and the colours in the file are not the same theme.
-        Theme candidate = Theme.userTheme(Theme.idFor(name), name, parent, statedByHand());
-        Theme saved = Theme.userTheme(candidate.id(), name, parent, candidate.overrides());
+        Theme c = Theme.userTheme(Theme.idFor(name), name, parent, statedByHand());
+        return Theme.userTheme(c.id(), name, parent, c.overrides());
+    }
+
+    /** Put the working colours on, exactly as picked. Writes nothing; Save does that. */
+    private void use() {
+        Theme selected = (Theme) source.getSelectedItem();
+        Theme c = candidate();
+        if (selected == null || c == null)
+            return;
+        boolean unchanged = selected.builtIn() ? c.overrides().isEmpty()
+                : c.id().equals(selected.id()) && c.overrides().equals(selected.overrides());
+        if (unchanged)
+            UIGlobals.switchTheme(selected); // as stored: this one is also remembered as the choice
+        else
+            UIGlobals.useTheme(c); // edited and unsaved: on for this run only, until it is saved
+    }
+
+    /** Write the working colours to the themes file under the name given. Does not close, and does not change what is on screen unless that theme already is. */
+    private void save() {
+        Theme saved = candidate();
+        if (saved == null)
+            return;
         Theme.save(saved);
-        UIGlobals.switchTheme(saved);
+        if (Theme.current().id().equals(saved.id()))
+            UIGlobals.useTheme(saved); // it is already the one in use, so show the saved edit
 
         source.removeAllItems();
         Theme.all().forEach(source::addItem);
