@@ -240,7 +240,10 @@ Each with its source (vault paths are Gilly's notes in `research-tasks`).
   reachable from master. Never `git rm`, `git push --force`, rewrite history, or delete a tag,
   release, release asset, cache or settings key. (Gilly, 2026-09-28; `archive/README.md`; branch
   exception 2026-11-06.)
-- Never push, publish, notarize for release, edit a release or run a workflow without Gilly's yes
+- Branch model (Gilly, 2026-11-11, "push and merge with impunity to a dev version"): pushing to `dev`, and
+  merging pull requests into `dev`, needs no yes. Everything below applies to `master` and to anything
+  outside the repository.
+- Never push to `master`, publish, notarize for release, edit a release or run a workflow without Gilly's yes
   for that one action; a yes for one release never carries to the next. Publish only after
   `./deploy_release.sh publish --dry-run` and his yes to its output (RELEASING.md step 6;
   vault `daily_notes/2026-08-24.md:67-69`).
@@ -305,7 +308,7 @@ this repository or at upstream.
 
 `dev` is the integration branch and `master` is prod. Work branches fork from `dev` and pull
 requests open with `--base dev` (the repository default branch is still `master`, so `gh pr create`
-needs the flag). `master` changes only when Gilly asks to merge `dev` into it, and releases ship
+needs the flag). Agents push to `dev` and merge pull requests into it freely. `master` changes only when Gilly asks to merge `dev` into it, and releases ship
 from `master` as before. Debug builds (`release/debug-build.sh`) start from `origin/dev`, so a debug
 build is always the combined state of everything merged for testing; a pull request not based on
 `dev` is skipped in its report. After a hotfix lands on `master` first, merge `master` back into `dev`.
