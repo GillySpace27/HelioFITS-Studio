@@ -17,7 +17,7 @@ Six frames of one moment, 2025-08-14 about 09:00 UTC, each an n x n **block medi
 no pixel is dropped and the noise falls) of the original, written by
 `python3 extra/tools/make_demo_samples.py RAW_DIR OUT_DIR` (astropy, numpy). CDELT, CRPIX, the
 alternate-WCS CDELT/CRPIX (PUNCH), and the pixel-valued keys R_SUN, X0_MP, Y0_MP (AIA) are set from the WCS; ASPIICS X_IO and Y_IO (occulter centre, pixel convention not checked)
-are dropped; two HISTORY cards say so. The date has no Moon in any field of view (lunar elongation
+are dropped; ASPIICS inf pixels become NaN (they ruin the display clip); two HISTORY cards say so. The date has no Moon in any field of view (lunar elongation
 about 109 degrees from Earth at 18:00 UTC, computed with astropy; seen from L1 the Moon is always
 about 15 degrees from the anti-Sun direction), every instrument has a frame within 6 minutes of
 09:00 UTC (the helioviewer and punch archives, and the P3SC REST API, were queried), and the
