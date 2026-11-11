@@ -154,7 +154,7 @@ public final class KeybindingsPanel extends JPanel {
         JCheckBox invert = new JCheckBox("Invert pitch and yaw", CanvasKeys.invert());
         invert.setToolTipText("By default a key moves the near side of the scene the way a drag that way would: D to the right, W up");
         JSpinner rate = new JSpinner(new SpinnerNumberModel(CanvasKeys.degreesPerSecond(), 1, 360, 5));
-        rate.setToolTipText("How fast a held key turns the scene; Option held makes it five times slower");
+        rate.setToolTipText("How fast a held key turns the scene; Option held makes it five times slower, Shift held five times faster");
         JPanel extra = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
         extra.add(invert);
         extra.add(new JLabel("Degrees per second"));

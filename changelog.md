@@ -9,6 +9,7 @@ Each new entry ends with a `[docs: ...]` pointer to where it is documented (`rel
 - The Image Layers and Playback and Recording sections start open on a fresh install; a fold state already saved in your settings is kept. [docs: docs/actions.md]
 - On a Mac the sidebar section keys are swapped to read more naturally: Option+1 to Option+9 now fold the left sidebar's sections and Shift+Option+1 to Shift+Option+9 the right one's (Option+0 and Shift+Option+0 collapse all, left first and right first). Keys you changed in Keybindings are left as you set them; only keys still at their default move. Off a Mac nothing changes. [docs: docs/actions.md]
 ### New
+- Canvas keys: Shift held makes W A S D Q E and Up and Down slew five times faster, the mirror of Option's five times slower (both held cancel). [docs: manual/views.md]
 - Help > Keyboard Shortcuts (Cmd+/, Ctrl+/ off a Mac; the same key closes it, as does Esc) opens a searchable overlay of every keyboard shortcut in force, grouped by area, with key caps spelled for your platform. It reads your current keybindings, so a change in Settings > Keybindings shows at once. The Welcome window has a Keybindings button for it. [docs: Help menu]
 
 - Help > Open Demo Scene now loads six frames of one moment, 2025-08-14 about 09:00 UTC, bundled with the program and shrunk by block median: SDO/AIA 171 and 193, Proba-3/ASPIICS, SOHO/LASCO C2 and C3, and the PUNCH average mosaic. They line up on the Sun, work offline, and add 1.7 MB to the download. The Getting Started tour still loads its single AIA sample. [docs: Help menu]

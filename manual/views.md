@@ -96,7 +96,7 @@ Projection palette; its sky controls appear alongside.
   toggles differential rotation.
 - **Keys on the canvas**, while it has focus (the pointer is over it): **W** and **S** pitch, **A** and
   **D** yaw and **Q** and **E** roll the scene, smoothly while held, by about 45 degrees a second
-  (Option held makes it five times slower). A key moves the near side of the scene the way a drag
+  (Option held makes it five times slower, Shift held five times faster). A key moves the near side of the scene the way a drag
   that way would: D to the right, W up, Q counter-clockwise. **Up** and **Down** zoom in and out
   while held, at half the turn rate, and **R** resets the view. **Cmd+Right** and **Cmd+Left**
   (Ctrl off a Mac) raise and lower the playback rate by one, and the new rate shows for a moment

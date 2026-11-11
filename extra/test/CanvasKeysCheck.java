@@ -13,7 +13,7 @@ import org.helioviewer.jhv.math.Vec3;
  * The canvas keys without a window: the default table has no clash and rebinding refuses one,
  * the signs are "grab the Sun" (D moves the near side right, W up, Q counter-clockwise), invert flips
  * pitch and yaw but not roll, a turn about a screen axis stays about that axis whatever the camera
- * already has, and Shift, Cmd and Ctrl are never taken as camera keys.
+ * already has, Cmd and Ctrl are never taken as camera keys; Shift only speeds them.
  *
  * <p>Run: java -cp "bin:extra/test-classes:resources:lib/*" org.helioviewer.jhv.display.interaction.CanvasKeysCheck
  */
@@ -107,10 +107,14 @@ public final class CanvasKeysCheck {
                 near(newDrag.rotateVector(v), Quat.axisAngle(angle, axis).rotateVector(drag.rotateVector(v))));
 
         CanvasKeys.focusLost();
-        boolean none = !CanvasKeys.pressed(key(KeyEvent.VK_W, true, false, false, false))
-                && !CanvasKeys.pressed(key(KeyEvent.VK_W, false, true, false, false))
+        boolean none = !CanvasKeys.pressed(key(KeyEvent.VK_W, false, true, false, false))
                 && !CanvasKeys.pressed(key(KeyEvent.VK_W, false, false, false, true));
-        expect("Shift (annotate), Cmd (pan) and Ctrl (axis) with a key are never camera keys", none && CanvasKeys.heldForCheck().isEmpty());
+        expect("Cmd (pan) and Ctrl (axis) with a key are never camera keys", none && CanvasKeys.heldForCheck().isEmpty());
+        expect("Shift+W is taken and slews five times faster", CanvasKeys.pressed(key(KeyEvent.VK_W, true, false, false, false)) && CanvasKeys.factor() == CanvasKeys.FAST);
+        CanvasKeys.pressed(key(KeyEvent.VK_W, true, false, true, false));
+        expect("Option and Shift together cancel", Math.abs(CanvasKeys.factor() - 1) < 1e-9);
+        CanvasKeys.released(key(KeyEvent.VK_W, false, false, false, false));
+        expect("the factor returns to 1 on release", CanvasKeys.factor() == 1 && CanvasKeys.heldForCheck().isEmpty());
         expect("a plain W is taken and held", CanvasKeys.pressed(key(KeyEvent.VK_W, false, false, false, false)) && CanvasKeys.heldForCheck().equals(java.util.List.of("canvasPitchUp")));
         CanvasKeys.released(key(KeyEvent.VK_W, false, false, false, false));
         expect("and let go on release", CanvasKeys.heldForCheck().isEmpty());

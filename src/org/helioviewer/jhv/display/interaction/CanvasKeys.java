@@ -38,11 +38,12 @@ import org.helioviewer.jhv.opengl.GLText;
  *
  * <p>Signs are "grab the Sun": the key moves the near side of the scene the way a drag in that
  * direction would (D to the right, W up), counter-clockwise for Q. <b>Invert</b> flips pitch and
- * yaw. Option held makes any of the held keys slow, for fine framing. Zoom runs at half the turn rate,
+ * yaw. Option held makes any of the held keys slow, for fine framing, and Shift held makes them fast,
+ * for a long slew (both held cancel out). Zoom runs at half the turn rate,
  * in the same terms: the turn rate in radians a second is the zoom in e-folds a second, halved, so the
  * picture grows or shrinks by the same factor each second whatever its size, the way the mouse
- * wheel zooms. Shift on the canvas means annotate, and Cmd and Ctrl pick the pan and axis modes, so
- * none of those three is taken with a held key.
+ * wheel zooms. Shift-drag on the canvas annotates, and Cmd and Ctrl pick the pan and axis modes, so
+ * a drag keeps those; a held key with Shift is only the fast slew, and Cmd and Ctrl never take a key.
  *
  * <p>The turn is applied to the camera's drag rotation, as a trackball drag is, so it is part of the
  * saved scene and of undo; a hold is one undo step ({@link SceneUndo#keysDown}). It applies to the
@@ -84,6 +85,8 @@ public final class CanvasKeys {
     /** Turn rate, degrees a second (judgement: a quarter turn in two seconds), and the factor Option takes off it. */
     public static final double DEFAULT_DEGREES_PER_SECOND = 45;
     static final double SLOW = 0.2;
+    /** Shift held multiplies the rate by this (judgement: the mirror of Option's fifth; Gilly asked for a faster slew, 2026-11-11). */
+    static final double FAST = 5;
     /** Zoom runs at this fraction of the turn rate: radians a second of turn, e-folds a second of zoom. Gilly: about half. */
     static final double ZOOM_FRACTION = 0.5;
     static final int TICK_MS = 16;
@@ -94,6 +97,7 @@ public final class CanvasKeys {
         final Set<String> down = new LinkedHashSet<>();
         final Set<String> shot = new LinkedHashSet<>(); // one-press commands whose key is still down: a held key does not repeat them
         boolean slow;
+        boolean fast;
         long lastNanos;
         boolean sky; // a look-around was steered: commit it when the keys are let go
         String toast = "";
@@ -253,7 +257,8 @@ public final class CanvasKeys {
 
     /** A key went down. True when the canvas keys took it. */
     static boolean pressed(KeyInputEvent e) {
-        if (e.shiftDown() || otherMod(e))
+        STATE.fast = e.shiftDown(); // a bare Shift press lands here too, so it speeds keys already held
+        if (otherMod(e))
             return false;
         boolean withCmd = cmd(e);
         Cmd c = command(e.code(), withCmd);
@@ -291,6 +296,7 @@ public final class CanvasKeys {
     /** A key came up. Whatever the modifiers were, the key's own commands end. */
     static void released(KeyInputEvent e) {
         STATE.slow = e.altDown();
+        STATE.fast = e.shiftDown();
         for (Cmd c : ALL)
             if (key(c.id()) == e.code()) {
                 STATE.down.remove(c.id());
@@ -324,7 +330,7 @@ public final class CanvasKeys {
         STATE.lastNanos = now;
         if (STATE.down.isEmpty() || (ExportMovie.isRecording() && !liveWhileRecording()))
             return;
-        double step = Math.toRadians(degreesPerSecond()) * dt * (STATE.slow ? SLOW : 1);
+        double step = Math.toRadians(degreesPerSecond()) * dt * factor();
         boolean changed = false;
         double[] turn = turn(STATE.down, step, invert());
         boolean three = Display.mode.rendersIn3D();
@@ -420,6 +426,11 @@ public final class CanvasKeys {
     }
 
     /** For a check: the held ids, in order. */
+    /** The rate multiplier now: Option slows, Shift speeds, both cancel. */
+    static double factor() {
+        return (STATE.slow ? SLOW : 1) * (STATE.fast ? FAST : 1);
+    }
+
     static List<String> heldForCheck() {
         return new ArrayList<>(STATE.down);
     }
