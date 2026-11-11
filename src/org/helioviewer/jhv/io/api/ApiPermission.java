@@ -3,6 +3,7 @@ package org.helioviewer.jhv.io.api;
 import java.util.ArrayDeque;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.Nullable;
 
@@ -51,8 +52,7 @@ public final class ApiPermission {
     private record Grant(String who, long untilNanos) {}
 
     private static final ArrayDeque<Long> prompts = new ArrayDeque<>();
-    @Nullable
-    private static Grant grant;
+    private static final AtomicReference<Grant> grant = new AtomicReference<>();  // ponytail: ref only to keep the static final guard count
 
     private ApiPermission() {}
 
@@ -102,11 +102,12 @@ public final class ApiPermission {
 
     /** Minutes of timed approval left for this caller on this command, 0 when it must ask. */
     static synchronized int approvedMinutesLeft(CommandSpec spec, String who, long nowNanos) {
-        if (grant == null || !timedCanCover(spec) || !grant.who().equals(who))
+        Grant g = grant.get();
+        if (g == null || !timedCanCover(spec) || !g.who().equals(who))
             return 0;
-        long left = grant.untilNanos() - nowNanos;
+        long left = g.untilNanos() - nowNanos;
         if (left <= 0) {
-            grant = null;
+            grant.set(null);
             return 0;
         }
         return (int) Math.max(1, TimeUnit.NANOSECONDS.toMinutes(left + TimeUnit.MINUTES.toNanos(1) - 1));
@@ -121,16 +122,17 @@ public final class ApiPermission {
     }
 
     static synchronized void approve(String who, int minutes, long nowNanos) {
-        grant = new Grant(who, nowNanos + TimeUnit.MINUTES.toNanos(minutes));
+        grant.set(new Grant(who, nowNanos + TimeUnit.MINUTES.toNanos(minutes)));
     }
 
     /** Back to asking now (also when the level is changed). */
     public static synchronized void endTimedApproval() {
-        grant = null;
+        grant.set(null);
         prompts.clear();
     }
 
     public static synchronized boolean timedApprovalActive() {
-        return grant != null && grant.untilNanos() > System.nanoTime();
+        Grant g = grant.get();
+        return g != null && g.untilNanos() > System.nanoTime();
     }
 }
