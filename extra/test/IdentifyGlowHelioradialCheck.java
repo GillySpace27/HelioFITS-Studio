@@ -35,7 +35,10 @@ public final class IdentifyGlowHelioradialCheck {
         Directories.createPersistentDirs();
         Directories.createCacheDirs();
         AppInit.loadSpice();
-        for (MapMode mode : new MapMode[]{MapMode.valueOf(args.length > 0 ? args[0] : "Helioradial")}) {
+        MapMode base = MapMode.valueOf(args.length > 0 ? args[0] : "Helioradial");
+        // Flat first, then Helioradial drawn in 3D (the warp surface mesh), where the same must hold
+        for (boolean threeD : base == MapMode.Helioradial ? new boolean[]{false, true} : new boolean[]{false}) {
+            MapMode mode = base;
             Display.setHelioradial3D(false);
             Display.setMapMode(mode);
             MapView mv = GLRenderer.getMapView();
@@ -43,23 +46,28 @@ public final class IdentifyGlowHelioradialCheck {
                 System.out.println("SKIP: could not build a " + mode + " view headless (got " + mv.mode() + ")");
                 continue;
             }
+            String label = threeD ? mode + " in 3D" : mode.toString();
+            Position obs = new Position(new JHVTime("2026-03-26T12:00:00"), 215, 0, 0);
+            if (threeD) {
+                mv = Helioradial3DView.build(obs, 60);
+                expect(label + ": the view is the 3D mesh", mv.rendersIn3D() && mv.mode() == MapMode.Helioradial);
+            }
             var ctor = Viewport.class.getDeclaredConstructor(int.class, int.class, int.class, int.class, int.class, int.class);
             ctor.setAccessible(true);
             Viewport vp = (Viewport) ctor.newInstance(0, 0, 0, 1000, 800, 800);
-            Position obs = new Position(new JHVTime("2026-03-26T12:00:00"), 215, 0, 0);
             Identifier.Target target = new Identifier.Target("t", obs, null, null, 0, 0);
 
             int px = 640, py = 280; // a pointer well off the middle of the page
             Identifier.Probe p = Probes.at(mv, vp, px, py);
             Vec3 want = p == null ? null : p.direction(obs);
-            expect(mode + ": the probe reads the pointer", want != null);
+            expect(label + ": the probe reads the pointer", want != null);
             if (want == null)
                 continue;
             double[] fromMiddle = IdentifyPins.locate(vp, mv, target, want, null);
             double[] fromPointer = IdentifyPins.locate(vp, mv, target, want, new double[]{px, py});
-            System.out.println("  info " + mode + ": from middle " + (fromMiddle == null ? "no answer" : fromMiddle[0] + "," + fromMiddle[1])
+            System.out.println("  info " + label + ": from middle " + (fromMiddle == null ? "no answer" : fromMiddle[0] + "," + fromMiddle[1])
                     + "; from pointer " + (fromPointer == null ? "no answer" : fromPointer[0] + "," + fromPointer[1]));
-            expect(mode + ": found when started at the pointer", fromPointer != null && Math.hypot(fromPointer[0] - px, fromPointer[1] - py) < 1);
+            expect(label + ": found when started at the pointer", fromPointer != null && Math.hypot(fromPointer[0] - px, fromPointer[1] - py) < 1);
 
             // A ring of limb points about each of many pointers, as the glow draws it, for a planet-sized and a Moon-sized body
             for (double angDeg : new double[]{0.0005, 0.02}) {
@@ -90,10 +98,10 @@ public final class IdentifyGlowHelioradialCheck {
                         if (broken)
                             brokenRing++;
                     }
-                System.out.println("  info " + mode + " body " + angDeg + " deg: " + total + " pointers; start-at-middle fails " + middleFails
+                System.out.println("  info " + label + " body " + angDeg + " deg: " + total + " pointers; start-at-middle fails " + middleFails
                         + "; no centre from pointer " + noCentre + "; ring with a missing point " + brokenRing);
                 // a larger body can legitimately run off the page or through the polar centre, which the glow draws as a broken ring
-                expect(mode + " " + angDeg + " deg: the centre is found from the pointer" + (angDeg < 0.001 ? ", and the whole ring" : ""),
+                expect(label + " " + angDeg + " deg: the centre is found from the pointer" + (angDeg < 0.001 ? ", and the whole ring" : ""),
                         noCentre == 0 && (angDeg >= 0.001 || brokenRing == 0));
             }
         }

@@ -112,6 +112,10 @@ public final class Drawn {
         String marker = orbits == null ? null : orbits.markerAt(mv, vp, x, y);
         if (marker != null)
             out.add(new Hit(marker, ORBIT_PLOT, 0, Double.NaN));
+        // Model layers are named in the orthographic view only. In 3D Helioradial shape.vert warps a
+        // model's own vertices about the model's origin and the layer's translate then places the
+        // result, so where the model stands depends on its origin offset and the warp: not a
+        // position this class can state without a look at the running scene. Left unnamed there.
         if (!mv.isOrthographic())
             return out;
 

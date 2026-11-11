@@ -118,6 +118,10 @@ public final class IdentifyPins {
     /** As {@link #locate(Viewport, MapView, Identifier.Target, Vec3)}, starting from {@code seed} (canvas pixels) when given. */
     @Nullable
     static double[] locate(Viewport vp, MapView mv, Identifier.Target target, Vec3 want, @Nullable double[] seed) {
+        if (SkyScreen.applies(mv)) { // the forward map is exact and cheap: no solving, and no seed needed
+            double[] p = SkyScreen.place(mv, vp, target.observer(), want);
+            return p != null && p[0] >= vp.x && p[0] <= vp.x + vp.width && p[1] >= vp.yAWT && p[1] <= vp.yAWT + vp.height ? p : null;
+        }
         // The probe reads whole pixels, so interpolate between the four around (x, y): a smooth function Newton can settle on
         Sky sky = (x, y) -> {
             int ix = (int) Math.floor(x), iy = (int) Math.floor(y);

@@ -38,10 +38,17 @@ public final class IdentifyGlowRoundCheck {
         Directories.createPersistentDirs();
         Directories.createCacheDirs();
         AppInit.loadSpice();
+        List<String> runs = new java.util.ArrayList<>();
         for (String name : args.length > 0 ? args : new String[]{"Helioradial"}) {
+            runs.add(name);
+            if (name.equals("Helioradial"))
+                runs.add("Helioradial3D"); // the same mode drawn as the warp surface mesh
+        }
+        for (String name : runs) {
+            boolean threeD = name.equals("Helioradial3D");
             MapMode mode;
             try {
-                mode = MapMode.valueOf(name);
+                mode = MapMode.valueOf(threeD ? "Helioradial" : name);
             } catch (IllegalArgumentException e) {
                 System.out.println("SKIP: no map mode " + name);
                 continue;
@@ -53,10 +60,15 @@ public final class IdentifyGlowRoundCheck {
                 System.out.println("SKIP: could not build a " + mode + " view headless (got " + mv.mode() + ")");
                 continue;
             }
+            String label = threeD ? mode + " in 3D" : mode.toString();
+            Position obs = new Position(new JHVTime("2026-03-26T12:00:00"), 215, 0, 0);
+            if (threeD) {
+                mv = Helioradial3DView.build(obs, 60);
+                expect(label + ": the view is the 3D mesh", mv.rendersIn3D() && mv.mode() == MapMode.Helioradial);
+            }
             var ctor = Viewport.class.getDeclaredConstructor(int.class, int.class, int.class, int.class, int.class, int.class);
             ctor.setAccessible(true);
             Viewport vp = (Viewport) ctor.newInstance(0, 0, 0, 1000, 800, 800);
-            Position obs = new Position(new JHVTime("2026-03-26T12:00:00"), 215, 0, 0);
             Identifier.Target target = new Identifier.Target("t", obs, null, null, 0, 0);
 
             double worstRound = 0, worstJitter = 0;
@@ -84,11 +96,11 @@ public final class IdentifyGlowRoundCheck {
                         worstRound = Math.max(worstRound, Math.abs(Math.hypot(p[0] - ctr[0], p[1] - ctr[1]) - mean) / mean);
                     worstJitter = Math.max(worstJitter, Math.hypot(ctr[0] - b.getFirst()[0], ctr[1] - b.getFirst()[1]));
                 }
-            System.out.println("  info " + mode + ": " + rings + " rings, " + missing + " without one; worst radius deviation "
+            System.out.println("  info " + label + ": " + rings + " rings, " + missing + " without one; worst radius deviation "
                     + worstRound + "; worst centre jitter " + worstJitter + " px");
-            expect(mode + ": rings were found", rings > 5);
-            expect(mode + ": the ring is round", worstRound < 0.12);
-            expect(mode + ": the centre holds still for a sub-pixel pointer move", worstJitter < 0.5);
+            expect(label + ": rings were found", rings > 5);
+            expect(label + ": the ring is round", worstRound < 0.12);
+            expect(label + ": the centre holds still for a sub-pixel pointer move", worstJitter < 0.5);
         }
         System.exit(failures == 0 ? 0 : 1);
     }
