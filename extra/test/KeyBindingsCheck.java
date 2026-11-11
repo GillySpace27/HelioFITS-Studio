@@ -120,6 +120,9 @@ public final class KeyBindingsCheck {
                 shared = e.id() + " and " + firstOn.get(d);
         }
         expect("no two commands share a default key" + (shared == null ? "" : ": " + shared), shared == null);
+        expect("Track, Differential, Corona and Multiview are commands, with no default key yet",
+                java.util.stream.Stream.of("toggleTracking", "toggleDiffRotation", "toggleCorona", "toggleMultiview")
+                        .allMatch(id -> ActionCatalog.get(id) != null && KeyBindings.defaultFor(id) == null));
         expect("the grid's master switch is a command, with no default (G is its canvas key)",
                 ActionCatalog.get("toggleGrid") != null && KeyBindings.defaultFor("toggleGrid") == null);
 

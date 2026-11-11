@@ -25,7 +25,7 @@ import org.helioviewer.jhv.opengl.GLText;
 /**
  * The keys the canvas answers to while it has focus (Gilly, 2026-11-08, revised 2026-11-09 and 2026-11-11):
  * W and S pitch, A and D yaw and Q and E roll the scene; F and V zoom, continuously while held; G turns the
- * grid on or off; R resets the view; Cmd+Left and Cmd+Right (Ctrl off a Mac) lower and raise the playback
+ * grid on or off; I and O trim the movie and Home and End go to its first and last frame (2026-11-11); R resets the view; Cmd+Left and Cmd+Right (Ctrl off a Mac) lower and raise the playback
  * rate. The plain arrows' stepping and Space stay where they were ({@link Interaction}).
  *
  * <p>They are bare keys on purpose: the canvas is the one place they cannot be mistaken for typing,
@@ -73,6 +73,10 @@ public final class CanvasKeys {
             new Cmd("canvasZoomOut", "Zoom Out", KeyEvent.VK_V, false, "Zoom out while held, at half the turn rate"),
             new Cmd("canvasResetView", "Reset View", KeyEvent.VK_R, false, "Put the view back to its default"),
             new Cmd("canvasToggleGrid", "Show or Hide Grid", KeyEvent.VK_G, false, "Turn the grid on or off: the master switch of the Grid row"),
+            new Cmd("canvasTrimStart", "Trim Start Here", KeyEvent.VK_I, false, "Start the movie at this frame, as I does on the time slider"),
+            new Cmd("canvasTrimEnd", "Trim End Here", KeyEvent.VK_O, false, "End the movie at this frame, as O does on the time slider"),
+            new Cmd("canvasFirstFrame", "First Frame", KeyEvent.VK_HOME, false, "Go to the first frame of the movie (its trimmed start)"),
+            new Cmd("canvasLastFrame", "Last Frame", KeyEvent.VK_END, false, "Go to the last frame of the movie (its trimmed end)"),
             new Cmd("canvasFasterPlayback", "Faster Playback (with Cmd)", KeyEvent.VK_RIGHT, true, "Raise the playback rate by one"),
             new Cmd("canvasSlowerPlayback", "Slower Playback (with Cmd)", KeyEvent.VK_LEFT, true, "Lower the playback rate by one"));
 
@@ -300,6 +304,10 @@ public final class CanvasKeys {
                     toast("View reset");
                 }
             }
+            case "canvasTrimStart" -> once(c, Commands::trimStartHere);
+            case "canvasTrimEnd" -> once(c, Commands::trimEndHere);
+            case "canvasFirstFrame" -> once(c, Commands::firstFrame);
+            case "canvasLastFrame" -> once(c, Commands::lastFrame);
             case "canvasToggleGrid" -> {
                 if (STATE.shot.add(c.id()) && !recordingLocked()) {
                     Boolean on = Commands.toggleGrid();
@@ -316,6 +324,12 @@ public final class CanvasKeys {
             }
         }
         return true;
+    }
+
+    /** A one-press command: runs on the press, not again while the key repeats. */
+    private static void once(Cmd c, Runnable run) {
+        if (STATE.shot.add(c.id()))
+            run.run();
     }
 
     /** A key came up. Whatever the modifiers were, the key's own commands end. */

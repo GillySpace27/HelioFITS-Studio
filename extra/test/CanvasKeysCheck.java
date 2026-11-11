@@ -44,11 +44,13 @@ public final class CanvasKeysCheck {
         boolean distinct = true;
         for (CanvasKeys.Cmd c : CanvasKeys.ALL)
             distinct &= seen.add(CanvasKeys.key(c.id()));
-        expect("every canvas key starts on its own key", distinct && CanvasKeys.ALL.size() == 12);
+        expect("every canvas key starts on its own key", distinct && CanvasKeys.ALL.size() == 16);
         expect("W S A D Q E turn; F and V zoom; G the grid; R resets; Cmd+Right and Cmd+Left set the rate",
                 CanvasKeys.key("canvasPitchUp") == KeyEvent.VK_W && CanvasKeys.key("canvasYawRight") == KeyEvent.VK_D
                         && CanvasKeys.key("canvasRollLeft") == KeyEvent.VK_Q && CanvasKeys.key("canvasZoomIn") == KeyEvent.VK_F && CanvasKeys.key("canvasZoomOut") == KeyEvent.VK_V
                         && CanvasKeys.key("canvasToggleGrid") == KeyEvent.VK_G
+                        && CanvasKeys.key("canvasTrimStart") == KeyEvent.VK_I && CanvasKeys.key("canvasTrimEnd") == KeyEvent.VK_O
+                        && CanvasKeys.key("canvasFirstFrame") == KeyEvent.VK_HOME && CanvasKeys.key("canvasLastFrame") == KeyEvent.VK_END
                         && CanvasKeys.key("canvasResetView") == KeyEvent.VK_R && CanvasKeys.key("canvasFasterPlayback") == KeyEvent.VK_RIGHT
                         && CanvasKeys.key("canvasSlowerPlayback") == KeyEvent.VK_LEFT);
 
@@ -66,8 +68,8 @@ public final class CanvasKeysCheck {
         CanvasKeys.reset("canvasPitchUp");
         expect("reset gives G back to the grid", CanvasKeys.key("canvasToggleGrid") == KeyEvent.VK_G
                 && CanvasKeys.command(KeyEvent.VK_G).id().equals("canvasToggleGrid"));
-        expect("a free key is accepted and then drives the command", CanvasKeys.set("canvasPitchUp", KeyEvent.VK_I) == null
-                && CanvasKeys.key("canvasPitchUp") == KeyEvent.VK_I && CanvasKeys.command(KeyEvent.VK_I).id().equals("canvasPitchUp")
+        expect("a free key is accepted and then drives the command", CanvasKeys.set("canvasPitchUp", KeyEvent.VK_H) == null
+                && CanvasKeys.key("canvasPitchUp") == KeyEvent.VK_H && CanvasKeys.command(KeyEvent.VK_H).id().equals("canvasPitchUp")
                 && CanvasKeys.command(KeyEvent.VK_W) == null && CanvasKeys.isCustom("canvasPitchUp"));
         expect("none unbinds it", CanvasKeys.set("canvasPitchUp", -1) == null && CanvasKeys.key("canvasPitchUp") == -1);
         CanvasKeys.reset("canvasPitchUp");
@@ -128,6 +130,9 @@ public final class CanvasKeysCheck {
         expect("a plain W is taken and held", CanvasKeys.pressed(key(KeyEvent.VK_W, false, false, false, false)) && CanvasKeys.heldForCheck().equals(java.util.List.of("canvasPitchUp")));
         CanvasKeys.released(key(KeyEvent.VK_W, false, false, false, false));
         expect("and let go on release", CanvasKeys.heldForCheck().isEmpty());
+        expect("a plain I is the canvas Trim Start and End is Last Frame, one press each, never held",
+                CanvasKeys.command(KeyEvent.VK_I).id().equals("canvasTrimStart") && CanvasKeys.command(KeyEvent.VK_END).id().equals("canvasLastFrame")
+                        && CanvasKeys.command(KeyEvent.VK_END, true) == null); // running one needs a movie, which this check has not
         expect("a key that is not bound is left alone", !CanvasKeys.pressed(key(KeyEvent.VK_B, false, false, false, false)));
 
         boolean mac = Platform.isMacOS();
