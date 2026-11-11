@@ -14,6 +14,7 @@ import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.app.SceneUndo;
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.app.state.ViewState;
+import org.helioviewer.jhv.display.CMETracker;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.Viewport;
@@ -24,8 +25,9 @@ import org.helioviewer.jhv.opengl.GLText;
 
 /**
  * The keys the canvas answers to while it has focus (Gilly, 2026-11-08, revised 2026-11-09 and 2026-11-11):
- * W and S pitch, A and D yaw and Q and E roll the scene; F and V zoom, continuously while held; G turns the
- * grid on or off; I and O trim the movie and Home and End go to its first and last frame (2026-11-11); R resets the view; Cmd+Left and Cmd+Right (Ctrl off a Mac) lower and raise the playback
+ * W and S pitch, A and D yaw and Q and E roll the scene; Up and Down zoom, comma and period warp, and
+ * apostrophe and slash crop, continuously while held (2026-11-11: the right hand has zoom, warp, crop and the
+ * playhead; F and V are free); G turns the grid on or off; I and O trim the movie and Home and End go to its first and last frame (2026-11-11); R resets the view; Cmd+Left and Cmd+Right (Ctrl off a Mac) lower and raise the playback
  * rate. The plain arrows' stepping and Space stay where they were ({@link Interaction}).
  *
  * <p>They are bare keys on purpose: the canvas is the one place they cannot be mistaken for typing,
@@ -71,8 +73,12 @@ public final class CanvasKeys {
             new Cmd("canvasYawRight", "Yaw Right", KeyEvent.VK_D, false, "Turn the scene so its near side moves right"),
             new Cmd("canvasRollLeft", "Roll Counter-clockwise", KeyEvent.VK_Q, false, "Turn the scene counter-clockwise about the line of sight"),
             new Cmd("canvasRollRight", "Roll Clockwise", KeyEvent.VK_E, false, "Turn the scene clockwise about the line of sight"),
-            new Cmd("canvasZoomIn", "Zoom In", KeyEvent.VK_F, false, "Zoom in while held, at half the turn rate"),
-            new Cmd("canvasZoomOut", "Zoom Out", KeyEvent.VK_V, false, "Zoom out while held, at half the turn rate"),
+            new Cmd("canvasZoomIn", "Zoom In", KeyEvent.VK_UP, false, "Zoom in while held, at half the turn rate"),
+            new Cmd("canvasZoomOut", "Zoom Out", KeyEvent.VK_DOWN, false, "Zoom out while held, at half the turn rate"),
+            new Cmd("canvasWarpWeaker", "Warp Weaker", KeyEvent.VK_COMMA, false, "Weaken the warp while held, as the Warp slider moved left"),
+            new Cmd("canvasWarpStronger", "Warp Stronger", KeyEvent.VK_PERIOD, false, "Strengthen the warp while held, as the Warp slider moved right"),
+            new Cmd("canvasCropTighter", "Crop Tighter", KeyEvent.VK_QUOTE, false, "Tighten the crop while held, as the Crop slider moved right"),
+            new Cmd("canvasCropLooser", "Crop Looser", KeyEvent.VK_SLASH, false, "Loosen the crop while held, back to none, as the Crop slider moved left"),
             new Cmd("canvasResetView", "Reset View", KeyEvent.VK_R, false, "Put the view back to its default"),
             new Cmd("canvasToggleGrid", "Show or Hide Grid", KeyEvent.VK_G, false, "Turn the grid on or off: the master switch of the Grid row"),
             new Cmd("canvasTrimStart", "Trim Start Here", KeyEvent.VK_I, false, "Start the movie at this frame, as I does on the time slider"),
@@ -141,9 +147,9 @@ public final class CanvasKeys {
     }
 
     /**
-     * Once per settings folder: Up and Down used to be Zoom In and Out, and a Keybindings dialog OK pinned them as
-     * stored values, which then outrank the F and V defaults (2026-11-11) and leave F and V dead. Drop a stored
-     * Up or Down on the two zoom commands so the defaults apply; the flag keeps a later deliberate choice.
+     * Once per settings folder: a Keybindings dialog OK had pinned Up and Down on Zoom In and Out as stored
+     * values (one debug folder had them swapped), which outrank the defaults. Drop a stored Up or Down on the
+     * two zoom commands so the defaults (Up and Down again, 2026-11-11) apply; the flag keeps a later choice.
      */
     private static void migrateZoom() {
         String flag = PREFIX + "zoomOnFV";
@@ -428,8 +434,49 @@ public final class CanvasKeys {
                     viewport.zoom *= zoom;
             changed = true;
         }
+        // Warp and crop act only where the projection uses them, and take the knob back from CME tracking as the sliders do
+        double warp = warpDelta(STATE.down, step);
+        if (warp != 0 && Display.mode.usesWarpLambda()) {
+            if (CMETracker.getMode() == CMETracker.Mode.WARP)
+                CMETracker.stop();
+            Display.setWarpLambda(Display.getWarpLambda() + warp);
+            changed = true;
+        }
+        double crop = cropFactor(STATE.down, step);
+        if (crop != 1 && Display.mode.usesWarpCrop()) {
+            if (CMETracker.getMode() == CMETracker.Mode.CROP)
+                CMETracker.stop();
+            Display.setWarpOuterRadius(nextCrop(Display.getWarpOuterRadius(), Display.fullWarpFieldRadius(), crop));
+            changed = true;
+        }
         if (changed)
             DisplayController.display();
+    }
+
+    /**
+     * The change in warp lambda in a step: period stronger, comma weaker, at the zoom rate in lambda a radian of
+     * turn. Stronger is lambda towards -1 (the Warp slider's right end); both keys held cancel.
+     */
+    static double warpDelta(Set<String> down, double step) {
+        double d = (down.contains("canvasWarpWeaker") ? 1 : 0) - (down.contains("canvasWarpStronger") ? 1 : 0);
+        return d * step * ZOOM_FRACTION;
+    }
+
+    /** The factor the crop radius is multiplied by in a step: exponential, as zoom is; below 1 tightens. */
+    static double cropFactor(Set<String> down, double step) {
+        double d = (down.contains("canvasCropLooser") ? 1 : 0) - (down.contains("canvasCropTighter") ? 1 : 0);
+        return Math.exp(d * step * ZOOM_FRACTION);
+    }
+
+    /**
+     * The next crop radius from {@code radius} (0 is none, the whole field {@code full}): scaled by {@code factor},
+     * no tighter than 2 solar radii (the Crop slider's end), and none again once it reaches the field.
+     */
+    static double nextCrop(double radius, double full, double factor) {
+        if (full <= 2)
+            return 0;
+        double next = (radius > 0 ? radius : full) * factor;
+        return next >= full ? 0 : Math.max(next, 2);
     }
 
     /**

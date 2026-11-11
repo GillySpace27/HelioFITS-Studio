@@ -48,7 +48,8 @@ public final class ShortcutIndexCheck {
         int canvas = (int) CanvasKeys.ALL.stream().filter(c -> CanvasKeys.key(c.id()) >= 0).count();
         expect("one row per binding (" + accelerators + " commands + " + canvas + " canvas keys + " + ShortcutIndex.FIXED.size() + " fixed keys)",
                 rows.size() == accelerators + canvas + ShortcutIndex.FIXED.size() + 2); // + Shift faster, Option slower
-        expect("F and V zoom and G shows or hides the grid, on the canvas", has(rows, "Zoom In", "F") && has(rows, "Zoom Out", "V")
+        expect("Up and Down zoom, comma and period warp, apostrophe and slash crop, and G shows or hides the grid, on the canvas",
+                has(rows, "Zoom In", "↑") && has(rows, "Zoom Out", "↓") && has(rows, "Warp Stronger", ".") && has(rows, "Crop Tighter", "'")
                 && has(rows, "Show or Hide Grid", "G"));
         expect("Shift faster and Option slower are listed", has(rows, "Hold for Faster Camera Keys (canvas)", "Shift")
                 && has(rows, "Hold for Slower Camera Keys (canvas)", "Option"));

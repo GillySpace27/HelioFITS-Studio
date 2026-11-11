@@ -1132,6 +1132,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         projectionControls.syncSkyAim();
         Palette.keepVisible();
         projectionControls.syncZoomSliderFromDisplay();
+        projectionControls.syncWarpCropFromDisplay();
     }
 
 

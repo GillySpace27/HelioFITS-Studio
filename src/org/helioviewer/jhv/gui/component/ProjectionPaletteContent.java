@@ -50,6 +50,7 @@ final class ProjectionPaletteContent {
     // values into the sliders. Guarded so that programmatic move does not look like a manual one
     // and disengage the very tracking that caused it.
     private boolean syncingFromTracker;
+    private boolean syncingFromKeys; // the canvas keys moved warp or crop: the sliders follow and do not write back
 
     JPanel build() {
         JPanel content = new JPanel();
@@ -158,6 +159,8 @@ final class ProjectionPaletteContent {
         warpLambdaValue.setPreferredSize(new JLabel("-0.000").getPreferredSize());
         warpLambdaSlider.readout(warpLambdaValue);
         warpLambdaSlider.addChangeListener(e -> {
+            if (syncingFromKeys)
+                return;
             if (!syncingFromTracker && CMETracker.getMode() == CMETracker.Mode.WARP)
                 CMETracker.stop(); // a manual move takes the wheel back, but only from the knob tracking drives
             ViewState.setWarpLambda(sliderToWarpLambda(warpLambdaSlider.getValue()));
@@ -692,6 +695,28 @@ final class ProjectionPaletteContent {
         return panel;
     }
 
+    /** Put the Warp and Crop handles where the canvas keys left the values, without the sliders writing back a rounded value. */
+    void syncWarpCropFromDisplay() {
+        if (warpLambdaSlider == null || warpCropSlider == null)
+            return;
+        syncingFromKeys = true;
+        try {
+            int w = warpLambdaToSlider(Display.getWarpLambda());
+            if (warpLambdaSlider.getValue() != w) {
+                warpLambdaSlider.setValue(w);
+                warpLambdaValue.setText(String.format("%.3f", Display.getWarpLambda()));
+            }
+            double radius = Display.getWarpOuterRadius();
+            int t = cropRadiusToSlider(radius, Math.max(ImageLayers.getLargestRadialSize(), 2));
+            if (warpCropSlider.getValue() != t) {
+                warpCropSlider.setValue(t);
+                warpCropValue.setText(radius <= 0 ? "auto" : String.format("%.0f R\u2609", radius));
+            }
+        } finally {
+            syncingFromKeys = false;
+        }
+    }
+
     // Off-scale zooms (the wheel is unbounded, this slider is not) park the handle at the end
     // and let the number keep telling the truth.
     void syncZoomSliderFromDisplay() {
@@ -745,6 +770,8 @@ final class ProjectionPaletteContent {
         JLabel value = warpCropValue;
         value.setPreferredSize(new JLabel("-0.000").getPreferredSize());
         warpCropSlider.addChangeListener(e -> {
+            if (syncingFromKeys)
+                return;
             if (!syncingFromTracker && CMETracker.getMode() == CMETracker.Mode.CROP)
                 CMETracker.stop(); // crop-mode tracking owns this slider; a manual move takes it back
             double radius = sliderToCropRadius(warpCropSlider.getValue(), Math.max(ImageLayers.getLargestRadialSize(), 2));
