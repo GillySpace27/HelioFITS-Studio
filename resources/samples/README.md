@@ -16,8 +16,7 @@ Header values are read from the file (`astropy.io.fits`, HDU 1); bytes with `ls 
 Six frames of one moment, 2025-08-14 about 09:00 UTC, each an n x n **block median** (NaN-aware, so
 no pixel is dropped and the noise falls) of the original, written by
 `python3 extra/tools/make_demo_samples.py RAW_DIR OUT_DIR` (astropy, numpy). CDELT, CRPIX, the
-alternate-WCS CDELT/CRPIX (PUNCH), and the pixel-valued keys R_SUN, X0_MP, Y0_MP (AIA), RSUN,
-DIAM_SUN (SUVI) are scaled; ASPIICS X_IO and Y_IO (occulter centre, pixel convention not checked)
+alternate-WCS CDELT/CRPIX (PUNCH), and the pixel-valued keys R_SUN, X0_MP, Y0_MP (AIA) are set from the WCS; ASPIICS X_IO and Y_IO (occulter centre, pixel convention not checked)
 are dropped; two HISTORY cards say so. The date has no Moon in any field of view (lunar elongation
 about 109 degrees from Earth at 18:00 UTC, computed with astropy; seen from L1 the Moon is always
 about 15 degrees from the anti-Sun direction), every instrument has a frame within 6 minutes of
@@ -29,11 +28,11 @@ Originals (all fetched 2026-11-10):
 | File | Bytes | Header: TELESCOP / INSTRUME, WAVELNTH, DATE-OBS | Made from | Terms |
 |---|---|---|---|---|
 | `aia_171_20250814T090009_512.fits` | 273600 | SDO/AIA / AIA_3, 171, 2025-08-14T09:00:09.350 | `AIA20250814_0900_0171.fits` from the JSOC synoptic archive, https://jsoc1.stanford.edu/data/aia/synoptic/2025/08/14/H0900/ (level 1.5, 1024 x 1024), 2 x 2 block median. Only the synoptic file was retrievable (JSOC export returned HTTP 500). | SDO data policy, as for the tour sample above. Credit: "Courtesy of NASA/SDO and the AIA, EVE, and HMI science teams." |
-| `suvi_171_20250814T090118_640.fits` | 411840 | G19 / GOES-R Series Solar Ultraviolet Imager (SUVI), 171, 2025-08-14T09:01:18.650 | `OR_SUVI-L1b-Fe171_G19_s20252260901186_e20252260901196_c20252260901400.fits.gz`, NCEI, https://data.ngdc.noaa.gov/platforms/solar-space-observing-satellites/goes/goes19/l1b/suvi-l1b-fe171/2025/08/14/ (1280 x 1280), 2 x 2 block median. | **Not settled.** NCEI asks that the dataset be cited (GOES-R Series Level 1b SUVI Product in FITS Format, DOI 10.7289/V5FT8J93) and a CLASS notice says GOES-19 SUVI L1b became public 2025-05-12, but the file's own LICENSE card reads "Unclassified data. Access is restricted to approved users only." and no redistribution statement was found. Needs a decision before merge. |
+| `aia_193_20250814T090004_512.fits` | 282240 | SDO/AIA / AIA_2, 193, 2025-08-14T09:00:04.843 | `AIA20250814_0900_0193.fits` from the JSOC synoptic archive, https://jsoc1.stanford.edu/data/aia/synoptic/2025/08/14/H0900/ (level 1.5, 1024 x 1024), 2 x 2 block median. | As the 171 file. |
 | `aspiics_bt_20250814T090012_512.fits` | 400320 | Proba-3 / ASPIICS, 5511, 2025-08-14T09:00:12.368 | `aspiics_bt_l3_20250814T090012_1340803F0006_v03.fits`, P3SC archive, https://p3sc.oma.be/datarepfiles/L3/v03/ (L3 total brightness, 2048 x 2048), 4 x 4 block median. | https://www.sidc.be/proba-3/terms-of-use (read 2026-11-10): "open data policy which means that you can freely use the data". Requires "The ASPIICS data are courtesy of the Proba-3/ASPIICS consortium." Redistribution is not addressed on that page. |
 | `lasco_c2_20250814T090005_512.fits` | 239040 | SOHO / LASCO C2, 2025/08/14 | `22999194.fts`, https://lasco-www.nrl.navy.mil/lz/level_05/250814/c2/ (level 0.5, 1024 x 1024), 2 x 2 block median. | LASCO data policy, https://lasco-www.nrl.navy.mil/index.php?p=content/retrieve/retrieve (read 2026-11-10): "completely open and unrestricted". Asks: "The SOHO/LASCO data used here are produced by a consortium of the Naval Research Laboratory (USA), Max-Planck-Institut fuer Aeronomie (Germany), Laboratoire d'Astronomie (France), and the University of Birmingham (UK). SOHO is a project of international cooperation between ESA and NASA." |
 | `lasco_c3_20250814T085406_512.fits` | 218880 | SOHO / LASCO C3, 2025/08/14 | `32829445.fts`, https://lasco-www.nrl.navy.mil/lz/level_05/250814/c3/ (level 0.5, 1024 x 1024), 2 x 2 block median. | As C2. |
 | `punch_ctm_20250814T085629_512.fits` | 192960 | PUNCH 1-2-3-4 / WFI+NFI Mosaic, 530, 2025-08-14T08:56:29.048 | `PUNCH_L3_CTM_20250814085629_v0m.fits`, https://umbra.nascom.nasa.gov/punch/3/CTM/2025/08/14/ (level 3 clear trefoil mosaic, 4096 x 4096), 8 x 8 block median. | The file's LICENSE card: CC BY 4.0. Required acknowledgement: "PUNCH is a heliophysics mission to study the corona, solar wind, and space weather as an integrated system, and is part of NASA's Explorers program (Contract 80GSFC14C0014)". |
 
 Header values are read from the written files (`astropy.io.fits`, HDU 1); bytes with `ls -l`.
-The six demo files total 1736640 bytes.
+The six demo files total 1607040 bytes.

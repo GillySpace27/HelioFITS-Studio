@@ -14,8 +14,7 @@ from astropy.io import fits
 # (source file, HDU, n, output name, pixel-valued keys that scale by 1/n, keys to drop)
 SAMPLES = [
     ('AIA20250814_0900_0171.fits', 1, 2, 'aia_171_20250814T090009_512.fits', [], ['BSCALE', 'BZERO', 'BLANK']),  # R_SUN, X0_MP set below
-    ('OR_SUVI-L1b-Fe171_G19_s20252260901186_e20252260901196_c20252260901400.fits', 0, 2,
-     'suvi_171_20250814T090118_640.fits', ['RSUN', 'DIAM_SUN'], ['BSCALE', 'BZERO', 'BLANK']),
+    ('AIA20250814_0900_0193.fits', 1, 2, 'aia_193_20250814T090004_512.fits', [], ['BSCALE', 'BZERO', 'BLANK']),
     ('c2_22999194.fts', 0, 2, 'lasco_c2_20250814T090005_512.fits', [], []),
     ('c3_32829445.fts', 0, 2, 'lasco_c3_20250814T085406_512.fits', [], []),
     ('PUNCH_L3_CTM_20250814085629_v0m.fits', 1, 8, 'punch_ctm_20250814T085629_512.fits', [], []),

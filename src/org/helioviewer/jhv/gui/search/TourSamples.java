@@ -35,7 +35,7 @@ final class TourSamples {
      */
     static final List<String> DEMO_NAMES = List.of(
             "aia_171_20250814T090009_512.fits",
-            "suvi_171_20250814T090118_640.fits",
+            "aia_193_20250814T090004_512.fits",
             "aspiics_bt_20250814T090012_512.fits",
             "lasco_c2_20250814T090005_512.fits",
             "lasco_c3_20250814T085406_512.fits",
