@@ -17,7 +17,6 @@ public class GridMath {
     private static final byte[] axisSouthColor = Colors.Blue.bytes();
     private static final byte[] earthLineColor = Colors.Yellow.bytes();
 
-    private static final float earthPointSize = 0.02f;
 
     private static final int LINEAR_STEPS = 1;
 
@@ -44,12 +43,6 @@ public class GridMath {
         vexBuf.endLine();
 
         axesLine.uploadAndClear(vexBuf);
-    }
-
-    public static void initEarthPoint(GLSLShape earthPoint) {
-        BufVertex vexBuf = new BufVertex(1);
-        vexBuf.putVertex(0, 0, (float) EARTH_CIRCLE_RADIUS, earthPointSize, earthLineColor);
-        earthPoint.uploadAndClear(vexBuf);
     }
 
     public static void initEarthCircles(GLSLLine earthCircleLine) {

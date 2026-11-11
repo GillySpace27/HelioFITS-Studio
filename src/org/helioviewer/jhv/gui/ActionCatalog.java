@@ -88,6 +88,7 @@ public final class ActionCatalog {
         put("zoomOut", new Actions.ZoomOut(), "View/Zoom Out", "");
         put("resetAxis", new Actions.ResetCameraAxis(), "View/Reset View Axis", "");
         put("resetCamera", new Actions.ResetCamera(), "View/Reset View", "");
+        put("viewFromEarth", new Actions.ViewFromEarth(), "View/View from Earth", "3D views: put the camera at Earth, 1 au out");
         put("separateMultiviewZoom", new Actions.SeparateMultiviewZoom(), "View/Separate Multiview Zoom", "");
         put("displaySettings", new Actions.DisplaySettingsDialog(), "View/Display Scaling\u2026",
                 "Text size and interface scale: make the app easier to read");
