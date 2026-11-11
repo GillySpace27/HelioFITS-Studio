@@ -61,8 +61,9 @@ public final class InputController {
         interaction.mouseWheelMoved(e, vp);
     }
 
-    public static void keyPressed(KeyInputEvent e) {
-        interaction.keyPressed(e);
+    /** True when a canvas key took the press, so nothing else (a menu mnemonic on Alt) acts on it too. */
+    public static boolean keyPressed(KeyInputEvent e) {
+        return interaction.keyPressed(e);
     }
 
     public static void keyReleased(KeyInputEvent e) {

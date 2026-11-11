@@ -23,10 +23,10 @@ import org.helioviewer.jhv.movie.ExportMovie;
 import org.helioviewer.jhv.opengl.GLText;
 
 /**
- * The keys the canvas answers to while it has focus (Gilly, 2026-11-08, revised 2026-11-09): W and S
- * pitch, A and D yaw and Q and E roll the scene; Up and Down zoom, continuously while held; R resets the
- * view; Cmd+Left and Cmd+Right (Ctrl off a Mac) lower and raise the playback rate. The plain arrows'
- * stepping and Space stay where they were ({@link Interaction}).
+ * The keys the canvas answers to while it has focus (Gilly, 2026-11-08, revised 2026-11-09 and 2026-11-11):
+ * W and S pitch, A and D yaw and Q and E roll the scene; F and V zoom, continuously while held; G turns the
+ * grid on or off; R resets the view; Cmd+Left and Cmd+Right (Ctrl off a Mac) lower and raise the playback
+ * rate. The plain arrows' stepping and Space stay where they were ({@link Interaction}).
  *
  * <p>They are bare keys on purpose: the canvas is the one place they cannot be mistaken for typing,
  * and a held key turning the scene smoothly is the point. So they are not accelerators in the
@@ -50,7 +50,7 @@ import org.helioviewer.jhv.opengl.GLText;
  * attitude key in the flat views, does nothing there (there is no camera attitude to turn). Zoom works
  * in every view.
  *
- * <p>While recording they are off unless Record live changes is on: what is turned during a recording
+ * <p>While recording they are off unless Record live changes is on, the one-press R and G included: what is turned during a recording
  * is in its pixels, but a replay from the sidecar cannot repeat it until the camera has an
  * automation track.
  */
@@ -69,9 +69,10 @@ public final class CanvasKeys {
             new Cmd("canvasYawRight", "Yaw Right", KeyEvent.VK_D, false, "Turn the scene so its near side moves right"),
             new Cmd("canvasRollLeft", "Roll Counter-clockwise", KeyEvent.VK_Q, false, "Turn the scene counter-clockwise about the line of sight"),
             new Cmd("canvasRollRight", "Roll Clockwise", KeyEvent.VK_E, false, "Turn the scene clockwise about the line of sight"),
-            new Cmd("canvasZoomIn", "Zoom In", KeyEvent.VK_UP, false, "Zoom in while held, at half the turn rate"),
-            new Cmd("canvasZoomOut", "Zoom Out", KeyEvent.VK_DOWN, false, "Zoom out while held, at half the turn rate"),
+            new Cmd("canvasZoomIn", "Zoom In", KeyEvent.VK_F, false, "Zoom in while held, at half the turn rate"),
+            new Cmd("canvasZoomOut", "Zoom Out", KeyEvent.VK_V, false, "Zoom out while held, at half the turn rate"),
             new Cmd("canvasResetView", "Reset View", KeyEvent.VK_R, false, "Put the view back to its default"),
+            new Cmd("canvasToggleGrid", "Show or Hide Grid", KeyEvent.VK_G, false, "Turn the grid on or off: the master switch of the Grid row"),
             new Cmd("canvasFasterPlayback", "Faster Playback (with Cmd)", KeyEvent.VK_RIGHT, true, "Raise the playback rate by one"),
             new Cmd("canvasSlowerPlayback", "Slower Playback (with Cmd)", KeyEvent.VK_LEFT, true, "Lower the playback rate by one"));
 
@@ -119,10 +120,26 @@ public final class CanvasKeys {
                 // an unreadable value keeps the default
             }
         }
+        Cmd own = byId(id);
+        if (own == null)
+            return -1;
+        // A default added later (F, V, G on 2026-11-11) never lands on a key the person already gave another command
         for (Cmd c : ALL)
-            if (c.id().equals(id))
-                return c.defaultKey();
-        return -1;
+            if (c != own && c.withCmd() == own.withCmd() && own.defaultKey() == stored(c.id()))
+                return -1;
+        return own.defaultKey();
+    }
+
+    /** The key code stored for {@code id}, or -1 when it is unset, none or unreadable. */
+    private static int stored(String id) {
+        String s = Settings.getProperty(PREFIX + id);
+        if (s == null || s.isBlank() || s.equals(NONE))
+            return -1;
+        try {
+            return KeyEvent.class.getField("VK_" + s).getInt(null);
+        } catch (ReflectiveOperationException e) {
+            return -1;
+        }
     }
 
     /** Bind {@code id} to key code {@code code} (-1 for none). Returns why it was refused, or null. */
@@ -160,7 +177,6 @@ public final class CanvasKeys {
         return s != null && !s.isBlank();
     }
 
-    /** Keys the canvas already answers to for other reasons (Space, the arrows, X, Y, Z, N, P): not free to take. */
     @Nullable
     static Cmd byId(String id) {
         for (Cmd c : ALL)
@@ -178,10 +194,12 @@ public final class CanvasKeys {
         };
     }
 
+    /** Keys the canvas or the whole window already answers to (Space, Left, Right, X, Y, Z, N, P, the shuttle's J, K, L): not free to take. */
     private static int taken(int code) {
         return switch (code) {
             case KeyEvent.VK_SPACE, KeyEvent.VK_LEFT, KeyEvent.VK_RIGHT, KeyEvent.VK_X, KeyEvent.VK_Y, KeyEvent.VK_Z,
-                 KeyEvent.VK_N, KeyEvent.VK_P, KeyEvent.VK_BACK_SPACE, KeyEvent.VK_DELETE -> code;
+                 KeyEvent.VK_N, KeyEvent.VK_P, KeyEvent.VK_BACK_SPACE, KeyEvent.VK_DELETE,
+                 KeyEvent.VK_J, KeyEvent.VK_K, KeyEvent.VK_L -> code;
             default -> -1;
         };
     }
@@ -239,6 +257,11 @@ public final class CanvasKeys {
         return "true".equals(Settings.getProperty(LIVE_WHILE_RECORDING));
     }
 
+    /** A recording is running and Record live changes is off: the keys change nothing. */
+    private static boolean recordingLocked() {
+        return ExportMovie.isRecording() && !liveWhileRecording();
+    }
+
     // ---- key events, from Interaction ----
 
     /** Cmd on a Mac, Ctrl elsewhere: the modifier the playback keys carry. */
@@ -272,9 +295,16 @@ public final class CanvasKeys {
                     stepPlayback(-1);
             }
             case "canvasResetView" -> {
-                if (STATE.shot.add(c.id())) {
+                if (STATE.shot.add(c.id()) && !recordingLocked()) {
                     Commands.resetView();
                     toast("View reset");
+                }
+            }
+            case "canvasToggleGrid" -> {
+                if (STATE.shot.add(c.id()) && !recordingLocked()) {
+                    Boolean on = Commands.toggleGrid();
+                    if (on != null)
+                        toast(on ? "Grid on" : "Grid off");
                 }
             }
             default -> {
@@ -322,7 +352,7 @@ public final class CanvasKeys {
         long now = System.nanoTime();
         double dt = Math.min(0.1, (now - STATE.lastNanos) / 1e9); // a stalled frame does not leap
         STATE.lastNanos = now;
-        if (STATE.down.isEmpty() || (ExportMovie.isRecording() && !liveWhileRecording()))
+        if (STATE.down.isEmpty() || recordingLocked())
             return;
         double step = Math.toRadians(degreesPerSecond()) * dt * (STATE.slow ? SLOW : 1);
         boolean changed = false;

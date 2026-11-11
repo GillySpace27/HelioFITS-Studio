@@ -44,7 +44,7 @@ public final class KeyBindingsCheck {
         expect("decode refuses nonsense", KeyBindings.decode("menu shift") == null && KeyBindings.decode("!!") == null);
 
         // Refusals
-        String free = "duplicateLayer"; // catalogued; has no default shortcut
+        String free = "sendToPython"; // catalogued; has no default shortcut
         expect("the command used below has no default shortcut", KeyBindings.defaultFor(free) == null && ActionCatalog.get(free) != null);
         expect("a bare letter is refused (it would shadow the canvas keys)", KeyBindings.refusal(free, KeyStroke.getKeyStroke(KeyEvent.VK_J, 0)) != null);
         expect("Shift alone is refused", KeyBindings.refusal(free, KeyStroke.getKeyStroke(KeyEvent.VK_J, InputEvent.SHIFT_DOWN_MASK)) != null);
@@ -103,6 +103,25 @@ public final class KeyBindingsCheck {
         KeyBindings.resetAll();
         expect("resetAll puts every shortcut back", def.equals(KeyBindings.current(withDefault)) && KeyBindings.current(free) == null
                 && !KeyBindings.isCustom(withDefault) && !KeyBindings.isCustom(free));
+
+        // The defaults added 2026-11-11, and no two commands start on the same key
+        boolean six = KeyStroke.getKeyStroke(KeyEvent.VK_C, menu | InputEvent.SHIFT_DOWN_MASK).equals(KeyBindings.defaultFor("copyFrame"))
+                && KeyStroke.getKeyStroke(KeyEvent.VK_D, menu).equals(KeyBindings.defaultFor("duplicateLayer"))
+                && KeyStroke.getKeyStroke(KeyEvent.VK_F, menu).equals(KeyBindings.defaultFor("identifyFindBody"))
+                && KeyStroke.getKeyStroke(KeyEvent.VK_I, menu).equals(KeyBindings.defaultFor("identifyUnderCursor"))
+                && KeyStroke.getKeyStroke(KeyEvent.VK_E, menu).equals(KeyBindings.defaultFor("quickShare"))
+                && KeyStroke.getKeyStroke(KeyEvent.VK_L, menu).equals(KeyBindings.defaultFor("punchLatest"));
+        expect("Copy Frame, Duplicate Layer, Find Body, Identify Under Cursor, Quick Share and PUNCH Latest have their keys", six);
+        java.util.Map<KeyStroke, String> firstOn = new java.util.HashMap<>();
+        String shared = null;
+        for (ActionCatalog.Entry e : ActionCatalog.all()) {
+            KeyStroke d = KeyBindings.defaultFor(e.id());
+            if (d != null && firstOn.putIfAbsent(d, e.id()) != null)
+                shared = e.id() + " and " + firstOn.get(d);
+        }
+        expect("no two commands share a default key" + (shared == null ? "" : ": " + shared), shared == null);
+        expect("the grid's master switch is a command, with no default (G is its canvas key)",
+                ActionCatalog.get("toggleGrid") != null && KeyBindings.defaultFor("toggleGrid") == null);
 
         // The panel builds and filters
         org.helioviewer.jhv.gui.dialog.KeybindingsPanel panel = new org.helioviewer.jhv.gui.dialog.KeybindingsPanel();

@@ -61,7 +61,7 @@ public final class CommandRegistry {
             Map.entry("reloadSources", Effect.WRITE), Map.entry("duplicateLayer", Effect.WRITE),
             Map.entry("zoomIn", Effect.WRITE), Map.entry("zoomOut", Effect.WRITE), Map.entry("zoomFit", Effect.WRITE), Map.entry("zoomTimelineFit", Effect.WRITE),
             Map.entry("zoomOne", Effect.WRITE), Map.entry("separateMultiviewZoom", Effect.WRITE), Map.entry("fitNewMultiviewLayers", Effect.WRITE),
-            Map.entry("zoomFovAnnotation", Effect.WRITE), Map.entry("resetCamera", Effect.WRITE), Map.entry("resetAxis", Effect.WRITE),
+            Map.entry("zoomFovAnnotation", Effect.WRITE), Map.entry("resetCamera", Effect.WRITE), Map.entry("resetAxis", Effect.WRITE), Map.entry("toggleGrid", Effect.WRITE),
             Map.entry("rotate90X", Effect.WRITE), Map.entry("rotate90Y", Effect.WRITE), Map.entry("rotate90Z", Effect.WRITE),
             Map.entry("playPause", Effect.WRITE), Map.entry("previousFrame", Effect.WRITE), Map.entry("nextFrame", Effect.WRITE),
             Map.entry("record", Effect.WRITE), Map.entry("trimStart", Effect.WRITE), Map.entry("trimEnd", Effect.WRITE),

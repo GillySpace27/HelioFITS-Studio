@@ -587,6 +587,24 @@
         "type": "object",
         "properties": {}
       },
+      "name": "toggleGrid",
+      "description": "Turn the grid on or off: the master switch of the Grid row (G on the canvas)",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "x-effect": "write"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
       "name": "newJp2Layer",
       "description": "New Image Layer\u2026",
       "annotations": {
