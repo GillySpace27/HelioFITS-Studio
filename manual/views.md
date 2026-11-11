@@ -97,8 +97,8 @@ Projection palette; its sky controls appear alongside.
 - **Keys on the canvas**, while it has focus (the pointer is over it): **W** and **S** pitch, **A** and
   **D** yaw and **Q** and **E** roll the scene, smoothly while held, by about 45 degrees a second
   (Option held makes it five times slower, Shift five times faster). A key moves the near side of the scene the way a drag
-  that way would: D to the right, W up, Q counter-clockwise. **Up** and **Down** zoom in and out
-  while held, at half the turn rate; **.** and **,** make the warp stronger and weaker, and **'** and **/** tighten and
+  that way would: D to the right, W up, Q counter-clockwise. **[** and **]** zoom in and out
+  while held, at half the turn rate; **.** and **,** make the warp stronger and weaker, and **'** and **;** tighten and
   loosen the crop (to none), at the same rate and where the projection has a Warp or Crop slider, which follow them; **G** shows or hides the grid (the Grid row's checkbox, also
   {menuselection}`View --> Show or Hide Grid`), **I** and **O** trim the movie's start and end to the
   frame shown, **Home** and **End** go to its first and last frame, and **R** resets the view. **Cmd+Right** and **Cmd+Left**

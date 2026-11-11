@@ -42,17 +42,17 @@ public final class CanvasKeysCheck {
 
         org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.PREFIX + "canvasZoomIn", "DOWN");
         org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.PREFIX + "canvasZoomOut", "UP");
-        expect("a zoom key stored on Up or Down (one folder had them swapped) is dropped, so Up zooms in and Down out",
-                CanvasKeys.key("canvasZoomIn") == KeyEvent.VK_UP && CanvasKeys.key("canvasZoomOut") == KeyEvent.VK_DOWN);
+        expect("a zoom key stored on Up or Down is dropped, so [ zooms in and ] out",
+                CanvasKeys.key("canvasZoomIn") == KeyEvent.VK_OPEN_BRACKET && CanvasKeys.key("canvasZoomOut") == KeyEvent.VK_CLOSE_BRACKET);
 
         Set<Integer> seen = new LinkedHashSet<>();
         boolean distinct = true;
         for (CanvasKeys.Cmd c : CanvasKeys.ALL)
             distinct &= seen.add(CanvasKeys.key(c.id()));
         expect("every canvas key starts on its own key", distinct && CanvasKeys.ALL.size() == 20);
-        expect("W S A D Q E turn; Up and Down zoom; G the grid; R resets; Cmd+Right and Cmd+Left set the rate",
+        expect("W S A D Q E turn; [ and ] zoom; G the grid; R resets; Cmd+Right and Cmd+Left set the rate",
                 CanvasKeys.key("canvasPitchUp") == KeyEvent.VK_W && CanvasKeys.key("canvasYawRight") == KeyEvent.VK_D
-                        && CanvasKeys.key("canvasRollLeft") == KeyEvent.VK_Q && CanvasKeys.key("canvasZoomIn") == KeyEvent.VK_UP && CanvasKeys.key("canvasZoomOut") == KeyEvent.VK_DOWN
+                        && CanvasKeys.key("canvasRollLeft") == KeyEvent.VK_Q && CanvasKeys.key("canvasZoomIn") == KeyEvent.VK_OPEN_BRACKET && CanvasKeys.key("canvasZoomOut") == KeyEvent.VK_CLOSE_BRACKET
                         && CanvasKeys.key("canvasToggleGrid") == KeyEvent.VK_G
                         && CanvasKeys.key("canvasTrimStart") == KeyEvent.VK_I && CanvasKeys.key("canvasTrimEnd") == KeyEvent.VK_O
                         && CanvasKeys.key("canvasFirstFrame") == KeyEvent.VK_HOME && CanvasKeys.key("canvasLastFrame") == KeyEvent.VK_END
@@ -106,9 +106,9 @@ public final class CanvasKeysCheck {
         expect("both zoom keys held cancel", CanvasKeys.zoomFactor(Set.of("canvasZoomIn", "canvasZoomOut"), step) == 1
                 && CanvasKeys.zoomFactor(Set.of("canvasPitchUp"), step) == 1);
 
-        expect(", and . warp, ' and / crop; F and V are free", CanvasKeys.key("canvasWarpWeaker") == KeyEvent.VK_COMMA
+        expect(", and . warp, ' and ; crop; F and V are free", CanvasKeys.key("canvasWarpWeaker") == KeyEvent.VK_COMMA
                 && CanvasKeys.key("canvasWarpStronger") == KeyEvent.VK_PERIOD && CanvasKeys.key("canvasCropTighter") == KeyEvent.VK_QUOTE
-                && CanvasKeys.key("canvasCropLooser") == KeyEvent.VK_SLASH && CanvasKeys.command(KeyEvent.VK_F) == null
+                && CanvasKeys.key("canvasCropLooser") == KeyEvent.VK_SEMICOLON && CanvasKeys.command(KeyEvent.VK_F) == null
                 && CanvasKeys.command(KeyEvent.VK_V) == null);
         double stronger = CanvasKeys.warpDelta(Set.of("canvasWarpStronger"), step);
         expect("period warps stronger (lambda towards -1, the slider's right) at the zoom rate, comma the other way, both cancel",
@@ -127,10 +127,10 @@ public final class CanvasKeysCheck {
         CanvasKeys.reset("canvasFasterPlayback");
         expect("Left and Right stay with the frame step; a free key such as F can be taken",
                 CanvasKeys.set("canvasPitchUp", KeyEvent.VK_RIGHT) != null && CanvasKeys.set("canvasPitchUp", KeyEvent.VK_F) == null
-                        && CanvasKeys.command(KeyEvent.VK_DOWN).id().equals("canvasZoomOut"));
+                        && CanvasKeys.command(KeyEvent.VK_CLOSE_BRACKET).id().equals("canvasZoomOut"));
         CanvasKeys.reset("canvasPitchUp");
-        expect("a plain and a Cmd command may share a key", CanvasKeys.command(KeyEvent.VK_UP, true) == null
-                && CanvasKeys.command(KeyEvent.VK_UP, false).id().equals("canvasZoomIn")
+        expect("a plain and a Cmd command may share a key", CanvasKeys.command(KeyEvent.VK_OPEN_BRACKET, true) == null
+                && CanvasKeys.command(KeyEvent.VK_OPEN_BRACKET, false).id().equals("canvasZoomIn")
                 && CanvasKeys.command(KeyEvent.VK_RIGHT, true).id().equals("canvasFasterPlayback")
                 && CanvasKeys.command(KeyEvent.VK_RIGHT, false) == null);
 
@@ -165,12 +165,12 @@ public final class CanvasKeysCheck {
 
         boolean mac = Platform.isMacOS();
         KeyInputEvent cmdOptLeft = new KeyInputEvent(KeyInputEvent.Key.OTHER, false, mac, true, !mac, KeyEvent.VK_LEFT);
-        KeyInputEvent cmdUp = new KeyInputEvent(KeyInputEvent.Key.OTHER, false, mac, false, !mac, KeyEvent.VK_UP);
+        KeyInputEvent cmdBracket = new KeyInputEvent(KeyInputEvent.Key.OTHER, false, mac, false, !mac, KeyEvent.VK_OPEN_BRACKET);
         expect("Cmd+Option+Left is Step Frame, not ours", !CanvasKeys.pressed(cmdOptLeft));
-        expect("a plain Up is the zoom key and Cmd+Up is not", CanvasKeys.pressed(key(KeyEvent.VK_UP, false, false, false, false))
-                && CanvasKeys.heldForCheck().equals(java.util.List.of("canvasZoomIn")) && !CanvasKeys.pressed(cmdUp));
-        CanvasKeys.released(key(KeyEvent.VK_UP, false, false, false, false));
-        expect("Up let go ends the zoom", CanvasKeys.heldForCheck().isEmpty());
+        expect("a plain [ is the zoom key and Cmd+[ (left sidebar) is not", CanvasKeys.pressed(key(KeyEvent.VK_OPEN_BRACKET, false, false, false, false))
+                && CanvasKeys.heldForCheck().equals(java.util.List.of("canvasZoomIn")) && !CanvasKeys.pressed(cmdBracket));
+        CanvasKeys.released(key(KeyEvent.VK_OPEN_BRACKET, false, false, false, false));
+        expect("[ let go ends the zoom", CanvasKeys.heldForCheck().isEmpty());
         expect("a plain F is no longer a canvas key", !CanvasKeys.pressed(key(KeyEvent.VK_F, false, false, false, false)));
         expect("a plain Left is the frame step, left alone", !CanvasKeys.pressed(key(KeyEvent.VK_LEFT, false, false, false, false)));
         System.out.println(failures == 0 ? "CanvasKeysCheck: all passed" : "CanvasKeysCheck: " + failures + " FAILED");

@@ -25,8 +25,8 @@ import org.helioviewer.jhv.opengl.GLText;
 
 /**
  * The keys the canvas answers to while it has focus (Gilly, 2026-11-08, revised 2026-11-09 and 2026-11-11):
- * W and S pitch, A and D yaw and Q and E roll the scene; Up and Down zoom, comma and period warp, and
- * apostrophe and slash crop, continuously while held (2026-11-11: the right hand has zoom, warp, crop and the
+ * W and S pitch, A and D yaw and Q and E roll the scene; [ and ] zoom, comma and period warp, and
+ * apostrophe and semicolon crop, continuously while held (Gilly's defaults, 2026-11-11) (2026-11-11: the right hand has zoom, warp, crop and the
  * playhead; F and V are free); G turns the grid on or off; I and O trim the movie and Home and End go to its first and last frame (2026-11-11); R resets the view; Cmd+Left and Cmd+Right (Ctrl off a Mac) lower and raise the playback
  * rate. The plain arrows' stepping and Space stay where they were ({@link Interaction}).
  *
@@ -73,12 +73,12 @@ public final class CanvasKeys {
             new Cmd("canvasYawRight", "Yaw Right", KeyEvent.VK_D, false, "Turn the scene so its near side moves right"),
             new Cmd("canvasRollLeft", "Roll Counter-clockwise", KeyEvent.VK_Q, false, "Turn the scene counter-clockwise about the line of sight"),
             new Cmd("canvasRollRight", "Roll Clockwise", KeyEvent.VK_E, false, "Turn the scene clockwise about the line of sight"),
-            new Cmd("canvasZoomIn", "Zoom In", KeyEvent.VK_UP, false, "Zoom in while held, at half the turn rate"),
-            new Cmd("canvasZoomOut", "Zoom Out", KeyEvent.VK_DOWN, false, "Zoom out while held, at half the turn rate"),
+            new Cmd("canvasZoomIn", "Zoom In", KeyEvent.VK_OPEN_BRACKET, false, "Zoom in while held, at half the turn rate"),
+            new Cmd("canvasZoomOut", "Zoom Out", KeyEvent.VK_CLOSE_BRACKET, false, "Zoom out while held, at half the turn rate"),
             new Cmd("canvasWarpWeaker", "Warp Weaker", KeyEvent.VK_COMMA, false, "Weaken the warp while held, as the Warp slider moved left"),
             new Cmd("canvasWarpStronger", "Warp Stronger", KeyEvent.VK_PERIOD, false, "Strengthen the warp while held, as the Warp slider moved right"),
             new Cmd("canvasCropTighter", "Crop Tighter", KeyEvent.VK_QUOTE, false, "Tighten the crop while held, as the Crop slider moved right"),
-            new Cmd("canvasCropLooser", "Crop Looser", KeyEvent.VK_SLASH, false, "Loosen the crop while held, back to none, as the Crop slider moved left"),
+            new Cmd("canvasCropLooser", "Crop Looser", KeyEvent.VK_SEMICOLON, false, "Loosen the crop while held, back to none, as the Crop slider moved left"),
             new Cmd("canvasResetView", "Reset View", KeyEvent.VK_R, false, "Put the view back to its default"),
             new Cmd("canvasToggleGrid", "Show or Hide Grid", KeyEvent.VK_G, false, "Turn the grid on or off: the master switch of the Grid row"),
             new Cmd("canvasTrimStart", "Trim Start Here", KeyEvent.VK_I, false, "Start the movie at this frame, as I does on the time slider"),
@@ -149,7 +149,7 @@ public final class CanvasKeys {
     /**
      * Once per settings folder: a Keybindings dialog OK had pinned Up and Down on Zoom In and Out as stored
      * values (one debug folder had them swapped), which outrank the defaults. Drop a stored Up or Down on the
-     * two zoom commands so the defaults (Up and Down again, 2026-11-11) apply; the flag keeps a later choice.
+     * two zoom commands so the defaults ([ and ], 2026-11-11) apply; the flag keeps a later choice.
      */
     private static void migrateZoom() {
         String flag = PREFIX + "zoomOnFV";
