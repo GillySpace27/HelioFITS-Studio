@@ -443,6 +443,24 @@
         "type": "object",
         "properties": {}
       },
+      "name": "viewFromEarth",
+      "description": "3D views: put the camera at Earth, 1 au out",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "x-effect": "write"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
       "name": "separateMultiviewZoom",
       "description": "Separate Multiview Zoom",
       "annotations": {

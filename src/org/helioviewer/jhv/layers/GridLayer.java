@@ -130,6 +130,7 @@ public final class GridLayer extends AbstractLayer {
     private double gridLabelAngle = 148;
 
     private final GLSLShape earthPoint = new GLSLShape(false);
+    private final BufVertex earthBuf = new BufVertex(1);
 
     /**
      * A dot at the observer's own position in space, as opposed to {@link #earthPoint}, which
@@ -321,7 +322,7 @@ public final class GridLayer extends AbstractLayer {
             Transform.popView();
         }
 
-        drawEarthCircles(vp, pixFactor, Sun.getEarth(viewpoint.time));
+        drawEarthCircles(vp, pixFactor, Sun.getEarth(viewpoint.time), mv.rendersIn3D(), mv.cameraWidth(vp));
         if (mv.isHelioradial() && mv.rendersIn3D())
             drawObserverPoint(vp, pixFactor, viewpoint, mv.cameraWidth(vp));
 
@@ -585,12 +586,21 @@ public final class GridLayer extends AbstractLayer {
         Transform.popView();
     }
 
-    private void drawEarthCircles(Viewport vp, double factor, Position p) {
+    // The dot is the Earth itself, so it exists only where the scene has depth: at its true
+    // heliocentric distance in 3D. In the flat views any sphere-surface placement would be a
+    // marker on the photosphere that reads as Earth at 1 R_sun, so it is left out there.
+    private void drawEarthCircles(Viewport vp, double factor, Position p, boolean in3D, double cameraWidth) {
         Transform.pushView();
         Transform.rotateViewInverse(p.toQuat());
 
         earthCircleLine.renderLine(vp, LINEWIDTH_EARTH);
-        earthPoint.renderPoints(factor);
+        if (in3D && cameraWidth > 0) {
+            earthBuf.putVertex(0, 0, (float) p.distance, (float) (OBSERVER_POINT_FRACTION * cameraWidth), OBSERVER_COLOR);
+            earthPoint.uploadAndClear(earthBuf);
+            GL.glDisable(GL.DEPTH_TEST);
+            earthPoint.renderPoints(factor);
+            GL.glEnable(GL.DEPTH_TEST);
+        }
 
         Transform.popView();
     }
@@ -649,7 +659,6 @@ public final class GridLayer extends AbstractLayer {
         eclipticLine.init();
         limbLine.init();
         celestialLine.init();
-        GridMath.initEarthPoint(earthPoint);
 
         radialCircleLine.init();
         radialThickLine.init();
