@@ -240,7 +240,10 @@ Each with its source (vault paths are Gilly's notes in `research-tasks`).
   reachable from master. Never `git rm`, `git push --force`, rewrite history, or delete a tag,
   release, release asset, cache or settings key. (Gilly, 2026-09-28; `archive/README.md`; branch
   exception 2026-11-06.)
-- Never push, publish, notarize for release, edit a release or run a workflow without Gilly's yes
+- Branch model (Gilly, 2026-11-11, "push and merge with impunity to a dev version"): pushing to `dev`, and
+  merging pull requests into `dev`, needs no yes. Everything below applies to `master` and to anything
+  outside the repository.
+- Never push to `master`, publish, notarize for release, edit a release or run a workflow without Gilly's yes
   for that one action; a yes for one release never carries to the next. Publish only after
   `./deploy_release.sh publish --dry-run` and his yes to its output (RELEASING.md step 6;
   vault `daily_notes/2026-08-24.md:67-69`).
@@ -301,12 +304,21 @@ this repository or at upstream.
   `archive/README.md`.
 - Fork-only files (this one, `.editorconfig`, `ATTIC.md`) never go into an upstream pull request.
 
+## Branches
+
+`dev` is the integration branch and `master` is prod. Work branches fork from `dev` and pull
+requests open with `--base dev` (the repository default branch is still `master`, so `gh pr create`
+needs the flag). Agents push to `dev` and merge pull requests into it freely. `master` changes only when Gilly asks to merge `dev` into it, and releases ship
+from `master` as before. Debug builds (`release/debug-build.sh`) start from `origin/dev`, so a debug
+build is always the combined state of everything merged for testing; a pull request not based on
+`dev` is skipped in its report. After a hotfix lands on `master` first, merge `master` back into `dev`.
+
 ## CI
 
 | Workflow | Runs on | Proves |
 |---|---|---|
-| `checks.yml` | push to master, pull requests, dispatch | `ant test` on Linux (xvfb), Windows, macOS arm64 and Intel, plus `OpenJpegDecodeCheck` against the shipped library |
-| `launch.yml` | push to master, pull requests, dispatch | the zip launchers start, open a synthetic AIA FITS and draw it |
+| `checks.yml` | push to master or dev, pull requests, dispatch | `ant test` on Linux (xvfb), Windows, macOS arm64 and Intel, plus `OpenJpegDecodeCheck` against the shipped library |
+| `launch.yml` | push to master or dev, pull requests, dispatch | the zip launchers start, open a synthetic AIA FITS and draw it |
 | `package.yml` | push to master, `release: published`, dispatch | Windows and Linux packages start and draw; on a release the attach job adds them |
 
 Read results with `gh run list --repo GillySpace27/HelioFITS-Studio --branch <branch> --limit 5` and
