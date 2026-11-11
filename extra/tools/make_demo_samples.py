@@ -17,7 +17,7 @@ SAMPLES = [
     ('AIA20250814_0900_0193.fits', 1, 2, 'aia_193_20250814T090004_512.fits', [], ['BSCALE', 'BZERO', 'BLANK']),
     ('c2_22999194.fts', 0, 2, 'lasco_c2_20250814T090005_512.fits', [], []),
     ('c3_32829445.fts', 0, 2, 'lasco_c3_20250814T085406_512.fits', [], []),
-    ('PUNCH_L3_CTM_20250814085629_v0m.fits', 1, 8, 'punch_ctm_20250814T085629_512.fits', [], []),
+    ('PUNCH_L3_CAM_20250814084800_v0m.fits', 1, 8, 'punch_cam_20250814T084800_512.fits', [], []),
     ('aspiics_bt_l3_20250814T090012_1340803F0006_v03.fits', 0, 4, 'aspiics_bt_20250814T090012_512.fits',
      [], ['X_IO', 'Y_IO']),  # occulter centre in pixels, convention unchecked: dropped, not guessed
 ]
@@ -32,6 +32,7 @@ def reduce(src, hdu, n, dst, pix, drop):
         data = h[hdu].data
     is_int = data.dtype.kind == 'i' and 'BSCALE' not in hdr
     data = data.astype(np.float64)
+    data[~np.isfinite(data)] = np.nan  # ASPIICS L3 carries inf pixels, which wreck the display clip
     ny, nx = data.shape
     assert ny % n == 0 and nx % n == 0, (src, data.shape, n)
     with warnings.catch_warnings():

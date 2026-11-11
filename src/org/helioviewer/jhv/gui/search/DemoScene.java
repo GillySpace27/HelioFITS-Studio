@@ -13,6 +13,7 @@ import javax.swing.Action;
 
 import org.helioviewer.jhv.app.Commands;
 import org.helioviewer.jhv.app.Log;
+import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.ActionCatalog;
 import org.helioviewer.jhv.gui.MainFrame;
@@ -38,6 +39,7 @@ public final class DemoScene {
         fresh.action().actionPerformed(new ActionEvent(MainFrame.get(), ActionEvent.ACTION_PERFORMED, "newSession"));
         if (!Layers.getImageLayers().isEmpty())
             return; // the user chose to keep the session
+        Display.setHelioradialPerObserver(false); // a PUNCH or Proba-3 frame at its own observer's angle overlaps the Earth-view ones badly
         List<File> files;
         try {
             files = TourSamples.extract(TourSamples.folder(), TourSamples.DEMO_NAMES);
