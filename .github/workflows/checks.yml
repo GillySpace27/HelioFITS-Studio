@@ -18,7 +18,7 @@ name: checks
 
 on:
   push:
-    branches: [master]
+    branches: [master, dev]
   pull_request:
   workflow_dispatch:
 
@@ -132,7 +132,7 @@ jobs:
   # to 4 for every other job (measured: queue time is about 3 seconds, the runner is just slow),
   # and an Intel Mac differs from the Apple Silicon one only in the amd64 natives we ship. So a
   # pull request runs it only when it touches natives, the OpenJPEG or Metal code, the setup
-  # action or this workflow. Pushes to master and manual runs always run it.
+  # action or this workflow. Pushes to master and manual runs always run it; pushes to dev never do.
   intel-needed:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -148,9 +148,15 @@ jobs:
         id: decide
         env:
           EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          if [ "$EVENT" = push ] && [ "$REF" != refs/heads/master ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Push to a branch other than master (dev): the Intel Mac job runs when dev is merged to master."
+            exit 0
+          fi
           if [ "$EVENT" != pull_request ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
             exit 0
