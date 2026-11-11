@@ -490,6 +490,9 @@ These are run by scripts and Search Controls rather than from a menu; the argume
 * - Command
   - What it does
   - Id
+* - 3D views: put the camera at Earth, 1 au out
+  - No arguments
+  - `viewFromEarth`
 * - Show the movie frame with this number (0 is the first)
   - Arguments: `frame`
   - `seekFrame`
