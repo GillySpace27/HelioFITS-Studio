@@ -75,6 +75,8 @@ public final class ShortcutIndex {
             out.add(new Row("Canvas", c.title().replace(" (with Cmd)", ""), caps));
         }
         out.addAll(FIXED);
+        out.add(new Row("Fixed keys", "Hold for Faster Camera Keys (canvas)", List.of("Shift")));
+        out.add(new Row("Fixed keys", "Hold for Slower Camera Keys (canvas)", List.of(mac ? "Option" : "Alt")));
         return out;
     }
 

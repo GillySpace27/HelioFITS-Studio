@@ -154,11 +154,12 @@ public final class KeybindingsPanel extends JPanel {
         JCheckBox invert = new JCheckBox("Invert pitch and yaw", CanvasKeys.invert());
         invert.setToolTipText("By default a key moves the near side of the scene the way a drag that way would: D to the right, W up");
         JSpinner rate = new JSpinner(new SpinnerNumberModel(CanvasKeys.degreesPerSecond(), 1, 360, 5));
-        rate.setToolTipText("How fast a held key turns the scene; Option held makes it five times slower");
+        rate.setToolTipText("How fast a held key turns the scene; Shift held makes it five times faster, Option five times slower");
         JPanel extra = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
         extra.add(invert);
         extra.add(new JLabel("Degrees per second"));
         extra.add(rate);
+        extra.add(new JLabel("Hold Shift: faster. Hold " + (org.helioviewer.jhv.app.Platform.isMacOS() ? "Option" : "Alt") + ": slower."));
         JPanel p = new JPanel(new BorderLayout(0, 8));
         p.add(grid, BorderLayout.CENTER);
         p.add(extra, BorderLayout.PAGE_END);

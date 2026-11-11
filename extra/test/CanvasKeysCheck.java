@@ -123,10 +123,17 @@ public final class CanvasKeysCheck {
                 near(newDrag.rotateVector(v), Quat.axisAngle(angle, axis).rotateVector(drag.rotateVector(v))));
 
         CanvasKeys.focusLost();
-        boolean none = !CanvasKeys.pressed(key(KeyEvent.VK_W, true, false, false, false))
-                && !CanvasKeys.pressed(key(KeyEvent.VK_W, false, true, false, false))
+        boolean none = !CanvasKeys.pressed(key(KeyEvent.VK_W, false, true, false, false))
                 && !CanvasKeys.pressed(key(KeyEvent.VK_W, false, false, false, true));
-        expect("Shift (annotate), Cmd (pan) and Ctrl (axis) with a key are never camera keys", none && CanvasKeys.heldForCheck().isEmpty());
+        expect("Cmd (pan) and Ctrl (axis) with a key are never camera keys", none && CanvasKeys.heldForCheck().isEmpty());
+        expect("Shift+W is a camera key, held fast", CanvasKeys.pressed(key(KeyEvent.VK_W, true, false, false, false))
+                && CanvasKeys.heldForCheck().equals(java.util.List.of("canvasPitchUp")));
+        CanvasKeys.released(key(KeyEvent.VK_W, true, false, false, false));
+        expect("Shift is five times faster, Option five times slower, both cancel", Math.abs(CanvasKeys.speed(false, true) - 5) < 1e-12
+                && Math.abs(CanvasKeys.speed(true, false) - 0.2) < 1e-12 && Math.abs(CanvasKeys.speed(true, true) - 1) < 1e-12
+                && CanvasKeys.speed(false, false) == 1);
+        boolean mac0 = Platform.isMacOS();
+        expect("Cmd+Shift with a playback key is left to the menus", !CanvasKeys.pressed(new KeyInputEvent(KeyInputEvent.Key.OTHER, true, mac0, false, !mac0, KeyEvent.VK_RIGHT)));
         expect("a plain W is taken and held", CanvasKeys.pressed(key(KeyEvent.VK_W, false, false, false, false)) && CanvasKeys.heldForCheck().equals(java.util.List.of("canvasPitchUp")));
         CanvasKeys.released(key(KeyEvent.VK_W, false, false, false, false));
         expect("and let go on release", CanvasKeys.heldForCheck().isEmpty());
