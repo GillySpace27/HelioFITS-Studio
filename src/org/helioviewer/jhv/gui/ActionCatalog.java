@@ -100,6 +100,13 @@ public final class ActionCatalog {
         put(org.helioviewer.jhv.identify.IdentifyActions.TOOLTIP, org.helioviewer.jhv.identify.IdentifyActions.tooltip(), "View/Identify Tooltip", "");
         put(org.helioviewer.jhv.identify.IdentifyActions.STARS, org.helioviewer.jhv.identify.IdentifyActions.stars(), "View/Identify Stars", "");
         put(org.helioviewer.jhv.identify.IdentifyActions.FIND_BODY, org.helioviewer.jhv.identify.IdentifyActions.findBody(), "View/Find Body...", "");
+        // The grid's master switch, also G on the canvas (CanvasKeys); no default here, so a person can give it a modified key
+        put("toggleGrid", new AbstractAction("Show or Hide Grid") {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                org.helioviewer.jhv.app.Commands.toggleGrid();
+            }
+        }, "View/Show or Hide Grid", "Turn the grid on or off: the master switch of the Grid row (G on the canvas)");
         // Layers
         put("newJp2Layer", new Actions.NewLayer(), "Layers/New Image Layer…", "");
         put("newSynopticLayer", new Actions.NewSynopticLayer(), "Layers/New Synoptic Layer...", "");
@@ -261,8 +268,20 @@ public final class ActionCatalog {
         }
         // The window's layout and the interface scale: Cmd+[ Cmd+] Cmd+\, Cmd+Shift+= - 0 (LayoutKeys)
         org.helioviewer.jhv.gui.component.LayoutKeys.register(ActionCatalog::put);
+        // Default keys for commands whose actions are built without one (Gilly, 2026-11-11), before the person's own
+        int menu = DesktopIntegration.menuShortcutMask;
+        defaultKey("copyFrame", java.awt.event.KeyEvent.VK_C, menu | java.awt.event.InputEvent.SHIFT_DOWN_MASK);
+        defaultKey("duplicateLayer", java.awt.event.KeyEvent.VK_D, menu);
+        defaultKey(org.helioviewer.jhv.identify.IdentifyActions.FIND_BODY, java.awt.event.KeyEvent.VK_F, menu);
+        defaultKey(org.helioviewer.jhv.identify.IdentifyActions.UNDER_CURSOR, java.awt.event.KeyEvent.VK_I, menu);
+        defaultKey("quickShare", java.awt.event.KeyEvent.VK_E, menu);
+        defaultKey("punchLatest", java.awt.event.KeyEvent.VK_L, menu);
         // The person's own keybindings (Settings > Keybindings), applied over the defaults stated above
         org.helioviewer.jhv.gui.registry.KeyBindings.apply();
+    }
+
+    private static void defaultKey(String id, int key, int modifiers) {
+        entries.get(id).action().putValue(Action.ACCELERATOR_KEY, javax.swing.KeyStroke.getKeyStroke(key, modifiers));
     }
 
     /** How a catalogue in another package hands its commands to register(). */

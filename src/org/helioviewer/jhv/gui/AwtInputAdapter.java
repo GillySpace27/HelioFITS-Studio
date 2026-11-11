@@ -98,7 +98,8 @@ public final class AwtInputAdapter extends MouseAdapter implements KeyListener, 
 
     @Override
     public void keyPressed(KeyEvent e) {
-        InputController.keyPressed(synthesizeKey(e));
+        if (InputController.keyPressed(synthesizeKey(e)))
+            e.consume(); // Alt+F and Alt+V are slow zoom here, not the File and View menus (Windows, Linux)
     }
 
     @Override

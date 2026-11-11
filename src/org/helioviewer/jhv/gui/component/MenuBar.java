@@ -248,6 +248,7 @@ public final class MenuBar extends JMenuBar {
         catalogItem(viewMenu, "resetAxis");
         catalogItem(viewMenu, "resetCamera");
         catalogItem(viewMenu, "viewFromEarth");
+        catalogItem(viewMenu, "toggleGrid");
 
         JCheckBoxMenuItem autoReset = new JCheckBoxMenuItem("Reset View for New Layers",
                 org.helioviewer.jhv.app.DisplaySettings.getAutoResetView());

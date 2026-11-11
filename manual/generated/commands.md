@@ -167,6 +167,9 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - View > Find Body...
   -
   - `identifyFindBody`
+* - View > Show or Hide Grid
+  - Turn the grid on or off: the master switch of the Grid row (G on the canvas)
+  - `toggleGrid`
 * - View > Left Sidebar Panels > Collapse All, Left First
   - Collapse all, never unfolding: press 1 folds every section of the left sidebar, press 2 within 5 seconds the other sidebar's too, press 3 collapses both sidebars and the timeline strip
   - `foldLeftPanelAll`

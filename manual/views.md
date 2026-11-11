@@ -97,14 +97,16 @@ Projection palette; its sky controls appear alongside.
 - **Keys on the canvas**, while it has focus (the pointer is over it): **W** and **S** pitch, **A** and
   **D** yaw and **Q** and **E** roll the scene, smoothly while held, by about 45 degrees a second
   (Option held makes it five times slower). A key moves the near side of the scene the way a drag
-  that way would: D to the right, W up, Q counter-clockwise. **Up** and **Down** zoom in and out
-  while held, at half the turn rate, and **R** resets the view. **Cmd+Right** and **Cmd+Left**
+  that way would: D to the right, W up, Q counter-clockwise. **F** and **V** zoom in and out
+  while held, at half the turn rate, **G** shows or hides the grid (the Grid row's checkbox, also
+  {menuselection}`View --> Show or Hide Grid`), and **R** resets the view. **Cmd+Right** and **Cmd+Left**
   (Ctrl off a Mac) raise and lower the playback rate by one, and the new rate shows for a moment
   at the top left of the canvas; plain Left and Right step a frame, and Space plays and pauses. Pitch and yaw turn the 3D views and aim Observer Sky; the
   flat projections have no camera attitude to turn. A held key is one undo step. Shift, Cmd and Ctrl
   with a key are not camera keys (Shift annotates). Every one of these keys can be changed under
   **Settings > Keybindings > Canvas keys...** (the playback keys take only the arrows, Page Up, Page Down, Home and End), which also has **Invert pitch and yaw** and the
-  turn rate. While recording they are ignored unless **Record live changes** is ticked in the
+  turn rate. Help > Keyboard Shortcuts (Cmd+/) lists them all, with the keys that cannot be changed
+  (Space, the arrows, J K L, I and O). While recording they, G and R included, are ignored unless **Record live changes** is ticked in the
   Record panel; what is turned during a recording is in its pixels, but a replay from its record
   cannot repeat it yet.
 - {menuselection}`View --> Reset View` (or a double-click on the canvas) returns the view to its

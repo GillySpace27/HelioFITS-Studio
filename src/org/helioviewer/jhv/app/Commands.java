@@ -306,6 +306,21 @@ public final class Commands {
         DisplayController.resetViewAxis();
     }
 
+    /**
+     * Flip the grid's master switch, the Grid row's checkbox, the way that checkbox does. Returns the
+     * new state, or null when there is no grid layer.
+     */
+    @Nullable
+    public static Boolean toggleGrid() {
+        org.helioviewer.jhv.layers.GridLayer grid = org.helioviewer.jhv.layers.Layers.getGridLayer();
+        if (grid == null)
+            return null;
+        grid.setEnabled(!grid.isEnabled());
+        org.helioviewer.jhv.layers.Layers.fireLayerUpdated(grid); // the sidebar row and the Grid palette follow
+        DisplayController.render(1);
+        return grid.isEnabled();
+    }
+
     public static void rotateView90(@Nullable String axis) {
         DisplayController.rotateView90(axis);
     }

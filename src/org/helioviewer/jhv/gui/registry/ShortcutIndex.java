@@ -18,7 +18,8 @@ import org.helioviewer.jhv.gui.ActionCatalog;
  * Every keyboard shortcut in force right now, as rows for the shortcuts overlay (Cmd+/). Read
  * from the live sources each time and never kept: the catalogued commands' accelerators (what
  * {@link KeyBindings} applies, so a rebinding shows at once) and the bare canvas keys
- * ({@link CanvasKeys}). A command with no shortcut has no row.
+ * ({@link CanvasKeys}), then the keys that cannot be changed ({@link #FIXED}). A command with no
+ * shortcut has no row.
  */
 public final class ShortcutIndex {
 
@@ -34,6 +35,21 @@ public final class ShortcutIndex {
             Map.entry(KeyEvent.VK_BACK_QUOTE, "`"), Map.entry(KeyEvent.VK_LEFT, "←"),
             Map.entry(KeyEvent.VK_RIGHT, "→"), Map.entry(KeyEvent.VK_UP, "↑"),
             Map.entry(KeyEvent.VK_DOWN, "↓"), Map.entry(KeyEvent.VK_ESCAPE, "Esc"));
+
+    /**
+     * Keys handled by a control itself, not rebindable, listed so the overlay shows every key (Gilly,
+     * 2026-11-11). Kept by hand: Interaction, InteractionAnnotate, Shuttle, TimeSlider, ChartDrawGraphPane,
+     * PresentationMode and the dialogs are where each comes from.
+     */
+    public static final List<Row> FIXED = List.of(
+            new Row("Fixed keys", "Play or Pause (canvas, time slider)", List.of("Space")),
+            new Row("Fixed keys", "Step a Frame (canvas, time slider)", List.of("←", "→")),
+            new Row("Fixed keys", "Shuttle Reverse, Stop, Forward (anywhere but a text field)", List.of("J", "K", "L")),
+            new Row("Fixed keys", "Trim Start, Trim End (time slider, timeline)", List.of("I", "O")),
+            new Row("Fixed keys", "Hold to Turn About One Axis (canvas)", List.of("X", "Y", "Z")),
+            new Row("Fixed keys", "Next, Previous Annotation (canvas, with Shift)", List.of("N", "P")),
+            new Row("Fixed keys", "Remove Annotation (canvas, with Shift)", List.of("Delete")),
+            new Row("Fixed keys", "Close a Dialog, Leave Present", List.of("Esc")));
 
     /** The rows for this platform. */
     public static List<Row> build() {
@@ -58,6 +74,7 @@ public final class ShortcutIndex {
             caps.add(keyCap(code));
             out.add(new Row("Canvas", c.title().replace(" (with Cmd)", ""), caps));
         }
+        out.addAll(FIXED);
         return out;
     }
 

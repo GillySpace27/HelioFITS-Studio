@@ -116,7 +116,7 @@ public final class KeybindingsPanel extends JPanel {
             }
         });
 
-        JButton canvasBtn = button("Canvas keys...", "The bare keys the picture answers to while it has focus: W A S D Q E turn the scene, Up and Down set the playback rate", this::canvasKeys);
+        JButton canvasBtn = button("Canvas keys...", "The bare keys the picture answers to while it has focus: W A S D Q E turn the scene, F and V zoom, G shows or hides the grid, R resets the view", this::canvasKeys);
 
         JPanel top = new JPanel(new BorderLayout(6, 0));
         top.add(new JLabel("Search:"), BorderLayout.LINE_START);
