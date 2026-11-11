@@ -247,6 +247,7 @@ public final class MenuBar extends JMenuBar {
         catalogItem(viewMenu, "zoomOut");
         catalogItem(viewMenu, "resetAxis");
         catalogItem(viewMenu, "resetCamera");
+        catalogItem(viewMenu, "viewFromEarth");
         catalogItem(viewMenu, "toggleGrid");
         for (String id : new String[]{"toggleTracking", "toggleDiffRotation", "toggleCorona", "toggleMultiview"})
             catalogItem(viewMenu, id);

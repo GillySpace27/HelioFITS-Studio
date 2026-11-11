@@ -485,6 +485,24 @@ public final class Actions {
         }
     }
 
+    /** 3D only: puts the camera at Earth (its longitude, 1 au out), whatever the viewpoint behaviour was. */
+    public static class ViewFromEarth extends AbstractAction {
+        public ViewFromEarth() {
+            super("View from Earth");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            var vl = Layers.getViewpointLayer();
+            if (vl == null || !Display.mode.rendersIn3D())
+                return;
+            var o = vl.getOptions();
+            o.setFreeSource(org.helioviewer.jhv.layers.ViewpointLayerOptions.FreeSource.EARTH, DisplayController.ViewpointApplyMode.KEEP_TRANSFORM);
+            o.setBehaviour(org.helioviewer.jhv.layers.ViewpointLayerOptions.CameraBehaviour.FREE, DisplayController.ViewpointApplyMode.RESET);
+            org.helioviewer.jhv.layers.ViewpointLayerOptions.refreshPanel();
+        }
+    }
+
     public static class ReloadSources extends AbstractKeyAction {
         public ReloadSources() {
             super("Reload Datasets Listings",
