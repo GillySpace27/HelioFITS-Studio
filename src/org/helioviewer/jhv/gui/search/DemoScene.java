@@ -5,6 +5,7 @@ import java.awt.event.ActionEvent;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import javax.annotation.Nullable;
 import javax.swing.AbstractAction;
@@ -20,10 +21,9 @@ import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layers;
 
 /**
- * The demo scene (HS-10): a new session holding the bundled SDO/AIA 171 sample (the one the tour
- * loads, {@link TourSamples}) with RHEF on. Nothing to download, so it opens offline. The PUNCH and
- * LASCO scenes the plan names wait for archive scenes that have been checked to load; this one
- * reads only a file the jar carries.
+ * The demo scene (HS-10): a new session holding the bundled 2025-08-14 ~09:00 UTC frames of SDO/AIA
+ * 171, GOES-19 SUVI 171, Proba-3/ASPIICS, SOHO/LASCO C2 and C3 and PUNCH ({@link TourSamples#DEMO_NAMES}),
+ * with RHEF on the AIA layer. Nothing to download, so it opens offline; it reads only files the jar carries.
  */
 public final class DemoScene {
 
@@ -40,18 +40,25 @@ public final class DemoScene {
             return; // the user chose to keep the session
         List<File> files;
         try {
-            files = TourSamples.extract(TourSamples.folder());
+            files = TourSamples.extract(TourSamples.folder(), TourSamples.DEMO_NAMES);
         } catch (IOException | RuntimeException e) {
             Log.warn("The demo scene's sample could not be unpacked", e);
             return;
         }
-        for (File f : files)
-            Commands.loadImage(f.toURI())
-                    .thenAccept(layer -> EventQueue.invokeLater(() -> applyFilter(layer)))
-                    .exceptionally(e -> {
-                        Log.warn("The demo scene's sample did not load", e);
-                        return null;
+        // one after another, so the layer order is the file order and the AIA layer is the master
+        CompletableFuture<?> chain = CompletableFuture.completedFuture(null);
+        for (File f : files) {
+            boolean aia = f == files.get(0);
+            chain = chain.thenCompose(x -> Commands.loadImage(f.toURI()))
+                    .thenAccept(layer -> {
+                        if (aia)
+                            EventQueue.invokeLater(() -> applyFilter(layer));
                     });
+        }
+        chain.exceptionally(e -> {
+            Log.warn("The demo scene's samples did not all load", e);
+            return null;
+        });
     }
 
     /** As choosing the filter in the layer's Filter list does, for this one layer. */
