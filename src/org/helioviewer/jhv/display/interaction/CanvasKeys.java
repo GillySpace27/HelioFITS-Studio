@@ -119,6 +119,7 @@ public final class CanvasKeys {
 
     /** The key code {@code id} answers to now, or -1 for none. */
     public static int key(String id) {
+        migrateZoom();
         String stored = Settings.getProperty(PREFIX + id);
         if (stored != null && !stored.isBlank()) {
             if (stored.equals(NONE))
@@ -137,6 +138,23 @@ public final class CanvasKeys {
             if (c != own && c.withCmd() == own.withCmd() && own.defaultKey() == stored(c.id()))
                 return -1;
         return own.defaultKey();
+    }
+
+    /**
+     * Once per settings folder: Up and Down used to be Zoom In and Out, and a Keybindings dialog OK pinned them as
+     * stored values, which then outrank the F and V defaults (2026-11-11) and leave F and V dead. Drop a stored
+     * Up or Down on the two zoom commands so the defaults apply; the flag keeps a later deliberate choice.
+     */
+    private static void migrateZoom() {
+        String flag = PREFIX + "zoomOnFV";
+        if (Settings.getProperty(flag) != null)
+            return;
+        for (String id : new String[] { "canvasZoomIn", "canvasZoomOut" }) {
+            String s = Settings.getProperty(PREFIX + id);
+            if ("UP".equals(s) || "DOWN".equals(s))
+                Settings.setProperty(PREFIX + id, "");
+        }
+        Settings.setProperty(flag, "1");
     }
 
     /** The key code stored for {@code id}, or -1 when it is unset, none or unreadable. */

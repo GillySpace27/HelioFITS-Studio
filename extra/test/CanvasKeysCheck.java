@@ -40,6 +40,11 @@ public final class CanvasKeysCheck {
         Platform.init();
         org.helioviewer.jhv.io.Directories.SETTINGS.getFile().mkdirs();
 
+        org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.PREFIX + "canvasZoomIn", "DOWN");
+        org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.PREFIX + "canvasZoomOut", "UP");
+        expect("a zoom key stored on Up or Down from before F and V is dropped, so F and V zoom",
+                CanvasKeys.key("canvasZoomIn") == KeyEvent.VK_F && CanvasKeys.key("canvasZoomOut") == KeyEvent.VK_V);
+
         Set<Integer> seen = new LinkedHashSet<>();
         boolean distinct = true;
         for (CanvasKeys.Cmd c : CanvasKeys.ALL)
