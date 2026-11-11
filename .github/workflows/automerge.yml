@@ -1,0 +1,29 @@
+name: automerge
+
+# Turns on GitHub auto-merge for pull requests into dev. GitHub then merges each one itself
+# once the required checks in the "Required checks" ruleset pass, so no agent or local tool has
+# to run `gh pr merge`. dev only: master is deliberately untouched and still needs a human.
+# Applies to same-repo PRs by the repo owner; add the label `no-automerge` to opt one out.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]
+    branches: [dev]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  enable:
+    if: >-
+      github.event.pull_request.user.login == github.repository_owner &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !github.event.pull_request.draft &&
+      !contains(github.event.pull_request.labels.*.name, 'no-automerge')
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR"
