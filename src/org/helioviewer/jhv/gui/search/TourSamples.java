@@ -39,7 +39,7 @@ final class TourSamples {
             "aspiics_bt_20250814T090012_512.fits",
             "lasco_c2_20250814T090005_512.fits",
             "lasco_c3_20250814T085406_512.fits",
-            "punch_ctm_20250814T085629_512.fits");
+            "punch_cam_20250814T084800_512.fits");
 
     static File folder() {
         return new File(Directories.HOME.getFile(), "Samples");
