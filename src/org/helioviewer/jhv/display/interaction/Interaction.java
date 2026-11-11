@@ -188,7 +188,7 @@ public final class Interaction {
         hold(e.metaDown(), e.altDown(), e.ctrlDown());
         // Canvas keys first, Shift or not (Shift is fast): none sits on N, P or Delete, the annotation keys. A pending annotation keeps every key.
         if (!Annotations.hasPending() && CanvasKeys.pressed(e)) {
-            return true; // W A S D Q E turn the scene, F and V zoom, G the grid, R resets the view, Cmd+Left and Right set the playback rate (rebindable)
+            return true; // W A S D Q E turn the scene, Up and Down zoom, , and . warp, ' and / crop, G the grid, R resets the view, Cmd+Left and Right set the playback rate (rebindable)
         } else if (annotating(e.shiftDown())) {
             interactionAnnotate.keyPressed(e);
         } else if (e.key() == KeyInputEvent.Key.X || e.key() == KeyInputEvent.Key.Y || e.key() == KeyInputEvent.Key.Z) {
