@@ -48,6 +48,12 @@
         <arg value="date -u +%Y-%m-%dT%H:%M:%SZ"/>
     </exec>
     <property name="channel" value=""/>
+    <!-- "v0.9.1 37": latest release tag reachable from HEAD and commits since it, for builds made before
+         the tag of VERSION exists (displayBuild then shows 0.9.2+37). Empty with no tags. -->
+    <exec executable="sh" outputproperty="sincetag">
+        <arg value="-c"/>
+        <arg value="t=$(git describe --tags --abbrev=0 --match 'v*' 2&gt;/dev/null) &amp;&amp; echo &quot;$t $(git rev-list --count &quot;$t..HEAD&quot;)&quot; || true"/>
+    </exec>
     <exec executable="sh" outputproperty="dirty">
         <arg value="-c"/>
         <arg value='if [ -n "$(git status --porcelain src resources VERSION 2>/dev/null)" ]; then echo true; else echo false; fi'/>
@@ -220,6 +226,7 @@
         <replace file="${bin}/version.properties" token="@@COMMIT" value="${commit}"/>
         <replace file="${bin}/version.properties" token="@@DIRTY" value="${dirty}"/>
         <replace file="${bin}/version.properties" token="@@SINCE" value="${since}"/>
+        <replace file="${bin}/version.properties" token="@@TAGSINCE" value="${sincetag}"/>
         <replace file="${bin}/version.properties" token="@@BUILT" value="${built}"/>
         <replace file="${bin}/version.properties" token="@@CHANNEL" value="${channel}"/>
         <manifestclasspath property="manifest_cp" jarfile="${jarfile}">
