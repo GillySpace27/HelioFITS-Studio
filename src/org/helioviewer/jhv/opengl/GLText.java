@@ -39,11 +39,16 @@ public final class GLText {
 
     /** As above, each line in its own RGBA (floats) when {@code colors} has one for it; the rest are light gray. */
     public static void drawTextFloat(Viewport vp, List<String> lines, @javax.annotation.Nullable List<float[]> colors, int x, int y) {
+        drawTextFloat(vp, lines, colors, x, y, 1);
+    }
+
+    /** As above, at {@code sizeFactor} times the usual size. */
+    public static void drawTextFloat(Viewport vp, List<String> lines, @javax.annotation.Nullable List<float[]> colors, int x, int y, double sizeFactor) {
         if (lines.isEmpty())
             return;
 
         SdfTextRenderer renderer = renderer();
-        int textSize = logicalToPhysicalSize(FLOAT_TEXT_SIZE);
+        int textSize = (int) (logicalToPhysicalSize(FLOAT_TEXT_SIZE) * sizeFactor);
         float textScaleFactor = textSize / renderer.getFontSize();
         int lineStep = (int) (textSize * FLOAT_TEXT_LINE_HEIGHT);
 
@@ -75,8 +80,13 @@ public final class GLText {
 
     /** The width and height, in physical pixels, that {@link #drawTextFloat} gives {@code text}. */
     public static float[] floatTextSize(String text) {
+        return floatTextSize(text, 1);
+    }
+
+    /** As above, at {@code sizeFactor} times the usual size. */
+    public static float[] floatTextSize(String text, double sizeFactor) {
         SdfTextRenderer renderer = renderer();
-        int textSize = logicalToPhysicalSize(FLOAT_TEXT_SIZE);
+        int textSize = (int) (logicalToPhysicalSize(FLOAT_TEXT_SIZE) * sizeFactor);
         return new float[]{renderer.measureWidth(text) * textSize / renderer.getFontSize(), textSize};
     }
 
