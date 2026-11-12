@@ -51,6 +51,9 @@ public final class Bodies {
         return null;
     }
 
+    /** Ephemeris lookups, for the cost guard: a frame of marks should cost a handful, then none while the time holds. */
+    static final java.util.concurrent.atomic.LongAdder APPARENT = new java.util.concurrent.atomic.LongAdder();
+
     private static final int CACHE_SIZE = 4096;
     private static final Map<String, Vec3> cache = new LinkedHashMap<>(256, .75f, true) {
         @Override
@@ -87,6 +90,7 @@ public final class Bodies {
      */
     @Nullable
     public static Vec3 apparent(Body body, JHVTime time, Vec3 observer, boolean lightTime) {
+        APPARENT.increment();
         Vec3 geometric = world(body, time);
         if (!lightTime || geometric == null)
             return geometric;

@@ -10,6 +10,7 @@ import org.helioviewer.jhv.display.SurfaceTransition;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.display.ViewportMath;
 import org.helioviewer.jhv.display.WarpGeometry;
+import org.helioviewer.jhv.math.PolarBasis;
 import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.math.Vec2;
 import org.helioviewer.jhv.math.Vec3;
@@ -32,7 +33,15 @@ import org.helioviewer.jhv.math.Vec3;
  * curved surface takes a few Newton steps on {@code place} from the plane-of-sky answer. A result
  * is returned only when {@code place} puts it back on the pixel, so the pair cannot disagree.
  *
- * <p>Null for a point the mesh does not draw: past the Crop (a fragment discard), past the
+ * <p>The other modes with a sky have a forward map too, closed form in each: HPC, Observer Sky
+ * (composed, from each layer's own surface distance), Helioradial and Unrolled (the plane of sky,
+ * MapScale and PolarBasis) and Orthographic (the solar disk or the layer's image plane, orbited or
+ * not). For those {@link #place} ends with a self-check: the probe at the placed pixel
+ * ({@link Probes#exact}) must give the same sight line back, to a fraction of a pixel, or the sight
+ * line is not drawn there (hidden behind the disk, off the page, off the field) and the answer is
+ * null. So nothing in the render loop solves for a pixel.
+ *
+ * <p>For 3D Helioradial, null for a point the mesh does not draw: past the Crop (a fragment discard), past the
  * surface's reach or the loaded field, hidden by the solar disk, or a sight line that misses the
  * surface. The surface is drawn from both sides, so a line crossing a curved surface twice goes to
  * the intersection nearer the camera, as the depth buffer does. Occlusion between layers is not
@@ -56,17 +65,123 @@ public final class SkyScreen {
         return observer -> ray(mv, vp, observer, x, y);
     }
 
-    /** The canvas point (AWT pixels) where {@code observer}'s sight line {@code ray} is drawn, or null. */
+    /** Calls to {@link #place}, for the cost guard: a frame of marks should cost a count of these, not a solve each. */
+    static final java.util.concurrent.atomic.LongAdder PLACES = new java.util.concurrent.atomic.LongAdder();
+
+    /** How near the sight line read back from a placement must be to the one placed, in screen pixels (judgement). */
+    private static final double CHECK_PIXELS = 0.1;
+
+    /**
+     * The canvas point (AWT pixels) where {@code observer}'s sight line {@code ray} is drawn, or
+     * null where this view draws nothing for it (or has no sky).
+     */
     @Nullable
     public static double[] place(MapView mv, Viewport vp, Position observer, Vec3 ray) {
-        Placed p = new Frame(mv, vp, observer).place(Identifier.unit(ray));
-        return p == null ? null : new double[]{p.x, p.y};
+        PLACES.increment();
+        Vec3 dir = Identifier.unit(ray);
+        if (applies(mv)) {
+            Placed p = new Frame(mv, vp, observer).place(dir);
+            return p == null ? null : new double[]{p.x, p.y};
+        }
+        double[] p = forward(mv, vp, observer, dir);
+        return p != null && agrees(mv, vp, observer, dir, p) ? p : null;
     }
 
-    /** The sight line from {@code observer} that canvas point (x, y) shows, or null where the mesh draws nothing. */
+    /** The sight line from {@code observer} that canvas point (x, y) shows, or null where the view draws nothing. */
     @Nullable
     public static Vec3 ray(MapView mv, Viewport vp, Position observer, double x, double y) {
-        return new Frame(mv, vp, observer).ray(x, y);
+        if (applies(mv))
+            return new Frame(mv, vp, observer).ray(x, y);
+        Identifier.Probe probe = Probes.exact(mv, vp, x, y);
+        return probe == null ? null : probe.direction(observer);
+    }
+
+    /** The self-check: the probe at {@code p} returns {@code dir}, to {@link #CHECK_PIXELS} of a pixel. */
+    private static boolean agrees(MapView mv, Viewport vp, Position observer, Vec3 dir, double[] p) {
+        Vec3 back = ray(mv, vp, observer, p[0], p[1]);
+        if (back == null)
+            return false;
+        Vec3 next = ray(mv, vp, observer, p[0] + 1, p[1]);
+        if (next == null)
+            next = ray(mv, vp, observer, p[0] - 1, p[1]);
+        double pixel = next == null ? 0 : Identifier.angle(back, next);
+        return Identifier.angle(back, dir) <= Math.max(1e-9, CHECK_PIXELS * pixel);
+    }
+
+    /** A page point (view coordinates, aspect already applied) to canvas pixels: the inverse of ViewportMath.computeUpX and computeUpY. */
+    private static double[] canvas(MapView mv, Viewport vp, double upX, double upY) {
+        double width = mv.cameraWidth(vp);
+        return new double[]{
+                vp.x + ((upX + mv.cameraTranslationX()) / (width * vp.aspect) + 0.5) * vp.width,
+                vp.yAWT + (0.5 - (upY + mv.cameraTranslationY()) / width) * vp.height};
+    }
+
+    /**
+     * The forward map of a flat mode, each the exact inverse of the line {@link Probes#exact}
+     * follows for it (and so of the shader): sight line to page, page to canvas.
+     */
+    @Nullable
+    private static double[] forward(MapView mv, Viewport vp, Position observer, Vec3 dir) {
+        if (mv.isLatitudinal())
+            return null;
+        if (mv.isOrthographic())
+            return orthographic(mv, vp, observer, dir);
+        MapScale scale = mv.scale(vp);
+        double aspect = vp.aspect;
+        if (mv.isObserverSky()) {
+            Vec2 pt = mv.skyPage(vp, dir, Display.surfaceDistance(mv.viewpoint().distance, observer.distance));
+            return pt == null ? null : canvas(mv, vp, pt.x * aspect, pt.y);
+        }
+        if (dir.z >= 0) // behind the observer: no page holds it (HPC and the plane of sky are sunward half-spaces)
+            return null;
+        Vec2 hp = Identifier.helioprojective(dir);
+        if (mv.isHpc())
+            return canvas(mv, vp, (scale.toUnitX(Math.toDegrees(hp.x)) - .5) * aspect, scale.toUnitY(Math.toDegrees(hp.y)) - .5);
+        // Helioradial and Unrolled: the plane of sky through the Sun, as Probes.plane turns it into angles with the layer's own distance
+        double d = observer.distance;
+        double px = d * Math.tan(hp.x);
+        double py = Math.sqrt(px * px + d * d) * Math.tan(hp.y);
+        double r = Math.hypot(px, py);
+        if (!Double.isFinite(r))
+            return null;
+        if (mv.isHelioradial()) {
+            double t = r == 0 ? 0 : scale.toUnitY(r);
+            if (!(t <= 1)) // imageRadialWarp.frag: t > 1 is discarded
+                return null;
+            double f = r == 0 ? 0 : .5 * t / r;
+            return canvas(mv, vp, f * px, f * py);
+        }
+        double theta = PolarBasis.angle(px, py);
+        double ux = scale.toUnitX(Math.toDegrees(theta)) - .5, uy = scale.toUnitY(r) - .5;
+        return Math.abs(ux) > .5 || Math.abs(uy) > .5 ? null : canvas(mv, vp, ux * aspect, uy);
+    }
+
+    /**
+     * imageOrtho.frag forward: the sight line meets the solar disk where it is in front (near
+     * hemisphere for the layer and for the view), else the layer's plane of sky through the Sun;
+     * the view rotation then carries that point to the screen. Probes.ortho is its inverse.
+     */
+    @Nullable
+    private static double[] orthographic(MapView mv, Viewport vp, Position observer, Vec3 dir) {
+        Quat cameraDiff = Quat.rotateWithConjugate(mv.viewRotation(), observer.toQuat());
+        double d = observer.distance;
+        double od = d * dir.z, disc = od * od - (d * d - 1);
+        if (disc >= 0) {
+            double s = -od - Math.sqrt(disc);
+            if (s > 0) {
+                Vec3 p = new Vec3(s * dir.x, s * dir.y, d + s * dir.z);
+                if (p.z > 0) {
+                    Vec3 v = cameraDiff.rotateVector(p);
+                    if (v.z > 0)
+                        return canvas(mv, vp, v.x, v.y);
+                }
+            }
+        }
+        if (!(dir.z < 0))
+            return null; // a sight line that never meets the plane of sky
+        double s = d / -dir.z;
+        Vec3 v = cameraDiff.rotateVector(new Vec3(s * dir.x, s * dir.y, 0));
+        return canvas(mv, vp, v.x, v.y);
     }
 
     /** Where a sight line lands (canvas pixels), and how near the camera (view z, larger is nearer). */

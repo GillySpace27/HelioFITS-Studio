@@ -140,6 +140,17 @@ public abstract class MapView {
                 Display.getSkyLookLon(), Display.getSkyLookLat(), page), surfaceDistance);
     }
 
+    /**
+     * The inverse of {@link #skyRay}: where a sight line is drawn on the observer-sky page for the
+     * given surface distance (normalized, centred on zero, before the viewport aspect); null off
+     * what the projection can draw.
+     */
+    @javax.annotation.Nullable
+    public Vec2 skyPage(Viewport vp, Vec3 ray, double surfaceDistance) {
+        return SkyMap.projectPlaced(scale(vp), Display.getSkyProjection(), Display.getSkyLookLon(), Display.getSkyLookLat(),
+                SkyMap.uncomposeRay(ray, surfaceDistance));
+    }
+
     public Vec3 mouseToSky(Viewport vp, int x, int y) {
         return ViewportMath.unprojectToCurrentViewSphereOrPlane(camera, vp, cameraWidth(vp), x, y);
     }

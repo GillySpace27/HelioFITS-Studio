@@ -29,10 +29,15 @@ import org.helioviewer.jhv.opengl.Transform;
  *
  * <p>The outline is the body's own perimeter, not a circle drawn round a point: the cone of sight
  * lines that grazes the body's limb, as seen by the observer of the layer that named it, put on the
- * screen by the identifier run backwards ({@link IdentifyPins#locate}). So in every view the
+ * screen by the forward map of the view ({@link IdentifyPins#locate}). So in every view the
  * identifier supports it follows the projection the imagery is drawn in: round in the orthographic
  * view, stretched where a helioradial or unrolled view stretches the sky. A body smaller than a
  * few pixels keeps that shape, enlarged about its centre until the glow can be seen.
+ *
+ * <p>Every point is placed by the forward map of the view mode ({@link SkyScreen#place}), closed
+ * form and checked against the probe, so a frame of rings costs arithmetic and no solving. What is
+ * expensive and does not depend on the view (the mark list, the ephemeris) is kept per frame time
+ * in {@link MarkFrame}.
  *
  * <p>The Sun is left out: on the disk it is under the pointer all the time, and a ring round the
  * whole Sun at every move would hide what the glow is for (judgement). Drawn objects (models,
@@ -220,14 +225,15 @@ public final class IdentifyGlow {
 
     /**
      * One body's outline on the canvas, in canvas pixels, with its centre first; null when its
-     * centre is not on the page. Each limb point starts Newton's method from the one before, so
-     * the ring costs a few steps a point.
+     * centre is not on the page.
      */
     @Nullable
     static List<double[]> outline(Viewport vp, MapView mv, Identifier.Target target, Vec3 centreDir, double angR, @Nullable double[] start) {
-        double[] centre = IdentifyPins.locate(vp, mv, target, centreDir, start);
-        if (centre == null)
-            return null;
+        double[] centre = IdentifyPins.locate(vp, mv, target, centreDir);
+        return centre == null ? null : outlineAbout(vp, mv, target, centreDir, angR, centre);
+    }
+
+    private static List<double[]> outlineAbout(Viewport vp, MapView mv, Identifier.Target target, Vec3 centreDir, double angR, double[] centre) {
         List<double[]> out = new ArrayList<>(POINTS + 1);
         out.add(centre);
         if (angR < POINT_RADIUS) { // a point: atLeast lays the minimum circle about it
@@ -235,26 +241,27 @@ public final class IdentifyGlow {
                 out.add(centre);
             return out;
         }
-        double[] seed = centre;
-        for (Vec3 d : limb(centreDir, angR, POINTS)) {
-            double[] p = IdentifyPins.locate(vp, mv, target, d, seed);
-            out.add(p);
-            if (p != null)
-                seed = p;
-        }
+        for (Vec3 d : limb(centreDir, angR, POINTS))
+            out.add(IdentifyPins.locate(vp, mv, target, d));
         return out;
     }
 
-    /** The outline as drawn: {@link #outline}, with the centre first, and no smaller than {@code minPx}. */
+    /**
+     * The outline as drawn: {@link #outline}, with the centre first, and no smaller than
+     * {@code minPx}. The centre is placed first and a body whose centre is off the page costs
+     * nothing more. {@code start} is not needed any more and is ignored.
+     */
     @Nullable
     static List<double[]> ring(Viewport vp, MapView mv, Identifier.Target target, Vec3 centreDir, double angR, @Nullable double[] start, double minPx) {
-        double[] centre = IdentifyPins.locate(vp, mv, target, centreDir, start);
-        // A body under minPx: solve its limb at an enlarged angle, so the solver's error is not magnified with it
-        for (int i = 0; centre != null && angR >= POINT_RADIUS && i < 5; i++) {
+        double[] centre = IdentifyPins.locate(vp, mv, target, centreDir);
+        if (centre == null)
+            return null;
+        // A body under minPx: solve its limb at an enlarged angle, so the error is not magnified with it
+        for (int i = 0; angR >= POINT_RADIUS && i < 5; i++) {
             double r = 0;
             int n = 0;
             for (Vec3 d : limb(centreDir, angR, 4)) {
-                double[] p = IdentifyPins.locate(vp, mv, target, d, centre);
+                double[] p = IdentifyPins.locate(vp, mv, target, d);
                 if (p != null) {
                     r += Math.hypot(p[0] - centre[0], p[1] - centre[1]);
                     n++;
@@ -264,9 +271,7 @@ public final class IdentifyGlow {
                 break;
             angR *= Math.min(1e4, 1.05 * minPx / Math.max(r / n, 0.2));
         }
-        List<double[]> o = outline(vp, mv, target, centreDir, angR, centre);
-        if (o == null)
-            return null;
+        List<double[]> o = outlineAbout(vp, mv, target, centreDir, angR, centre);
         List<double[]> out = new ArrayList<>(o.size());
         out.add(o.getFirst());
         out.addAll(atLeast(o.subList(1, o.size()), o.getFirst(), minPx));
@@ -274,10 +279,16 @@ public final class IdentifyGlow {
     }
 
     /** One outline on the page: its colour, its points, its centre, and whether the hover pulse runs on it. */
-    private record Ring(int[] rgb, List<double[]> points, double[] centre, boolean hover) {}
+    record Ring(int[] rgb, List<double[]> points, double[] centre, boolean hover) {}
 
     /** A planet's symbol on the page: where, in what colour, and whether it stands in for the ring. */
-    private record Glyph(String text, int[] rgb, double[] centre, boolean replaces) {}
+    record Glyph(String text, int[] rgb, double[] centre, boolean replaces) {}
+
+    /** What one frame puts on the page. */
+    record Scene(List<Ring> rings, List<Glyph> glyphs) {}
+
+    /** The Identify switches the glow reads, taken once at the top of a frame. */
+    record Flags(boolean glow, boolean pulse, boolean all, boolean always, boolean instead) {}
 
     /** The hover's marks: the bodies named under the pointer (not the Sun) and the drawn objects that carry an icon. */
     static List<Mark> hoverMarks() {
@@ -319,63 +330,18 @@ public final class IdentifyGlow {
             return;
         IdentifyHover.follow(Display.getActiveViewport(), GLRenderer.getMapView()); // a selected object moves with time and the view
         double phase = pulsePhase(System.currentTimeMillis(), STATE.pulseStart);
-        boolean pulse = IdentifySettings.pulse() && phase < 1;
-        boolean all = IdentifySettings.highlightAll();
-        boolean always = IdentifySettings.symbolsAlways();
-        boolean instead = IdentifySettings.symbolsInstead();
-        if (!IdentifySettings.glow() && !pulse && !all && !always)
+        Flags f = new Flags(IdentifySettings.glow(), IdentifySettings.pulse() && phase < 1, IdentifySettings.highlightAll(),
+                IdentifySettings.symbolsAlways(), IdentifySettings.symbolsInstead());
+        if (!f.glow() && !f.pulse() && !f.all() && !f.always())
             return;
         Viewport vp = Display.getActiveViewport(); // the scene the probes look through, as for the footer and pins
         MapView mv = GLRenderer.getMapView();
-        List<Identifier.Target> targets = IdentifyHover.targets(vp, mv);
         double scale = Display.pixelScale[1];
-
-        Map<String, Mark> marks = new LinkedHashMap<>();
-        Set<String> hovered = new LinkedHashSet<>();
-        for (Mark m : hoverMarks()) {
-            marks.put(m.key(), m);
-            hovered.add(m.key());
-        }
-        if (all || always)
-            for (Mark m : allMarks(vp, mv, targets))
-                marks.putIfAbsent(m.key(), m);
-        if (marks.isEmpty())
-            return;
-
-        double[] pointer = IdentifyHover.pointer();
-        List<Ring> rings = new ArrayList<>();
-        List<Glyph> glyphs = new ArrayList<>();
-        for (Mark m : marks.values()) {
-            if (rings.size() >= MAX_RINGS)
-                break;
-            boolean hover = hovered.contains(m.key());
-            boolean wantRing = hover || all;
-            String sym = symbol(m);
-            boolean wantSym = sym != null && (always || (instead && wantRing));
-            if (!wantRing && !wantSym)
-                continue;
-            Identifier.Target target = m.layer() == null ? targets.getFirst() : byName(targets, m.layer());
-            if (target == null)
-                continue;
-            Vec3 dir = m.where().direction(target.observer());
-            if (dir == null)
-                continue;
-            int[] rgb = IdentifySettings.iconRgb(m.kind());
-            boolean replaces = wantSym && instead && wantRing;
-            if (!wantRing || replaces) { // only the centre is needed: a symbol stands where the ring would
-                double[] c = IdentifyPins.locate(vp, mv, target, dir, hover ? pointer : null);
-                if (c != null && wantSym)
-                    glyphs.add(new Glyph(sym, rgb, c, replaces));
-                continue;
-            }
-            List<double[]> o = ring(vp, mv, target, dir, m.angularRadius(), hover ? pointer : null, MIN_RADIUS * scale);
-            if (o == null)
-                continue;
-            double[] c = o.getFirst();
-            rings.add(new Ring(rgb, o.subList(1, o.size()), c, hover));
-            if (wantSym)
-                glyphs.add(new Glyph(sym, rgb, c, false));
-        }
+        Scene scene = scene(vp, mv, IdentifyHover.targets(vp, mv), f, scale);
+        List<Ring> rings = scene.rings();
+        List<Glyph> glyphs = scene.glyphs();
+        boolean pulse = f.pulse();
+        boolean all = f.all();
         if (rings.isEmpty() && glyphs.isEmpty())
             return;
 
@@ -392,7 +358,7 @@ public final class IdentifyGlow {
             for (List<Ring> group : byColour.values()) {
                 int[] rgb = group.getFirst().rgb();
                 for (int pass = 0; pass < WIDTHS.length; pass++)
-                    if (IdentifySettings.glow() || all)
+                    if (f.glow() || all)
                         draw(LINES[pass], full, group, false, 0, rgb, (int) Math.min(255, ALPHAS[pass] * boost), WIDTHS[pass] * scale);
                 if (pulse) {
                     double eased = 1 - Math.pow(1 - phase, 3);
@@ -405,6 +371,60 @@ public final class IdentifyGlow {
             Transform.popProjection();
         }
         drawGlyphs(full, glyphs, scale);
+    }
+
+    /**
+     * Where everything the glow draws lands on the page this frame: the hover's marks, and with
+     * Highlight All or Always show planet symbols, every mark the view holds. The sky side (which
+     * marks, where each is) comes from the frame's {@link MarkFrame}; the page side is one
+     * {@link SkyScreen#place} per point.
+     */
+    static Scene scene(Viewport vp, MapView mv, List<Identifier.Target> targets, Flags f, double scale) {
+        MarkFrame frame = MarkFrame.of(mv, targets);
+        Map<String, Mark> marks = new LinkedHashMap<>();
+        Set<String> hovered = new LinkedHashSet<>();
+        for (Mark m : hoverMarks()) {
+            marks.put(m.key(), m);
+            hovered.add(m.key());
+        }
+        if (f.all() || f.always())
+            for (Mark m : frame.marks(vp, mv, targets))
+                marks.putIfAbsent(m.key(), m);
+        List<Ring> rings = new ArrayList<>();
+        List<Glyph> glyphs = new ArrayList<>();
+        Map<Kind, int[]> colours = new java.util.EnumMap<>(Kind.class);
+        for (Mark m : marks.values()) {
+            if (rings.size() >= MAX_RINGS)
+                break;
+            boolean hover = hovered.contains(m.key());
+            boolean wantRing = hover || f.all();
+            String sym = symbol(m);
+            boolean wantSym = sym != null && (f.always() || (f.instead() && wantRing));
+            if (!wantRing && !wantSym)
+                continue;
+            Identifier.Target target = m.layer() == null ? targets.getFirst() : byName(targets, m.layer());
+            if (target == null)
+                continue;
+            Vec3 dir = frame.direction(m, target);
+            if (dir == null)
+                continue;
+            int[] rgb = colours.computeIfAbsent(m.kind(), IdentifySettings::iconRgb);
+            boolean replaces = wantSym && f.instead() && wantRing;
+            if (!wantRing || replaces) { // only the centre is needed: a symbol stands where the ring would
+                double[] c = IdentifyPins.locate(vp, mv, target, dir);
+                if (c != null && wantSym)
+                    glyphs.add(new Glyph(sym, rgb, c, replaces));
+                continue;
+            }
+            List<double[]> o = ring(vp, mv, target, dir, m.angularRadius(), null, MIN_RADIUS * scale);
+            if (o == null)
+                continue;
+            double[] c = o.getFirst();
+            rings.add(new Ring(rgb, o.subList(1, o.size()), c, hover));
+            if (wantSym)
+                glyphs.add(new Glyph(sym, rgb, c, false));
+        }
+        return new Scene(rings, glyphs);
     }
 
     /** The symbols, in the label's text pass: centred on the body when they stand in for the ring, else just beside it. */
