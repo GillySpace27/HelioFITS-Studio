@@ -27,9 +27,9 @@ import org.helioviewer.jhv.math.Vec3;
  * <li>Orthographic rotates the screen point into each layer's frame through cameraDiff, takes the
  * solar disk where it is in front and the layer's image plane elsewhere (imageOrtho.frag), and the
  * direction runs from that layer's observer to the point.</li>
+ * <li>Helioradial in 3D draws a warped surface mesh; {@link SkyScreen} is its twin, per layer.</li>
  * </ul>
- * Latitudinal maps the solar surface, not the sky, and Helioradial in 3D draws a warped surface
- * mesh: neither has a sight line under the pointer, and both return null.
+ * Latitudinal maps the solar surface, not the sky, and returns null.
  */
 public final class Probes {
 
@@ -48,7 +48,7 @@ public final class Probes {
         }
         if (mv.isHelioradial() || mv.isHelioradialUnrolled()) {
             if (mv.rendersIn3D())
-                return null;
+                return SkyScreen.probe(mv, vp, x, y);
             // Off the page the shaders discard (imageRadialWarp.frag: t > 1; the unrolled map: outside [0, 1])
             double w = mv.cameraWidth(vp);
             double ux = ViewportMath.computeUpX(vp, w, mv.cameraTranslationX(), x);
