@@ -625,18 +625,43 @@ public final class MenuBar extends JMenuBar {
                     javax.swing.JMenuItem none = new javax.swing.JMenuItem("No Recent Sessions");
                     none.setEnabled(false);
                     recent.add(none);
-                    return;
+                } else {
+                    for (String path : recents)
+                        recent.add(new javax.swing.JMenuItem(new Actions.OpenRecent(new java.io.File(path))));
+                    recent.addSeparator();
+                    catalogItem(recent, "clearRecents");
                 }
-                for (String path : recents)
-                    recent.add(new javax.swing.JMenuItem(new Actions.OpenRecent(new java.io.File(path))));
-                recent.addSeparator();
-                catalogItem(recent, "clearRecents");
+                addOtherInstalls(recent);
             }
 
             @Override public void menuDeselected(javax.swing.event.MenuEvent e) {}
             @Override public void menuCanceled(javax.swing.event.MenuEvent e) {}
         });
         return recent;
+    }
+
+    // Sessions and states of the other Studio installs on this computer, opened without becoming this
+    // window's save target (so a debug build cannot overwrite the release's session), and the import.
+    private static void addOtherInstalls(JMenu recent) {
+        java.util.List<org.helioviewer.jhv.io.Siblings.Entry> recents = org.helioviewer.jhv.io.Siblings.recents();
+        java.util.List<org.helioviewer.jhv.io.Siblings.Entry> states = org.helioviewer.jhv.io.Siblings.states();
+        if (recents.isEmpty() && states.isEmpty())
+            return;
+        recent.addSeparator();
+        JMenu other = new JMenu("From Other Installs");
+        for (var e : recents)
+            other.add(new javax.swing.JMenuItem(new Actions.OpenFromInstall(e)));
+        JMenu all = new JMenu("All States");
+        for (var e : states)
+            all.add(new javax.swing.JMenuItem(new Actions.OpenFromInstall(e)));
+        if (all.getItemCount() > 0) {
+            if (other.getItemCount() > 0)
+                other.addSeparator();
+            other.add(all);
+        }
+        other.addSeparator();
+        other.add(new javax.swing.JMenuItem(new Actions.ImportFromInstalls()));
+        recent.add(other);
     }
 
     // Replace the dynamic tail of the Window menu with one checkable item per open window.

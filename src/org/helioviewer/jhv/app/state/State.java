@@ -358,8 +358,17 @@ public final class State {
      * the layers to hold and to leave out, empty when the load goes ahead as it is. A command from
      * outside (a context) or a window-less run cannot answer a dialog, so it postpones.
      */
-    private static LoadGuard.Review reviewDownload(@Nullable JSONArray imageLayers, @Nullable Commands.OperationContext context) {
-        LoadGuard.Estimate estimate = LoadGuard.estimate(imageLayers, uri -> org.helioviewer.jhv.io.NetFileCache.cachedFile(uri).isFile());
+    private static LoadGuard.Review reviewDownload(JSONObject data, java.util.List<org.helioviewer.jhv.event.SWEKSupplier> events, @Nullable Commands.OperationContext context) {
+        LoadGuard.Estimate estimate = LoadGuard.estimate(data.optJSONArray("imageLayers"), uri -> org.helioviewer.jhv.io.NetFileCache.cachedFile(uri).isFile());
+        // Ticked event groups download over the session's range too (SWEKLayer asks for it when the range is set).
+        long ms = TimeUtils.optParse(data.optString("masterStartTime", null), Long.MIN_VALUE);
+        long me = TimeUtils.optParse(data.optString("masterEndTime", null), Long.MIN_VALUE);
+        if (ms != Long.MIN_VALUE && me > ms) {
+            java.util.List<LoadGuard.Item> items = new ArrayList<>();
+            for (int i = 0; i < events.size(); i++)
+                items.add(LoadGuard.events(-1 - i, "Events: " + events.get(i).displayName(), ms, me));
+            estimate = estimate.plus(items);
+        }
         if (!estimate.over(LoadGuard.maxFrames(), LoadGuard.maxBytes()))
             return LoadGuard.Review.NONE;
         Log.warn("Session would download " + estimate.frames() + " frames, about " + LoadGuard.sizeText(estimate.bytes()));
@@ -409,10 +418,17 @@ public final class State {
         ImageLayer masterLayer = null;
 
         JSONArray imageLayers = data.optJSONArray("imageLayers");
-        LoadGuard.Review review = reviewDownload(imageLayers, context);
+        java.util.List<org.helioviewer.jhv.event.SWEKSupplier> events = org.helioviewer.jhv.event.SWEKDownloader.activeSuppliers();
+        LoadGuard.Review review = reviewDownload(data, events, context);
         if (review.aborted()) {
             abandonLoad(context);
             return;
+        }
+        for (int i = 0; i < events.size(); i++) { // event rows are the negative places
+            if (review.dropped().contains(-1 - i))
+                org.helioviewer.jhv.event.SWEKDownloader.setSupplierActive(events.get(i), false);
+            else if (review.held().contains(-1 - i))
+                org.helioviewer.jhv.event.SWEKDownloader.hold(events.get(i));
         }
         if (imageLayers != null) {
             for (int at = 0; at < imageLayers.length(); at++) {

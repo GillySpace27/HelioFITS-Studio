@@ -124,12 +124,27 @@ public class SWEKDownloader {
     }
 
     private static final Map<SWEKSupplier, SupplierRequests> activeSuppliers = new HashMap<>();
+    // Ticked but postponed from the download review: no request is made for it until it is ticked again.
+    private static final java.util.Set<SWEKSupplier> held = new java.util.HashSet<>();
+
+    public static List<SWEKSupplier> activeSuppliers() {
+        return new ArrayList<>(activeSuppliers.keySet());
+    }
+
+    /** Stops what this supplier has in flight and makes no new request for it until it is ticked again. */
+    public static void hold(SWEKSupplier supplier) {
+        if (activeSuppliers.containsKey(supplier)) {
+            stopDownloadSupplier(supplier, true);
+            held.add(supplier);
+        }
+    }
 
     public static boolean isSupplierActive(SWEKSupplier supplier) {
         return activeSuppliers.containsKey(supplier);
     }
 
     public static void setSupplierActive(SWEKSupplier supplier, boolean active) {
+        held.remove(supplier);
         if (active) {
             activeSuppliers.computeIfAbsent(supplier, SupplierRequests::new);
             EventCache.fireEventCacheChanged();
@@ -149,7 +164,7 @@ public class SWEKDownloader {
         long requestStart = start - deltaT;
         long requestEnd = Math.min(visibleEnd + deltaT, requestHorizon);
         for (SupplierRequests requests : activeSuppliers.values()) {
-            if (!requests.intervals.getMissingIntervals(start, visibleEnd).isEmpty())
+            if (!held.contains(requests.supplier) && !requests.intervals.getMissingIntervals(start, visibleEnd).isEmpty())
                 startDownloadSupplier(requests, requests.intervals.adaptRequestCache(requestStart, requestEnd));
         }
     }
