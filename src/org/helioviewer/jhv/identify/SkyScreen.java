@@ -83,8 +83,62 @@ public final class SkyScreen {
             Placed p = new Frame(mv, vp, observer).place(dir);
             return p == null ? null : new double[]{p.x, p.y};
         }
-        double[] p = forward(mv, vp, observer, dir);
-        return p != null && agrees(mv, vp, observer, dir, p) ? p : null;
+        double[] pg = forward(mv, vp, observer, dir);
+        if (pg == null)
+            return null;
+        double[] p = canvas(mv, vp, pg[0], pg[1]);
+        return agrees(mv, vp, observer, dir, p) ? p : null;
+    }
+
+    /**
+     * A whole sky's worth of placements for one observer, built once per frame: the stars overlay
+     * draws thousands of rays, and neither the camera setup nor the round-trip check of
+     * {@link #place} belongs in that loop. Each answer is the one {@link #place} gives, before the
+     * check and in the units the overlay draws in (see {@link #page} and {@link #surface}).
+     */
+    public static Layout layout(MapView mv, Viewport vp, Position observer) {
+        return new Layout(mv, vp, observer);
+    }
+
+    public static final class Layout {
+        private final MapView mv;
+        private final Viewport vp;
+        private final Position observer;
+        @Nullable
+        private final Frame frame;
+
+        private Layout(MapView mv, Viewport vp, Position observer) {
+            this.mv = mv;
+            this.vp = vp;
+            this.observer = observer;
+            frame = applies(mv) ? new Frame(mv, vp, observer) : null;
+        }
+
+        /**
+         * The page point (the flat views' scene coordinates, aspect applied) of a unit sight line in
+         * HPC, Observer Sky and flat Helioradial, or null where the page has none.
+         */
+        @Nullable
+        public double[] page(Vec3 dir) {
+            return frame == null ? forward(mv, vp, observer, Identifier.unit(dir)) : null;
+        }
+
+        /**
+         * Helioradial in 3D: the point of the selected surface the sight line meets, in the surface
+         * observer's frame and before the shader's radial warp (shape.vert applies that), or null
+         * where the mesh draws nothing for it. Drawn under {@link #rotation()}.
+         */
+        @Nullable
+        public Vec3 surface(Vec3 dir) {
+            PLACES.increment();
+            Placed p = frame == null ? null : frame.place(Identifier.unit(dir));
+            return p == null ? null : p.world;
+        }
+
+        /** The turn from the surface observer's frame to the screen (rotateViewInverse of its quaternion). */
+        public Quat rotation() {
+            return Display.surfaceObserver(mv.viewpoint(), observer).toQuat();
+        }
     }
 
     /** The sight line from {@code observer} that canvas point (x, y) shows, or null where the view draws nothing. */
@@ -118,7 +172,7 @@ public final class SkyScreen {
 
     /**
      * The forward map of a flat mode, each the exact inverse of the line {@link Probes#exact}
-     * follows for it (and so of the shader): sight line to page, page to canvas.
+     * follows for it (and so of the shader): sight line to page point (view coordinates, aspect applied).
      */
     @Nullable
     private static double[] forward(MapView mv, Viewport vp, Position observer, Vec3 dir) {
@@ -130,13 +184,13 @@ public final class SkyScreen {
         double aspect = vp.aspect;
         if (mv.isObserverSky()) {
             Vec2 pt = mv.skyPage(vp, dir, Display.surfaceDistance(mv.viewpoint().distance, observer.distance));
-            return pt == null ? null : canvas(mv, vp, pt.x * aspect, pt.y);
+            return pt == null ? null : new double[]{pt.x * aspect, pt.y};
         }
         if (dir.z >= 0) // behind the observer: no page holds it (HPC and the plane of sky are sunward half-spaces)
             return null;
         Vec2 hp = Identifier.helioprojective(dir);
         if (mv.isHpc())
-            return canvas(mv, vp, (scale.toUnitX(Math.toDegrees(hp.x)) - .5) * aspect, scale.toUnitY(Math.toDegrees(hp.y)) - .5);
+            return new double[]{(scale.toUnitX(Math.toDegrees(hp.x)) - .5) * aspect, scale.toUnitY(Math.toDegrees(hp.y)) - .5};
         // Helioradial and Unrolled: the plane of sky through the Sun, as Probes.plane turns it into angles with the layer's own distance
         double d = observer.distance;
         double px = d * Math.tan(hp.x);
@@ -149,11 +203,11 @@ public final class SkyScreen {
             if (!(t <= 1)) // imageRadialWarp.frag: t > 1 is discarded
                 return null;
             double f = r == 0 ? 0 : .5 * t / r;
-            return canvas(mv, vp, f * px, f * py);
+            return new double[]{f * px, f * py};
         }
         double theta = PolarBasis.angle(px, py);
         double ux = scale.toUnitX(Math.toDegrees(theta)) - .5, uy = scale.toUnitY(r) - .5;
-        return Math.abs(ux) > .5 || Math.abs(uy) > .5 ? null : canvas(mv, vp, ux * aspect, uy);
+        return Math.abs(ux) > .5 || Math.abs(uy) > .5 ? null : new double[]{ux * aspect, uy};
     }
 
     /**
@@ -173,7 +227,7 @@ public final class SkyScreen {
                 if (p.z > 0) {
                     Vec3 v = cameraDiff.rotateVector(p);
                     if (v.z > 0)
-                        return canvas(mv, vp, v.x, v.y);
+                        return new double[]{v.x, v.y};
                 }
             }
         }
@@ -181,11 +235,11 @@ public final class SkyScreen {
             return null; // a sight line that never meets the plane of sky
         double s = d / -dir.z;
         Vec3 v = cameraDiff.rotateVector(new Vec3(s * dir.x, s * dir.y, 0));
-        return canvas(mv, vp, v.x, v.y);
+        return new double[]{v.x, v.y};
     }
 
     /** Where a sight line lands (canvas pixels), and how near the camera (view z, larger is nearer). */
-    private record Placed(double x, double y, double z) {}
+    private record Placed(double x, double y, double z, @Nullable Vec3 world) {}
 
     private static final class Frame {
         final Viewport vp;
@@ -220,7 +274,7 @@ public final class SkyScreen {
             Vec3 v = toView.rotateVector(warped);
             double sx = vp.x + ((v.x + tx) / (width * aspect) + 0.5) * vp.width;
             double sy = vp.yAWT + (0.5 - (v.y + ty) / width) * vp.height;
-            return new Placed(sx, sy, v.z);
+            return new Placed(sx, sy, v.z, null);
         }
 
         Vec2 up(double x, double y) {
@@ -246,7 +300,7 @@ public final class SkyScreen {
                         return null; // the sphere is nearer the camera: it hides this point
                 }
             }
-            return s;
+            return new Placed(s.x, s.y, s.z, p);
         }
 
         @Nullable

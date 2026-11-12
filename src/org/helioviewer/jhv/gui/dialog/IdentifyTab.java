@@ -65,6 +65,7 @@ public final class IdentifyTab {
         JSpinner dwell = spinner(IdentifySettings.dwellMillis(), 0, 5000, 50, IdentifySettings.DWELL_MS);
         JSpinner earth = spinner(IdentifySettings.earthUncertaintyKm(), 0, 1e6, 100, IdentifySettings.EARTH_UNCERTAINTY_KM);
         JSpinner magnitude = spinner(IdentifySettings.starMaxMagnitude(), -2, 12, 0.5, IdentifySettings.STAR_MAX_MAG);
+        magnitude.setToolTipText("The faintest star Identify will name. Separate from the Stars overlay's limit, which only sets what is drawn.");
         // Every control follows the settings, not only the three main switches: the menu, the
         // command and the panel's Reset to defaults all change them from outside this form.
         IdentifySettings.addListener(() -> {
