@@ -106,7 +106,7 @@ public final class Drawn {
         Stars.Star star = Stars.at(vp, mv, x, y, tolerancePixels);
         if (star != null)
             out.add(new Hit(star.label(), star.details().strip(), star.pixels(), Double.NaN, Kind.STAR,
-                    star.ray() == null ? null : new Mark("star:" + star.label(), Kind.STAR, null, observer -> star.ray(), 0)));
+                    new Mark("star:" + star.label(), Kind.STAR, null, observer -> star.ray(), 0)));
         int fixed = out.size();
         ViewpointLayer orbits = Layers.getViewpointLayer();
         String marker = orbits == null ? null : orbits.markerAt(mv, vp, x, y);
@@ -144,8 +144,8 @@ public final class Drawn {
 
     /**
      * The pointer at canvas point (x, y) for sources of objects at fixed directions, or null in a
-     * mode with no sky under it and in the orbited 3D view (where the sky is drawn turned and only
-     * the stars know how to undo that).
+     * mode with no sky under it and in the orbited 3D view (where deep sky, comets and CMEs are not
+     * drawn as a sky at infinity; the stars are, on the imagery, and use the plain probe).
      */
     @Nullable
     public static Pointer pointer(Viewport vp, MapView mv, int x, int y) {

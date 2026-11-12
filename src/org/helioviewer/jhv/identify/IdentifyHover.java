@@ -9,6 +9,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import javax.annotation.Nullable;
 import javax.swing.Timer;
 
+import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
@@ -399,17 +400,34 @@ public final class IdentifyHover {
         return out;
     }
 
-    /** The visible image layers, each with its own observer, or the display viewpoint when there are none. */
+    /**
+     * The visible image layers, each with its own observer, or the display viewpoint when there are
+     * none. The active image layer comes first: its observer is the frame stars and the other marks
+     * at infinity are placed in (the Stars overlay, the star and deep-sky hover and rings alike).
+     */
     public static List<Identifier.Target> targets(Viewport vp, MapView mv) {
+        return targets(vp, mv.viewpoint());
+    }
+
+    /** The frame stars and the other marks at infinity are placed in: the first of {@link #targets}'s observers. */
+    public static Position frameObserver(Viewport vp, Position viewpoint) {
+        return targets(vp, viewpoint).getFirst().observer();
+    }
+
+    private static List<Identifier.Target> targets(Viewport vp, Position viewpoint) {
         List<Identifier.Target> out = new ArrayList<>();
+        ImageLayer active = Layers.getActiveImageLayer();
         for (ImageLayer layer : Layers.getImageLayers()) {
             View.ImageData data = layer.getImageData();
             if (data == null || !layer.isVisible(vp.idx))
                 continue;
-            out.add(target(layer.getName(), data));
+            if (layer == active)
+                out.add(0, target(layer.getName(), data));
+            else
+                out.add(target(layer.getName(), data));
         }
         if (out.isEmpty())
-            out.add(Identifier.Target.viewpoint(mv.viewpoint()));
+            out.add(Identifier.Target.viewpoint(viewpoint));
         return out;
     }
 
