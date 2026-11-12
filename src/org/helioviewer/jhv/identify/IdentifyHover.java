@@ -42,6 +42,9 @@ public final class IdentifyHover {
     private final Timer dwell;
     private boolean labelShown;
     private int mouseX, mouseY;
+    /** Whether the pointer is on the canvas, and what the view was (at the pointer) when it last answered. */
+    private boolean pointerOn;
+    private String viewKey = "";
     private List<Identifier.Match> last = List.of();
     private List<Drawn.Hit> lastDrawn = List.of();
     private Snapshot kept = Snapshot.NONE;
@@ -278,19 +281,76 @@ public final class IdentifyHover {
         return INSTANCE.last;
     }
 
+    /**
+     * Once per frame: when the view changed under a pointer that has not moved (a warp, crop or
+     * zoom, an orbit, the movie playing), asks again at the last pointer position, so the name,
+     * the glow and the panel follow what is now under it. Cheap when nothing changed: one probe at
+     * the pointer, compared with the one that gave the last answer. Not while an object is selected
+     * (that is {@link #follow}) or a result is frozen.
+     */
+    public static void refresh(Viewport vp, MapView mv) {
+        INSTANCE.refresh(vp, mv, targets(vp, mv));
+    }
+
+    void refresh(Viewport vp, MapView mv, List<Identifier.Target> targets) {
+        if (!pointerOn || frozen || selected() || !IdentifySettings.enabled())
+            return;
+        String key = viewKey(vp, mv, targets, mouseX, mouseY);
+        if (key.equals(viewKey))
+            return;
+        viewKey = key;
+        Identifier.Options options = Identifier.Options.fromSettings();
+        List<Identifier.Match> matches = identify(vp, mv, mouseX, mouseY, options, targets);
+        List<Drawn.Hit> drawn = Drawn.at(vp, mv, mouseX, mouseY, options.tolerancePixels());
+        if (IdentifyGlow.key(matches, drawn).equals(IdentifyGlow.key(last, lastDrawn))) {
+            // The same objects: bring their numbers up to date without hiding a label that is showing
+            boolean shown = labelShown;
+            last = matches;
+            lastDrawn = drawn;
+            keep(matches, drawn);
+            if (!label.isEmpty()) {
+                label.clear();
+                labelColours.clear();
+                lastText = describe(matches, drawn);
+                labelShown = shown;
+                if (shown)
+                    DisplayController.display();
+            }
+            return;
+        }
+        apply(matches, drawn, mouseX, mouseY);
+    }
+
+    /** What the view looks like at the pointer: the sight line it gives the first layer, and the time of that layer. */
+    private static String viewKey(Viewport vp, MapView mv, List<Identifier.Target> targets, int x, int y) {
+        Identifier.Target first = targets.getFirst();
+        Identifier.Probe p = Probes.at(mv, vp, x, y);
+        Vec3 d = p == null ? null : p.direction(first.observer());
+        return targets.size() + "|" + first.observer().time.milli + "|" + (d == null ? "off" : d.x + "," + d.y + "," + d.z);
+    }
+
     @Nullable
     private String update(Viewport vp, MapView mv, int x, int y) {
         if (!IdentifySettings.enabled()) {
             clear();
             return null;
         }
+        pointerOn = true;
         if (selected() && lastText != null)
             return lastText; // a selected object owns the readout; follow() keeps it current
         if (frozen && lastText != null && (!last.isEmpty() || !lastDrawn.isEmpty()))
             return lastText; // a frozen result holds the glow, the label and the footer where they are
         Identifier.Options options = Identifier.Options.fromSettings();
-        List<Identifier.Match> matches = identify(vp, mv, x, y, options);
+        List<Identifier.Target> targets = targets(vp, mv);
+        List<Identifier.Match> matches = identify(vp, mv, x, y, options, targets);
         List<Drawn.Hit> drawn = Drawn.at(vp, mv, x, y, options.tolerancePixels());
+        viewKey = viewKey(vp, mv, targets, x, y);
+        return apply(matches, drawn, x, y);
+    }
+
+    /** Makes (matches, drawn) at (x, y) the answer: the glow, the label's dwell, and the footer text, which it returns (null for nothing). */
+    @Nullable
+    private String apply(List<Identifier.Match> matches, List<Drawn.Hit> drawn, int x, int y) {
         last = matches;
         lastDrawn = drawn;
         keep(matches, drawn);
@@ -437,6 +497,7 @@ public final class IdentifyHover {
     }
 
     private void clear() {
+        pointerOn = false;
         if ((frozen || selected()) && IdentifySettings.enabled() && (!last.isEmpty() || !lastDrawn.isEmpty()))
             return; // leaving the canvas does not drop a frozen or selected result
         selMarks = List.of();

@@ -150,6 +150,9 @@ public class Settings {
         }
     }
 
+    /** How many times the file has been asked to be written, for a check that counts them. */
+    public static final java.util.concurrent.atomic.LongAdder WRITES = new java.util.concurrent.atomic.LongAdder();
+
     /** Set several settings with one write. */
     public static void setProperties(java.util.Map<String, String> values) {
         boolean changed = false;
@@ -183,6 +186,7 @@ public class Settings {
      * A move is atomic, so a reader sees either the old file or the new one.
      */
     private static void write() {
+        WRITES.increment();
         // Silently, not with a warning: the process that reaches this is a check or a tool, where the
         // in-memory value is all it wanted, and logging would open a log file in the real home too.
         if (!loaded && Files.exists(userPath))

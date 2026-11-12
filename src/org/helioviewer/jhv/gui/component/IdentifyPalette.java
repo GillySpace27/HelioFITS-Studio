@@ -63,24 +63,42 @@ public final class IdentifyPalette {
         palette().open();
     }
 
-    private static JComponent build() {
+    /**
+     * The switch and a line saying whether Identify works in this view, then four sections: what is
+     * under the pointer, what to name, how it looks, and the advanced numbers (closed).
+     */
+    static JComponent build() {
         HOLDER.readout = new Readout();
+        IdentifyTab.Groups groups = IdentifyTab.build();
         JPanel root = new JPanel(new BorderLayout());
-        JPanel head = new JPanel(new BorderLayout());
+        JPanel head = new JPanel(new BorderLayout(0, 2));
         head.setBorder(BorderFactory.createEmptyBorder(6, 9, 0, 9));
-        head.add(IdentifyTab.masterSwitch(), BorderLayout.WEST);
-        JPanel body = new JPanel(new BorderLayout());
-        body.add(HOLDER.readout, BorderLayout.NORTH);
-        body.add(IdentifyTab.build(), BorderLayout.CENTER);
+        head.add(IdentifyTab.masterSwitch(), BorderLayout.NORTH);
+        head.add(HOLDER.readout.modeLine, BorderLayout.CENTER);
+        JPanel body = new JPanel();
+        body.setLayout(new javax.swing.BoxLayout(body, javax.swing.BoxLayout.Y_AXIS));
+        body.add(section("Under the pointer", HOLDER.readout, true));
+        body.add(section("What to name", groups.whatToName(), true));
+        body.add(section("How it looks", groups.look(), true));
+        body.add(section("Advanced", groups.advanced(), false));
         root.add(head, BorderLayout.NORTH);
         root.add(body, BorderLayout.CENTER);
         return root;
+    }
+
+    /** A subheading: a nested collapsible section, remembered under an Identify name so no other panel's section of the same title shares it. */
+    private static CollapsiblePane section(String title, JComponent content, boolean open) {
+        CollapsiblePane p = new CollapsiblePane(title, content, open, true, null, "Identify " + title);
+        p.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
+        return p;
     }
 
     /** The "what did it match, and why" half. All text, so it copies cleanly into a bug report. */
     static final class Readout extends JPanel {
 
         private final JLabel status = new JLabel();
+        /** Whether Identify works in the current view, under the switch at the top. */
+        final JLabel modeLine = new JLabel();
         private final javax.swing.JTextPane matches = pane();
         private final JTextArea layers = area();
         private final JCheckBox freeze = new JCheckBox("Freeze this result");
@@ -95,28 +113,23 @@ public final class IdentifyPalette {
             JButton copy = new JButton("Copy");
             copy.setToolTipText("Copy the settings, the result and the observers used as plain text, for a bug report");
             copy.addActionListener(e -> Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(report()), null));
-            JButton reset = new JButton("Reset");
-            reset.setToolTipText("Put the numbers and finer switches back (the three main switches stay as they are)");
-            reset.addActionListener(e -> IdentifySettings.resetToDefaults());
 
             JPanel top = new JPanel(new BorderLayout(0, 4));
             top.add(status, BorderLayout.NORTH);
             top.add(matches, BorderLayout.CENTER);
-            JPanel mid = new JPanel(new BorderLayout(0, 4));
-            mid.add(new JLabel("<html><b>Observers used</b>, per visible layer"), BorderLayout.NORTH);
+            // The observers are for finding out why something was not named: behind a disclosure, closed
+            JPanel mid = new JPanel(new BorderLayout());
+            mid.setOpaque(false);
             mid.add(layers, BorderLayout.CENTER);
-            JPanel buttons = new JPanel(new java.awt.GridLayout(0, 1, 0, 4));
+            CollapsiblePane observers = new CollapsiblePane("Observers used", mid, false, true, null, "Identify Observers used");
+            JPanel buttons = new JPanel(new java.awt.GridLayout(1, 0, 4, 0));
             buttons.setOpaque(false);
             buttons.add(freeze);
-            JPanel two = new JPanel(new java.awt.GridLayout(1, 0, 4, 0));
-            two.setOpaque(false);
-            two.add(copy);
-            two.add(reset);
-            buttons.add(two);
+            buttons.add(copy);
 
             JPanel column = new JPanel();
             column.setLayout(new javax.swing.BoxLayout(column, javax.swing.BoxLayout.Y_AXIS));
-            for (JComponent c : new JComponent[]{top, mid, buttons}) {
+            for (JComponent c : new JComponent[]{top, buttons, observers}) {
                 c.setAlignmentX(LEFT_ALIGNMENT);
                 column.add(c);
                 column.add(javax.swing.Box.createVerticalStrut(6));
@@ -203,10 +216,24 @@ public final class IdentifyPalette {
                     case EMPTY -> "Nothing under the pointer; last match " + age(s.millis());
                     case AWAY -> "Pointer left the image; last match " + age(s.millis());
                 } + (IdentifyHover.selected() ? " (selected, followed)" : "") + (IdentifyHover.frozen() ? " (frozen)" : "") + "</b>");
+            modeLine.setText(modeText());
             showMatches(s);
             layers.setText(layerText());
             revalidate();
             repaint();
+        }
+
+        /** One line: whether the view being drawn is one Identify can read. */
+        static String modeText() {
+            String text;
+            try {
+                org.helioviewer.jhv.display.MapView mv = GLRenderer.getMapView();
+                text = mv.isLatitudinal() ? "Not available in Latitudinal; switch the projection."
+                        : "Reads the active viewport (" + mv.mode() + ").";
+            } catch (RuntimeException | LinkageError e) { // no display yet
+                text = "Works in every projection except Latitudinal.";
+            }
+            return "<html><body style='width:250px'><small>" + text;
         }
 
         private static String age(long millis) {

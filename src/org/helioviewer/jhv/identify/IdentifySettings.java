@@ -236,22 +236,24 @@ public final class IdentifySettings {
      * switching the feature off as a side effect would hide the evidence.
      */
     public static void resetToDefaults() {
-        Settings.setProperty(TOLERANCE_PX, String.valueOf(DEFAULT_TOLERANCE_PX));
-        Settings.setProperty(DWELL_MS, String.valueOf((double) DEFAULT_DWELL_MS));
-        Settings.setProperty(EARTH_UNCERTAINTY_KM, String.valueOf(DEFAULT_EARTH_UNCERTAINTY_KM));
-        Settings.setProperty(STAR_MAX_MAG, String.valueOf(DEFAULT_STAR_MAX_MAG));
-        Settings.setProperty(LIGHT_TIME, "false");
-        Settings.setProperty(PLUTO, "true");
-        Settings.setProperty(STAR_NAMES_IAU, "true");
-        Settings.setProperty(STAR_NAMES_BAYER, "true");
-        Settings.setProperty(GLOW, "true");
-        Settings.setProperty(PULSE, "true");
-        Settings.setProperty(ICON_BY_KIND, "true");
-        Settings.setProperty(ICON_COLOR, DEFAULT_ICON_COLOR);
-        Settings.setProperty(TOOLTIP_BY_KIND, "true");
-        Settings.setProperty(SYMBOLS_INSTEAD, "false");
-        Settings.setProperty(SYMBOLS_ALWAYS, "false");
-        Settings.setProperty(DEEP_SKY_MAX_MAG, String.valueOf(DEFAULT_DEEP_SKY_MAX_MAG));
+        java.util.Map<String, String> values = new java.util.LinkedHashMap<>();
+        values.put(TOLERANCE_PX, String.valueOf(DEFAULT_TOLERANCE_PX));
+        values.put(DWELL_MS, String.valueOf((double) DEFAULT_DWELL_MS));
+        values.put(EARTH_UNCERTAINTY_KM, String.valueOf(DEFAULT_EARTH_UNCERTAINTY_KM));
+        values.put(STAR_MAX_MAG, String.valueOf(DEFAULT_STAR_MAX_MAG));
+        values.put(LIGHT_TIME, "false");
+        values.put(PLUTO, "true");
+        values.put(STAR_NAMES_IAU, "true");
+        values.put(STAR_NAMES_BAYER, "true");
+        values.put(GLOW, "true");
+        values.put(PULSE, "true");
+        values.put(ICON_BY_KIND, "true");
+        values.put(ICON_COLOR, DEFAULT_ICON_COLOR);
+        values.put(TOOLTIP_BY_KIND, "true");
+        values.put(SYMBOLS_INSTEAD, "false");
+        values.put(SYMBOLS_ALWAYS, "false");
+        values.put(DEEP_SKY_MAX_MAG, String.valueOf(DEFAULT_DEEP_SKY_MAX_MAG));
+        Settings.setProperties(values); // one write, not one per key
         fire();
     }
 

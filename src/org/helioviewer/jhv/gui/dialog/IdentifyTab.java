@@ -9,26 +9,37 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
+import javax.swing.Timer;
 
 import org.helioviewer.jhv.identify.IdentifySettings;
 
 /**
- * The cursor identifier's numbers and its finer switches, shown in the Identify panel in the sidebar. The three main
- * switches are in the View menu under Show Status Bar; they are repeated here so this tab is the
- * whole picture.
+ * The cursor identifier's numbers and its finer switches, shown in the Identify panel in the sidebar, in three
+ * groups: what to name, how it looks, and the advanced numbers. The three main switches are in the View menu
+ * under Show Status Bar; they are repeated here so this tab is the whole picture. Every control carries its
+ * settings key as the client property {@link #KEY}, so a check can see that none was lost.
  */
 public final class IdentifyTab {
 
+    /** The client property on each control that holds the settings key it writes. */
+    public static final String KEY = "identify.key";
+
+    /** How long a spinner rests before its value is saved: a drag over it is one write, not one per tick (judgement). */
+    static final int SETTLE_MS = 300;
+
+    /** The panel's groups. */
+    public record Groups(JComponent whatToName, JComponent look, JComponent advanced) {}
+
     /** The on/off switch for the whole identifier, which the Identify panel keeps above everything else. */
     public static JCheckBox masterSwitch() {
-        JCheckBox enabled = box("Identify under cursor (footer)", IdentifySettings.enabled(), IdentifySettings.ENABLED);
+        JCheckBox enabled = box("Identify under cursor", IdentifySettings.enabled(), IdentifySettings.ENABLED);
         enabled.setFont(enabled.getFont().deriveFont(java.awt.Font.BOLD));
         IdentifySettings.addListener(() -> enabled.setSelected(IdentifySettings.enabled()));
         return enabled;
     }
 
-    /** The whole form: the Identify panel in the sidebar shows this same one, so there is no second copy to drift. */
-    public static JComponent build() {
+    /** The form in three groups: the Identify panel in the sidebar shows these same ones, so there is no second copy to drift. */
+    public static Groups build() {
         JCheckBox tooltip = box("Show the name beside the pointer", IdentifySettings.tooltip(), IdentifySettings.TOOLTIP);
         JCheckBox glow = box("Glow around what is identified", IdentifySettings.glow(), IdentifySettings.GLOW);
         JCheckBox pulse = box("Pulse when it changes", IdentifySettings.pulse(), IdentifySettings.PULSE);
@@ -38,6 +49,7 @@ public final class IdentifyTab {
         JCheckBox all = box("Highlight all named objects in view", IdentifySettings.highlightAll(), IdentifySettings.HIGHLIGHT_ALL);
         JCheckBox byKind = box("Colour the icon by kind of object", IdentifySettings.iconByKind(), IdentifySettings.ICON_BY_KIND);
         JButton colour = new JButton("Icon colour…");
+        colour.putClientProperty(KEY, IdentifySettings.ICON_COLOR);
         colour.setToolTipText("The one colour of every icon when it is not coloured by kind");
         colour.addActionListener(e -> {
             java.awt.Color c = javax.swing.JColorChooser.showDialog(colour, "Icon colour", new java.awt.Color(IdentifySettings.iconColor()));
@@ -66,6 +78,9 @@ public final class IdentifyTab {
         JSpinner earth = spinner(IdentifySettings.earthUncertaintyKm(), 0, 1e6, 100, IdentifySettings.EARTH_UNCERTAINTY_KM);
         JSpinner magnitude = spinner(IdentifySettings.starMaxMagnitude(), -2, 12, 0.5, IdentifySettings.STAR_MAX_MAG);
         magnitude.setToolTipText("The faintest star Identify will name. Separate from the Stars overlay's limit, which only sets what is drawn.");
+        JButton reset = new JButton("Reset");
+        reset.setToolTipText("Put the numbers and finer switches back (the three main switches stay as they are)");
+        reset.addActionListener(e -> IdentifySettings.resetToDefaults());
         // Every control follows the settings, not only the three main switches: the menu, the
         // command and the panel's Reset to defaults all change them from outside this form.
         IdentifySettings.addListener(() -> {
@@ -97,46 +112,54 @@ public final class IdentifyTab {
 
         // A narrow column, one control per line, because this lives in a sidebar about 300 px wide:
         // a label-beside-control grid made the panel 786 px wide.
+        JPanel name = column();
+        name.add(note("The Sun, the planets and the Moon are always named."));
+        name.add(line(pluto));
+        name.add(line(stars));
+        name.add(line(new JLabel("Faintest star (magnitude)"), magnitude));
+        name.add(heading("Deep sky and events"));
+        name.add(line(clusters));
+        name.add(line(galaxies));
+        name.add(line(nebulae));
+        name.add(line(new JLabel("Faintest deep-sky object (magnitude)"), deepMag));
+        name.add(line(comets));
+        name.add(line(cmes));
+        name.add(note("Objects with a Messier number or a common name are always listed. Comets need the network and use JPL's ephemeris for SOHO. "
+                + org.helioviewer.jhv.identify.DeepSky.CREDIT + " Stars without a name or designation are named by Hipparcos number. Both tables are fetched on first use. "
+                + org.helioviewer.jhv.layers.stars.StarCatalog.CREDIT + " " + org.helioviewer.jhv.layers.stars.StarNames.CREDIT));
+
+        JPanel look = column();
+        look.add(line(tooltip));
+        look.add(line(tipKind));
+        look.add(line(glow));
+        look.add(line(pulse));
+        look.add(line(all));
+        look.add(note("Highlight all draws thin, dim marks until the pointer reaches one or you click it."));
+        look.add(heading("Icons"));
+        look.add(line(byKind));
+        look.add(line(colour));
+        look.add(heading("Planet markers"));
+        look.add(line(symInstead));
+        look.add(line(symAlways));
+
+        JPanel adv = column();
+        adv.add(line(new JLabel("Tolerance (screen pixels)"), tolerance));
+        adv.add(line(new JLabel("Label delay (ms)"), dwell));
+        adv.add(line(new JLabel("Earth uncertainty (km)"), earth));
+        adv.add(note("PUNCH mosaics place the observer at Earth's centre"));
+        adv.add(line(light));
+        adv.add(note("Where the body was when its light left it; about 0.005° for the Moon from Earth"));
+        adv.add(line(iau));
+        adv.add(line(bayer));
+        adv.add(heading("Defaults"));
+        adv.add(line(reset));
+        return new Groups(name, look, adv);
+    }
+
+    private static JPanel column() {
         JPanel form = new JPanel();
         form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
-        form.setBorder(BorderFactory.createEmptyBorder(6, 9, 9, 9));
-        form.add(heading("Switches"));
-        form.add(line(tooltip));
-        form.add(line(glow));
-        form.add(line(pulse));
-        form.add(line(stars));
-        form.add(line(all));
-        form.add(line(tipKind));
-        form.add(line(symInstead));
-        form.add(line(symAlways));
-        form.add(heading("Icon"));
-        form.add(line(byKind));
-        form.add(line(colour));
-        form.add(heading("Datasets (optional)"));
-        form.add(line(comets));
-        form.add(line(cmes));
-        form.add(line(clusters));
-        form.add(line(galaxies));
-        form.add(line(nebulae));
-        form.add(line(new JLabel("Faintest deep-sky object (magnitude)"), deepMag));
-        form.add(note("Objects with a Messier number or a common name are always listed. Comets need the network and use JPL's ephemeris for SOHO. "
-                + org.helioviewer.jhv.identify.DeepSky.CREDIT));
-        form.add(heading("Pointer"));
-        form.add(line(new JLabel("Tolerance (screen pixels)"), tolerance));
-        form.add(line(new JLabel("Label delay (ms)"), dwell));
-        form.add(heading("Observer"));
-        form.add(line(new JLabel("Earth uncertainty (km)"), earth));
-        form.add(note("PUNCH mosaics place the observer at Earth's centre"));
-        form.add(heading("Bodies"));
-        form.add(line(pluto));
-        form.add(line(light));
-        form.add(note("Where the body was when its light left it; about 0.005° for the Moon from Earth"));
-        form.add(heading("Stars"));
-        form.add(line(iau));
-        form.add(line(bayer));
-        form.add(line(new JLabel("Faintest star (magnitude)"), magnitude));
-        form.add(note("Stars without a name or designation are named by Hipparcos number. Both tables are fetched on first use. "
-                + org.helioviewer.jhv.layers.stars.StarCatalog.CREDIT + " " + org.helioviewer.jhv.layers.stars.StarNames.CREDIT));
+        form.setBorder(BorderFactory.createEmptyBorder(4, 6, 6, 6));
         return form;
     }
 
@@ -180,19 +203,35 @@ public final class IdentifyTab {
 
     private static JCheckBox box(String text, boolean value, String key) {
         JCheckBox b = new JCheckBox(text, value);
+        b.putClientProperty(KEY, key);
         b.addActionListener(e -> IdentifySettings.set(key, Boolean.toString(b.isSelected())));
         return b;
     }
 
     /** Show a setting's value without writing it back: the spinner's own listener would answer with another change. */
     private static void follow(JSpinner s, double value) {
-        if (((Number) s.getValue()).doubleValue() != value)
-            s.setValue(value);
+        if (((Number) s.getValue()).doubleValue() != value) {
+            s.putClientProperty(FOLLOWING, Boolean.TRUE);
+            try {
+                s.setValue(value);
+            } finally {
+                s.putClientProperty(FOLLOWING, null);
+            }
+        }
     }
 
+    private static final String FOLLOWING = "identify.following";
+
+    /** A spinner saves its value once it has rested for {@link #SETTLE_MS}: holding an arrow or typing is one write, not one per tick. */
     private static JSpinner spinner(double value, double min, double max, double step, String key) {
         JSpinner s = new JSpinner(new SpinnerNumberModel(value, min, max, step));
-        s.addChangeListener(e -> IdentifySettings.set(key, String.valueOf(((Number) s.getValue()).doubleValue())));
+        s.putClientProperty(KEY, key);
+        Timer settle = new Timer(SETTLE_MS, e -> IdentifySettings.set(key, String.valueOf(((Number) s.getValue()).doubleValue())));
+        settle.setRepeats(false);
+        s.addChangeListener(e -> {
+            if (s.getClientProperty(FOLLOWING) == null)
+                settle.restart();
+        });
         return s;
     }
 
