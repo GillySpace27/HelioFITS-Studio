@@ -3,6 +3,7 @@ package org.helioviewer.jhv.identify;
 import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.astronomy.Position;
+import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.display.ViewportMath;
@@ -17,8 +18,10 @@ import org.helioviewer.jhv.math.Vec3;
  * <p>Each mode samples an image layer its own way, and the probe follows the shader for that mode
  * so the body named is the one drawn under the pointer:
  * <ul>
- * <li>HPC and Observer Sky lay the page out in helioprojective angles, and every layer is sampled
- * at those angles in its own frame (imageHpc.frag), so the direction is the same for all layers.</li>
+ * <li>HPC lays the page out in helioprojective angles, and every layer is sampled at those angles
+ * in its own frame (imageHpc.frag), so the direction is the same for all layers.</li>
+ * <li>Observer Sky is the same, except that a composed sky undoes the radial scale from each
+ * layer's own surface distance (solarSky.frag), so the direction is per layer there.</li>
  * <li>Helioradial and Helioradial Unrolled lay out a point of the plane of sky, and each layer
  * turns it into angles with its own observer distance (sampleWarpedHpcColor).</li>
  * <li>Orthographic rotates the screen point into each layer's frame through cameraDiff, takes the
@@ -40,8 +43,8 @@ public final class Probes {
             return c == Vec2.NAN ? null : helioprojective(Math.toRadians(c.x), Math.toRadians(c.y));
         }
         if (mv.isObserverSky()) {
-            Vec2 c = mv.mouseToSkyAngles(vp, (int) Math.round(x), (int) Math.round(y));
-            return helioprojective(Math.toRadians(c.x), Math.toRadians(c.y));
+            Vec2 c = mv.mouseToMap(vp, (int) Math.round(x), (int) Math.round(y));
+            return c == Vec2.NAN ? null : sky(c, mv.viewpoint().distance);
         }
         if (mv.isHelioradial() || mv.isHelioradialUnrolled()) {
             if (mv.rendersIn3D())
@@ -68,6 +71,15 @@ public final class Probes {
     public static Identifier.Probe helioprojective(double tx, double ty) {
         Vec3 dir = Identifier.ray(tx, ty);
         return observer -> dir;
+    }
+
+    /**
+     * An Observer Sky page point (native degrees). When the sky is composed, each layer undoes the
+     * composition from its own surface distance, as solarSky.frag does with "Surface from: image
+     * observer"; null for a layer where the page is past the rim.
+     */
+    public static Identifier.Probe sky(Vec2 page, double viewpointDistance) {
+        return observer -> MapView.skyRay(page, Display.surfaceDistance(viewpointDistance, observer.distance));
     }
 
     /** A point of the plane of sky in solar radii, turned into angles with each layer's own distance. */

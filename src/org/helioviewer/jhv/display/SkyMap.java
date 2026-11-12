@@ -101,12 +101,23 @@ final class SkyMap {
 
     /** A ray read off the composed page, back to the data it stands for. Identity when not composing. */
     static Vec3 composeRay(Vec3 ray, Position viewpoint) {
+        Vec3 composed = composeRay(ray, Display.surfaceDistance(viewpoint.distance));
+        return composed == null ? ray : composed;
+    }
+
+    /**
+     * The same from an explicit surface distance (solarSky.frag's surfaceFrom). Null where the
+     * shader discards: past the rim, and in the half of the sky facing away from the Sun.
+     */
+    @Nullable
+    static Vec3 composeRay(Vec3 ray, double surfaceDistance) {
         MapScale warp = Display.skyComposeScale();
-        if (warp == null || ray.z >= 0)
+        if (warp == null)
             return ray;
-        double eTrue = unwarpElongation(Math.acos(Math.clamp(-ray.z, -1, 1)), Display.surfaceDistance(viewpoint.distance),
-                Display.getSurfaceModel(), warp);
-        return Double.isNaN(eTrue) ? ray : atElongation(ray, eTrue);
+        if (ray.z >= 0)
+            return null;
+        double eTrue = unwarpElongation(Math.acos(Math.clamp(-ray.z, -1, 1)), surfaceDistance, Display.getSurfaceModel(), warp);
+        return Double.isNaN(eTrue) ? null : atElongation(ray, eTrue);
     }
 
     /** The inverse, for putting a world direction on the composed page. */
