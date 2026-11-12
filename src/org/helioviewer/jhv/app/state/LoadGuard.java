@@ -61,6 +61,13 @@ public final class LoadGuard {
     }
 
     public record Estimate(List<Item> items) {
+        /** This estimate with more items after its own (the event rows). */
+        public Estimate plus(List<Item> more) {
+            List<Item> all = new ArrayList<>(items);
+            all.addAll(more);
+            return new Estimate(all);
+        }
+
         public long frames() {
             return items.stream().mapToLong(Item::toDownload).sum();
         }
@@ -116,6 +123,23 @@ public final class LoadGuard {
                 held.add(items.get(i).at());
         }
         return new Review(held, dropped);
+    }
+
+    // Assumed, not measured, like the frame sizes: a session does not record its events, so a ticked
+    // event group is counted at a flat rate over the session's range. ponytail: replace with a
+    // per-group density once the event database can say how busy a period was.
+    static final long EVENTS_PER_DAY = 15;
+    static final long EVENT_BYTES = 2_000;
+
+    /**
+     * One ticked event group over the session's range. {@code at} is negative (-1 - its place in the
+     * list the caller keeps), so it cannot be taken for an imageLayers place. Cached events are not
+     * counted: the event database is not asked from the event thread.
+     */
+    public static Item events(int at, String name, long start, long end) {
+        long days = Math.max(1, (end - start + TimeUtils.DAY_IN_MILLIS - 1) / TimeUtils.DAY_IN_MILLIS);
+        long n = days * EVENTS_PER_DAY;
+        return new Item(at, name, "events, about " + EVENTS_PER_DAY + " a day (assumed)", n, 0, n * EVENT_BYTES, false);
     }
 
     private LoadGuard() {}

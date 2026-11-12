@@ -51,7 +51,7 @@ public final class LoadGuardDialog {
                     frames += items.get(i).toDownload();
                     bytes += items.get(i).bytes();
                 }
-            total.setText(String.format(Locale.ROOT, "<html>Will download <b>%,d frames</b>, about <b>%s</b> (an estimate: sizes are assumed, not read).</html>",
+            total.setText(String.format(Locale.ROOT, "<html>Will download <b>%,d frames and events</b>, about <b>%s</b> (an estimate: sizes are assumed, not read).</html>",
                     frames, LoadGuard.sizeText(bytes)));
         };
 
@@ -91,7 +91,7 @@ public final class LoadGuardDialog {
         all.add(allButton("Cancel all", cancel, update));
 
         JLabel text = new JLabel(String.format(Locale.ROOT,
-                "<html>This session would download about <b>%,d frames</b>, roughly <b>%s</b>. Your limit is %,d frames or %s (Settings).<br>"
+                "<html>This session would download about <b>%,d frames and events</b>, roughly <b>%s</b>. Your limit is %,d frames or %s (Settings).<br>"
                         + "Frames already cached are not counted and load from disk. Postponed layers stay in the scene, empty;<br>"
                         + "Refresh on a layer downloads it later.</html>",
                 estimate.frames(), LoadGuard.sizeText(estimate.bytes()), maxFrames, LoadGuard.sizeText(maxBytes)));
