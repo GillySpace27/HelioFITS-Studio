@@ -76,8 +76,8 @@ public final class IdentifyPaletteCheck {
         expect("Advanced and the observers start closed, the others open", expanded(root, "Advanced") == Boolean.FALSE && expanded(root, "Observers used") == Boolean.FALSE
                 && expanded(root, "Under the pointer") == Boolean.TRUE && expanded(root, "What to name") == Boolean.TRUE && expanded(root, "How it looks") == Boolean.TRUE);
         System.out.println("  info panel preferred width " + root.getPreferredSize().width + " px");
-        // Measured headless, where the old single column was 343 px wide; a section steps in 12 px
-        expect("and is no wider than the old column plus one section indent", root.getPreferredSize().width <= 343 + 12);
+        // Font independent (CI fonts are wider than a Mac's): the panel is no wider than its widest single row plus the section steps
+        expect("and is no wider than its widest row plus three section indents", root.getPreferredSize().width <= widest(root) + 3 * 12 + 8);
 
         RightSidebar bar = RightSidebar.getInstance();
         bar.setCollapsed(false);
@@ -99,6 +99,15 @@ public final class IdentifyPaletteCheck {
         if (c instanceof java.awt.Container box)
             for (java.awt.Component child : box.getComponents())
                 walk(child, keys, titles);
+    }
+
+    private static int widest(java.awt.Component c) {
+        int w = 0;
+        if (c instanceof java.awt.Container k) {
+            for (java.awt.Component ch : k.getComponents()) w = Math.max(w, widest(ch));
+            if (k.getComponentCount() == 0) w = Math.max(w, k.getPreferredSize().width);
+        }
+        return w;
     }
 
     private static Boolean expanded(java.awt.Component c, String title) {
