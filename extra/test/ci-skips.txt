@@ -5,3 +5,4 @@ BundledMetalHostCheck needs macOS and the repository root as the working directo
 FitsLibraryOptionalCheck XDG_CONFIG_HOME is set, so the library lookup does not follow user.home
 LibraryStoreCheck HFCORE_HOME, APPDATA or XDG_CONFIG_HOME is set, so the library lookup does not follow user.home
 FirstLoadFitCheck SPICE natives are not available on this platform
+SiblingsCheck HFS_HOME, HFCORE_HOME, APPDATA or XDG_CONFIG_HOME is set, so homes do not follow user.home
