@@ -4,6 +4,7 @@ import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.display.Display;
+import org.helioviewer.jhv.display.MapScale;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.display.ViewportMath;
@@ -33,37 +34,50 @@ import org.helioviewer.jhv.math.Vec3;
  */
 public final class Probes {
 
-    /** The probe for the pointer at screen (x, y), or null in a mode with no sky under the pointer. */
+    /**
+     * The probe for the pointer at screen (x, y), or null in a mode with no sky under the pointer.
+     * The pointer is a whole pixel: a fractional position is rounded, as the footer always did
+     * (the 3D mesh, which has a smooth inverse, reads it as given). {@link #exact} does not round.
+     */
     @Nullable
     public static Identifier.Probe at(MapView mv, Viewport vp, double x, double y) {
+        boolean whole = !SkyScreen.applies(mv);
+        return exact(mv, vp, whole ? Math.floor(x + 0.5) : x, whole ? Math.floor(y + 0.5) : y);
+    }
+
+    /**
+     * The same at a real-valued canvas point, which {@link SkyScreen#place} needs to check a
+     * placement to a fraction of a pixel. At a whole pixel it is exactly {@link #at}.
+     */
+    @Nullable
+    public static Identifier.Probe exact(MapView mv, Viewport vp, double x, double y) {
         if (mv.isLatitudinal())
             return null;
+        double width = mv.cameraWidth(vp);
+        double upX = ViewportMath.computeUpX(vp, width, mv.cameraTranslationX(), x);
+        double upY = ViewportMath.computeUpY(vp, width, mv.cameraTranslationY(), y);
         if (mv.isHpc()) {
-            Vec2 c = mv.mouseToMap(vp, (int) Math.round(x), (int) Math.round(y));
-            return c == Vec2.NAN ? null : helioprojective(Math.toRadians(c.x), Math.toRadians(c.y));
+            MapScale s = mv.scale(vp);
+            return helioprojective(Math.toRadians(s.toMapX(upX / vp.aspect + .5)), Math.toRadians(s.toMapY(upY + .5)));
         }
         if (mv.isObserverSky()) {
-            Vec2 c = mv.mouseToMap(vp, (int) Math.round(x), (int) Math.round(y));
-            return c == Vec2.NAN ? null : sky(c, mv.viewpoint().distance);
+            MapScale s = mv.scale(vp);
+            return sky(new Vec2(s.toMapX(upX / vp.aspect + .5), s.toMapY(upY + .5)), mv.viewpoint().distance);
         }
         if (mv.isHelioradial() || mv.isHelioradialUnrolled()) {
             if (mv.rendersIn3D())
                 return SkyScreen.probe(mv, vp, x, y);
             // Off the page the shaders discard (imageRadialWarp.frag: t > 1; the unrolled map: outside [0, 1])
-            double w = mv.cameraWidth(vp);
-            double ux = ViewportMath.computeUpX(vp, w, mv.cameraTranslationX(), x);
-            double uy = ViewportMath.computeUpY(vp, w, mv.cameraTranslationY(), y);
-            if (mv.isHelioradial() ? 2 * Math.hypot(ux, uy) > 1 : Math.abs(ux / vp.aspect) > .5 || Math.abs(uy) > .5)
+            if (mv.isHelioradial() ? 2 * Math.hypot(upX, upY) > 1 : Math.abs(upX / vp.aspect) > .5 || Math.abs(upY) > .5)
                 return null;
-            Vec2 c = mv.mouseToMap(vp, (int) Math.round(x), (int) Math.round(y));
-            if (c == Vec2.NAN || !Double.isFinite(c.y))
+            MapScale s = mv.scale(vp);
+            double mapX = mv.isHelioradial() ? Math.toDegrees(PolarBasis.angle(upX, upY)) : s.toMapX(upX / vp.aspect + .5);
+            double mapY = s.toMapY(mv.isHelioradial() ? 2 * Math.hypot(upX, upY) : upY + .5);
+            if (!Double.isFinite(mapY))
                 return null;
-            double theta = Math.toRadians(c.x);
-            return plane(PolarBasis.x(c.y, theta), PolarBasis.y(c.y, theta));
+            double theta = Math.toRadians(mapX);
+            return plane(PolarBasis.x(mapY, theta), PolarBasis.y(mapY, theta));
         }
-        double width = mv.cameraWidth(vp);
-        double upX = ViewportMath.computeUpX(vp, width, mv.cameraTranslationX(), x);
-        double upY = ViewportMath.computeUpY(vp, width, mv.cameraTranslationY(), y);
         return ortho(mv.viewRotation(), upX, upY);
     }
 

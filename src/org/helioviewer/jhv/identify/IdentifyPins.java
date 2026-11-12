@@ -24,10 +24,10 @@ import org.json.JSONArray;
  * View > Find Body... pins the body it finds. A pinned label follows its body through time and
  * every view mode, and is saved with the session.
  *
- * <p>Where a body is drawn comes from the identifier itself, run backwards: the pointer position
- * whose sight line (Probes, the same probe the footer uses) points at the body, found by Newton's
- * method on the screen. So a pin sits exactly where hovering would name the body, in every mode
- * the identifier supports, without a second projection to keep in step with the shaders.
+ * <p>Where a body is drawn comes from {@link SkyScreen#place}, the forward map of each view mode,
+ * which checks itself against the probe the footer uses (the probe at the placed pixel must give
+ * the body's sight line back). So a pin sits exactly where hovering would name the body, in every
+ * mode the identifier supports, at the cost of a few arithmetic steps and no solving.
  */
 public final class IdentifyPins {
 
@@ -106,22 +106,29 @@ public final class IdentifyPins {
     }
 
     /**
-     * The canvas point (x, y) at which the identifier's probe looks along {@code want} from
-     * {@code target}'s observer, or null when Newton's method does not converge inside the viewport
-     * (the body is off the page, behind the Sun in the orthographic view, or in a mode with no sky).
+     * The canvas point (x, y) at which {@code target}'s observer sees the sight line {@code want}
+     * drawn, or null when it is off the page, hidden (behind the Sun in the orthographic view) or
+     * in a mode with no sky. The forward map ({@link SkyScreen#place}), closed form in every mode;
+     * the Newton solver below is kept as the cross-check, not used to draw.
      */
     @Nullable
     static double[] locate(Viewport vp, MapView mv, Identifier.Target target, Vec3 want) {
-        return locate(vp, mv, target, want, null);
+        double[] p = SkyScreen.place(mv, vp, target.observer(), want);
+        return p != null && p[0] >= vp.x && p[0] <= vp.x + vp.width && p[1] >= vp.yAWT && p[1] <= vp.yAWT + vp.height ? p : null;
     }
 
-    /** As {@link #locate(Viewport, MapView, Identifier.Target, Vec3)}, starting from {@code seed} (canvas pixels) when given. */
+    /** As {@link #locate(Viewport, MapView, Identifier.Target, Vec3)}; a start point is no longer needed and is ignored. */
     @Nullable
     static double[] locate(Viewport vp, MapView mv, Identifier.Target target, Vec3 want, @Nullable double[] seed) {
-        if (SkyScreen.applies(mv)) { // the forward map is exact and cheap: no solving, and no seed needed
-            double[] p = SkyScreen.place(mv, vp, target.observer(), want);
-            return p != null && p[0] >= vp.x && p[0] <= vp.x + vp.width && p[1] >= vp.yAWT && p[1] <= vp.yAWT + vp.height ? p : null;
-        }
+        return locate(vp, mv, target, want);
+    }
+
+    /**
+     * Newton's method on the probe, from {@code seed} (canvas pixels) when given: the old way to find
+     * {@link #locate}'s answer, for a check to compare the forward map with. Never used to draw.
+     */
+    @Nullable
+    static double[] locateByProbe(Viewport vp, MapView mv, Identifier.Target target, Vec3 want, @Nullable double[] seed) {
         // The probe reads whole pixels, so interpolate between the four around (x, y): a smooth function Newton can settle on
         Sky sky = (x, y) -> {
             int ix = (int) Math.floor(x), iy = (int) Math.floor(y);
