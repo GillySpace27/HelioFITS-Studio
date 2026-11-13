@@ -178,6 +178,7 @@ $INTEL_FILE
 - \`fabric_suvi.json.gz\`: demo point cloud; Open… it in the Point Cloud layer
 
 \`\`\`
+commit  $(cd "$SRC" && git rev-parse --short=12 HEAD)
 sha256  $DMGSHA  $TOP.dmg
 $INTEL_SHA
 sha256  $SHA  $TOP.zip

@@ -115,6 +115,20 @@ public final class UpdateFeedCheck {
         expect("skipping 0.8.5 does not silence 0.8.6", ReleaseFeed.shouldOffer(macArm, "0.8.4", "0.8.5", false));
         expect("no release, no offer", !ReleaseFeed.shouldOffer(null, "0.8.5", null, true));
 
+        // Same version, another build: a debug or stale copy of the release is offered a reinstall.
+        ReleaseFeed.Release rel = new ReleaseFeed.Release("0.9.2", "v0.9.2", "", "", macArm.asset(), "404b3bc63abc");
+        expect("the release commit is read from the notes", "404b3bc63abc".equals(ReleaseFeed.commit("x\n```\ncommit  404b3bc63abc\nsha256 ab\n```")));
+        expect("same commit is the release itself", ReleaseFeed.sameBuild(rel, "0.9.2", "404b3bc63abc", false, "0"));
+        expect("another commit is not", !ReleaseFeed.sameBuild(rel, "0.9.2", "5995cdf3e000", false, "0"));
+        expect("commits after the tag are not", !ReleaseFeed.sameBuild(rel, "0.9.2", "404b3bc63abc", false, "37"));
+        expect("a dirty tree is not", !ReleaseFeed.sameBuild(rel, "0.9.2", "404b3bc63abc", true, "0"));
+        ReleaseFeed.Release bare = new ReleaseFeed.Release("0.9.2", "v0.9.2", "", "", macArm.asset(), null);
+        expect("no commit in the notes: only since and dirty tell", ReleaseFeed.sameBuild(bare, "0.9.2", "5995cdf3e000", false, "0"));
+        expect("reinstall offered by the Help menu", ReleaseFeed.shouldReinstall(rel, "0.9.2", false, "debug", null, true));
+        expect("not at startup to a debug build", !ReleaseFeed.shouldReinstall(rel, "0.9.2", false, "debug", null, false));
+        expect("at startup to another build", ReleaseFeed.shouldReinstall(rel, "0.9.2", false, "", null, false));
+        expect("never to the release itself", !ReleaseFeed.shouldReinstall(rel, "0.9.2", true, "", null, true));
+
         // Once a day.
         long day = ReleaseFeed.DAY_MS;
         long now = 1_800_000_000_000L;

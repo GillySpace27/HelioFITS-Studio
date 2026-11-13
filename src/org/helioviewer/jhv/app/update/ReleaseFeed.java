@@ -27,7 +27,7 @@ public final class ReleaseFeed {
     public record Asset(String name, String url, long size, @Nullable String sha256) {}
 
     /** A release this computer can install: its version ("0.8.6"), tag, notes as plain text, page and file. */
-    public record Release(String version, String tag, String notes, String pageUrl, Asset asset) {}
+    public record Release(String version, String tag, String notes, String pageUrl, Asset asset, @Nullable String commit) {}
 
     public enum Os {MAC, WINDOWS, LINUX, OTHER}
 
@@ -37,6 +37,7 @@ public final class ReleaseFeed {
     // line) is never read as 5.6.0 and offered to everyone.
     private static final Pattern VERSION = Pattern.compile("v?(\\d{1,6})\\.(\\d{1,6})\\.(\\d{1,6})");
     private static final Pattern SHA_LINE = Pattern.compile("(?m)^\\s*sha256\\s+([0-9a-fA-F]{64})\\s+(\\S+)\\s*$");
+    private static final Pattern COMMIT_LINE = Pattern.compile("(?m)^\\s*commit\\s+([0-9a-f]{12,40})\\s*$");
     private static final Pattern DIGEST = Pattern.compile("sha256:([0-9a-fA-F]{64})");
 
     /** The three numbers of "0.8.6" or "v0.8.6", or null for anything else. */
@@ -123,7 +124,7 @@ public final class ReleaseFeed {
             Asset asset = pickAsset(r.optJSONArray("assets"), assetNames(os, arm, version), body);
             if (asset == null)
                 continue;
-            best = new Release(version, tag, plainNotes(body), r.optString("html_url", ""), asset);
+            best = new Release(version, tag, plainNotes(body), r.optString("html_url", ""), asset, commit(body));
         }
         return best;
     }
@@ -209,6 +210,40 @@ public final class ReleaseFeed {
         if (release == null || !isNewer(release.version(), running))
             return false;
         return manual || !release.version().equals(skipped);
+    }
+
+    /** The commit the release says it was built from (a "commit <sha>" line in its notes), lowercase, or null. */
+    @Nullable
+    static String commit(String body) {
+        Matcher m = COMMIT_LINE.matcher(body);
+        return m.find() ? m.group(1) : null;
+    }
+
+    /**
+     * Whether this running build is the release itself, given the same version. A build between releases
+     * ({@code since} commits after the tag) or with uncommitted changes is not; nor is one whose commit
+     * differs from the one the release names. When the release names none, only those first two tell.
+     */
+    public static boolean sameBuild(Release release, String running, String commit, boolean dirty, @Nullable String since) {
+        if (!release.version().equals(running) || dirty)
+            return false;
+        if (since != null && since.matches("[0-9]+") && !"0".equals(since))
+            return false;
+        String rc = release.commit();
+        if (rc == null || !commit.matches("[0-9a-f]{7,40}"))
+            return true;
+        return rc.startsWith(commit) || commit.startsWith(rc);
+    }
+
+    /**
+     * Offer to reinstall: the release has the running version, but this copy is another build of it (a
+     * debug or release candidate build, or a stale copy). The automatic check leaves debug builds alone.
+     */
+    public static boolean shouldReinstall(@Nullable Release release, String running, boolean sameBuild, String channel,
+                                          @Nullable String skipped, boolean manual) {
+        if (release == null || sameBuild || !release.version().equals(running) || parse(running) == null)
+            return false;
+        return manual || (!"debug".equals(channel) && !release.version().equals(skipped));
     }
 
     private ReleaseFeed() {}
