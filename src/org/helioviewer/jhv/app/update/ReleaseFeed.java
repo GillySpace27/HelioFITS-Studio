@@ -246,5 +246,23 @@ public final class ReleaseFeed {
         return manual || (!"debug".equals(channel) && !release.version().equals(skipped));
     }
 
+    static final String CASK = "heliofits-studio";
+
+    /**
+     * Whether Homebrew installed this copy as the cask: it keeps a folder for it under its Caskroom,
+     * in /opt/homebrew (Apple Silicon) or /usr/local (Intel). A copy updated by hand over a brew one
+     * would leave brew believing in a version that is no longer there, so brew owns those updates.
+     */
+    public static boolean brewManaged(java.nio.file.Path... prefixes) {
+        for (java.nio.file.Path p : prefixes)
+            if (java.nio.file.Files.isDirectory(p.resolve("Caskroom").resolve(CASK)))
+                return true;
+        return false;
+    }
+
+    public static boolean brewManaged() {
+        return brewManaged(java.nio.file.Path.of("/opt/homebrew"), java.nio.file.Path.of("/usr/local"));
+    }
+
     private ReleaseFeed() {}
 }
