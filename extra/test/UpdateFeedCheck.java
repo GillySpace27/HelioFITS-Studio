@@ -129,6 +129,12 @@ public final class UpdateFeedCheck {
         expect("at startup to another build", ReleaseFeed.shouldReinstall(rel, "0.9.2", false, "", null, false));
         expect("never to the release itself", !ReleaseFeed.shouldReinstall(rel, "0.9.2", true, "", null, true));
 
+        // Homebrew owns the update of a cask install.
+        Path prefix = Files.createTempDirectory("brewprefix");
+        expect("no Caskroom entry: not a brew copy", !ReleaseFeed.brewManaged(prefix));
+        Files.createDirectories(prefix.resolve("Caskroom").resolve("heliofits-studio").resolve("0.9.2"));
+        expect("a Caskroom entry: a brew copy", ReleaseFeed.brewManaged(Path.of("/nonexistent"), prefix));
+
         // Once a day.
         long day = ReleaseFeed.DAY_MS;
         long now = 1_800_000_000_000L;

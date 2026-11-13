@@ -201,6 +201,15 @@ site() {
     gh pr merge "$_pr" --repo "$SITE_REPO" --squash
 }
 
+# ---- 8b. Homebrew tap (optional): HFS_TAP_DIR is a clone of the tap repo; unset skips it -------------------
+tap() {
+    [ -n "${HFS_TAP_DIR:-}" ] && [ -d "$HFS_TAP_DIR/Casks" ] || { echo "   (no HFS_TAP_DIR: the Homebrew tap is not updated)"; return 0; }
+    cd "$CLONE"
+    python3 release/homebrew/bump_cask.py "$HFS_TAP_DIR/Casks/heliofits-studio.rb" "$V"
+    cd "$HFS_TAP_DIR"
+    git diff --quiet || { git commit -qam "heliofits-studio $V" && git push -q origin HEAD; }
+}
+
 # ---- 9. verify what the world sees -------------------------------------------------------------------------
 verify() {
     cd "$CLONE"
@@ -241,4 +250,5 @@ step gate gate
 step publish publish
 step packages packages
 step site site
+step tap tap
 step verify verify
