@@ -15,6 +15,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.KeyStroke;
 
+import org.helioviewer.jhv.app.AppInfo;
 import org.helioviewer.jhv.app.update.ReleaseFeed;
 import org.helioviewer.jhv.app.update.UpdateCheck;
 import org.helioviewer.jhv.app.update.UpdateInstaller;
@@ -26,11 +27,13 @@ import org.helioviewer.jhv.gui.MainFrame;
  */
 public final class UpdateAvailableDialog {
 
-    public static void show(ReleaseFeed.Release release, String running) {
+    public static void show(ReleaseFeed.Release release, String running, boolean reinstall) {
         JDialog dialog = new JDialog(MainFrame.get(), "Update Available", false);
         dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
 
-        JLabel headline = new JLabel("<html><body style='width:420px'><b>HelioFITS Studio " + release.version() + " is available</b> (you have " + running + ").<br>"
+        JLabel headline = new JLabel("<html><body style='width:420px'><b>HelioFITS Studio " + release.version() + (reinstall
+                        ? " is the current release, but this copy is another build of it</b> (" + AppInfo.buildId() + ").<br>"
+                        : " is available</b> (you have " + running + ").<br>")
                 + "Before anything is downloaded, your session and settings are saved and copied to "
                 + "HFStudio/Backups in your home folder. Nothing is deleted."
                 + (ReleaseFeed.needsOwnJava(release.asset().name())
@@ -53,7 +56,7 @@ public final class UpdateAvailableDialog {
         });
         JButton later = new JButton("Later");
         later.addActionListener(e -> dialog.dispose());
-        JButton install = new JButton("Download and Install");
+        JButton install = new JButton(reinstall ? "Download and Reinstall" : "Download and Install");
         install.addActionListener(e -> {
             dialog.dispose();
             UpdateInstaller.install(release);

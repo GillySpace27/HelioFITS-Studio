@@ -126,7 +126,13 @@ public final class UpdateCheck {
         String skipped = Settings.getProperty(SKIP_KEY);
         if (ReleaseFeed.shouldOffer(newest, running, skipped, manual)) {
             Log.info("Found newer version " + newest.version());
-            UpdateAvailableDialog.show(newest, running);
+            UpdateAvailableDialog.show(newest, running, false);
+            return;
+        }
+        boolean same = newest != null && ReleaseFeed.sameBuild(newest, running, AppInfo.commit(), AppInfo.dirty(), System.getProperty("jhv.since"));
+        if (ReleaseFeed.shouldReinstall(newest, running, same, AppInfo.channel(), skipped, manual)) {
+            Log.info("Release " + newest.version() + " is another build than this one (" + AppInfo.buildId() + ")");
+            UpdateAvailableDialog.show(newest, running, true);
             return;
         }
         if (newest != null && ReleaseFeed.isNewer(newest.version(), running))
@@ -138,6 +144,13 @@ public final class UpdateCheck {
         String text = ReleaseFeed.parse(running) == null
                 ? "This build (" + AppInfo.label() + ") does not carry a release version, so it cannot be compared.\nReleases: " + AppInfo.downloadURL
                 : "You are running the latest HelioFITS Studio version (" + running + ").";
+        if (newest != null && newest.version().equals(running)) { // the manual override: same build, reinstall it anyway
+            String[] options = {"OK", "Reinstall Latest Release"};
+            if (JOptionPane.showOptionDialog(MainFrame.get(), text, "Check for Updates", JOptionPane.DEFAULT_OPTION,
+                    JOptionPane.INFORMATION_MESSAGE, null, options, options[0]) == 1)
+                UpdateInstaller.install(newest);
+            return;
+        }
         JOptionPane.showMessageDialog(MainFrame.get(), text, "Check for Updates", JOptionPane.INFORMATION_MESSAGE);
     }
 
