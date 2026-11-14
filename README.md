@@ -45,6 +45,7 @@ Every package on the [Releases page](https://github.com/GillySpace27/HelioFITS-S
 
 - **Apple Silicon Mac:** open `HFStudio-<version>.dmg` and drag HelioFITS Studio to Applications. The dmg is signed and notarized.
 - **Intel Mac:** the same, with `HFStudio-<version>-intel.dmg`, also signed and notarized.
+- **Homebrew (Mac):** `brew install --cask GillySpace27/tap/heliofits-studio`, and `brew upgrade --cask heliofits-studio` to update (Studio's own updater leaves a brew install to brew). Needs macOS 14 or later.
 - **Windows:** right-click `HFStudio-<version>-windows.zip`, choose *Extract All* (it will not start from inside the zip), and run `HFStudio\HFStudio.exe` from the folder it makes. There is no installer and no administrator rights are needed: the app writes only to your own folders. The zip is code-signed, but SmartScreen is slow to learn a new publisher, so Windows may still warn that it protected your PC; choose *More info*, then *Run anyway*.
 - **Linux:** unpack `HFStudio-<version>-linux.tar.gz` anywhere and run `HFStudio/bin/HFStudio`. This package is **x86_64 only** (64-bit Intel and AMD). On an ARM64 (aarch64) Linux machine, such as Ubuntu on an ARM server or a Raspberry Pi, the launcher stops with "Exec format error"; an ARM64 package is planned.
 
