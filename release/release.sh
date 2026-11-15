@@ -30,6 +30,7 @@ set -euo pipefail
 
 REPO=GillySpace27/HelioFITS-Studio
 SITE_REPO=GillySpace27/GillySpace27.github.io
+TAP_REPO=GillySpace27/homebrew-tap
 HOME_DIR="${HFS_RELEASE_HOME:-$HOME/hfs-release}"
 FEED_URL=https://gilly.space/heliosoftware/feed/heliofits-studio.json
 
@@ -203,11 +204,18 @@ site() {
 
 # ---- 8b. Homebrew tap (optional): HFS_TAP_DIR is a clone of the tap repo; unset skips it -------------------
 tap() {
-    [ -n "${HFS_TAP_DIR:-}" ] && [ -d "$HFS_TAP_DIR/Casks" ] || { echo "   (no HFS_TAP_DIR: the Homebrew tap is not updated)"; return 0; }
-    cd "$CLONE"
-    python3 release/homebrew/bump_cask.py "$HFS_TAP_DIR/Casks/heliofits-studio.rb" "$V"
-    cd "$HFS_TAP_DIR"
-    git diff --quiet || { git commit -qam "heliofits-studio $V" && git push -q origin HEAD; }
+    # Rules (RELEASING.md, "Homebrew tap"): the tap is GillySpace27/homebrew-tap; a release always updates it.
+    # HFS_TAP_DIR names a clone to use; unset means a fresh clone in $HOME_DIR/tap-$V; "skip" is the only way
+    # to leave it out, and it is said out loud. A failure here stops the run, so the tap cannot go stale quietly.
+    [ "${HFS_TAP_DIR:-}" = skip ] && { echo "   (HFS_TAP_DIR=skip: the Homebrew tap is NOT updated; do it by hand)"; return 0; }
+    _tap="${HFS_TAP_DIR:-$HOME_DIR/tap-$V}"
+    [ -d "$_tap/.git" ] || gh repo clone "$TAP_REPO" "$_tap" -- -q || fail "cannot clone $TAP_REPO"
+    git -C "$_tap" pull -q --ff-only origin main || fail "the tap clone $_tap does not fast-forward"
+    ( cd "$CLONE" && python3 release/homebrew/bump_cask.py "$_tap/Casks/heliofits-studio.rb" "$V" ) || fail "bump_cask.py failed"
+    cd "$_tap"
+    git diff --quiet || { git commit -qam "heliofits-studio $V" && git push -q origin HEAD || fail "push to $TAP_REPO failed"; }
+    curl -fsS "https://raw.githubusercontent.com/$TAP_REPO/main/Casks/heliofits-studio.rb" | grep -q "version \"$V\"" \
+        || fail "$TAP_REPO does not serve a cask at $V"
 }
 
 # ---- 9. verify what the world sees -------------------------------------------------------------------------
