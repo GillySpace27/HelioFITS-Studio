@@ -101,6 +101,7 @@ except ImportError:
     import heliofits_core.parity' >/dev/null 2>&1 \
         || die "parity needs a Python with sunpy, astropy and the core: set HELIAD_PYTHON (now: $PY)"
     [ -d "$HOME/HeliadLibrary" ] || die "parity needs ~/HeliadLibrary"
+    "$PY" -c 'import pytest, numpy' >/dev/null 2>&1 || die "the replay gate needs pytest and numpy in $PY"
     pgrep -fq 'HelioFITS Studio|HFStudio' && die "quit every running HelioFITS Studio first (JPIP cache lock; smoke test)"
     # A resume past publish finds the release it made; only a run that has not published must not.
     if ! grep -qsx publish "$STATE" && gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
@@ -163,6 +164,13 @@ parity() {
     [ "$(sha HFStudio.jar)" = "$(cat "$HOME_DIR/$V.jarsha")" ] || fail "HFStudio.jar changed during parity"
     python3 release/parity.py verify "release/HFStudio-$V-parity.json" --jar HFStudio.jar --commit "$(git rev-parse HEAD)" \
         --version "$V" --manifest release/parity-manifest.json || fail "parity report does not vouch for this jar"
+}
+
+# ---- 5c. replay gate: the pinned Core's golden set still reproduces its pixel digests -----------------------
+replay() {
+    cd "$CLONE"
+    HELIAD_DIR="${HELIAD_DIR:-$(dirname "$(dirname "$(dirname "$PY")")")}" HELIAD_PYTHON="$PY" release/replay.sh \
+        || fail "replay gate failed: the Core pinned in release/fits-core.txt does not reproduce its golden set"
 }
 
 # ---- 6. gate (dry run, strict guide, smoke) ------------------------------------------------------------------
@@ -254,6 +262,7 @@ fi
 step clone fresh_clone
 step build build
 step parity parity
+step replay replay
 step gate gate
 step publish publish
 step packages packages

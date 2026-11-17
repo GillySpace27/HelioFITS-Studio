@@ -411,6 +411,19 @@ ehcache persistence lock, and the failure is not contained: `levelCache` stays
 null and every image read throws, which presents as a rendering bug rather than
 an "already running" message.
 
+### 5c. Replay gate
+
+`release/replay.sh` runs the golden set of HelioFITS Core (pyHelioFITS `tests/golden/`, four records with
+their pictures) with the Core commit pinned in `release/fits-core.txt`, read out of a pyHelioFITS checkout
+with `git archive` (the checkout is not switched). It needs pytest and numpy in `HELIAD_PYTHON`, runs
+offline, and `release/release.sh` runs it as the `replay` step after parity. It proves the digest, the PNG
+reader and the verdict logic of the bundled Core; it does not start Studio unless `HFS_REPLAY_RECORDS`
+names real records, which needs a display.
+
+```sh
+HELIAD_DIR=~/heliad HELIAD_PYTHON=~/heliad/.venv/bin/python release/replay.sh
+```
+
 ### 5b. Decode-parity report
 
 `publish` refuses without `release/HFStudio-<version>-parity.json`, the record that this release's
