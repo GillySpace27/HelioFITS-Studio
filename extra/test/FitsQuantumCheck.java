@@ -34,7 +34,15 @@ public final class FitsQuantumCheck {
                 failures++;
         }
         System.out.printf("  %s astropy reference pixels within %.1e (worst %.2e of %d)%n", failures == 0 ? "ok  " : "FAIL", tol, worst, px.length());
-        if (failures > 0)
+        // CCOR2 writes BLANK = 0 on a NO_DITHER float image; astropy 8.0.2 reads 416690 NaN pixels there
+        // (computed with np.isnan on the same file). The library returns them finite.
+        FITSData c = FITSImage.readData(new File(data.toFile(), "CCOR2_1A_20260902T211514_V00_NC.fits"), 0);
+        int nan = 0;
+        for (float f : FitsDecodeGoldenCheck.physical(c))
+            if (Float.isNaN(f))
+                nan++;
+        System.out.printf("  %s CCOR2 null pixels decode as NaN (%d, astropy 416690)%n", nan == 416690 ? "ok  " : "FAIL", nan);
+        if (failures > 0 || nan != 416690)
             System.exit(1);
     }
 }
