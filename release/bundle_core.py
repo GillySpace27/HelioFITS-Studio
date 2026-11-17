@@ -141,7 +141,7 @@ def main():
 
 # sh runs line 2 and never reads on; Python reads lines 2 and 3 as two adjacent string literals.
 RELOCATABLE_HEAD = (b"#!/bin/sh\n"
-                    b"'''exec' \"$(dirname -- \"$(realpath -- \"$0\")\")/python3\" \"$0\" \"$@\"\n"
+                    b"'''exec' \"$(dirname -- \"$(realpath -- \"$0\" 2>/dev/null || echo \"$0\")\")/python3\" \"$0\" \"$@\"\n"
                     b"' '''\n")
 
 
@@ -161,7 +161,12 @@ def relocate_scripts(out, target):
             if f.read(2) != b"#!":
                 continue
             first, rest = f.readline(), f.read()
-        if b"python" not in first or b"/env " in first:
+        if first.strip() == b"/bin/sh" and rest.startswith(b"'''exec'"):
+            # pip's own form for a long or spaced build path; ours, once written, is left alone.
+            if (b"#!/bin/sh\n" + rest).startswith(RELOCATABLE_HEAD):
+                continue
+            rest = rest.split(b"\n", 2)[2]
+        elif b"python" not in first or b"/env " in first:
             continue
         script.write_bytes(RELOCATABLE_HEAD + rest)
         done += 1
