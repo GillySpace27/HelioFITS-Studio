@@ -7,16 +7,22 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 
 import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
 
 import org.helioviewer.jhv.app.state.SessionArchive;
+import org.helioviewer.jhv.io.FitsCoreIngest;
+import org.helioviewer.jhv.io.FitsLibrary;
 import org.helioviewer.jhv.io.SourceIdentity;
 
 import org.json.JSONArray;
@@ -115,7 +121,93 @@ public final class ExportReplay {
         } else if (movie)
             notes.add("Loaded the whole range of the export.");
         archive(session, record, sidecar, unpackRoot, notes);
+        relocate(session, record, ExportReplay::askLibrary, notes);
         return new Prepared(session, notes, movie, narrowed);
+    }
+
+    /**
+     * Local files of the scene that are still not here, found in the FITS library by the SHA-256 the record names for
+     * them (HelioFITS Core's {@code record.locate}): the scene's uri then points at the library's copy, whatever
+     * folder the original was exported from. A source is matched to a uri by file name; a file the library holds as
+     * superseded is used all the same, because it is the very file the record hashed. {@code locate} takes the hashes
+     * and answers {@code {sha256: {status, path}}}, or null when there is no library or no Core. Returns how many
+     * uris were repointed.
+     */
+    static int relocate(JSONObject session, JSONObject record, Function<List<String>, JSONObject> locate, List<String> notes) {
+        JSONObject state = session.optJSONObject(STATE);
+        JSONArray layers = state == null ? null : state.optJSONArray("imageLayers");
+        if (layers == null)
+            return 0;
+        Map<String, String> hashByName = new LinkedHashMap<>();
+        JSONArray recLayers = record.optJSONArray("layers");
+        for (int i = 0; recLayers != null && i < recLayers.length(); i++) {
+            JSONArray sources = recLayers.optJSONObject(i) == null ? null : recLayers.optJSONObject(i).optJSONArray("sources");
+            for (int j = 0; sources != null && j < sources.length(); j++) {
+                JSONObject src = sources.optJSONObject(j);
+                if (src != null && !src.optString("sha256").isEmpty() && !src.optString("original_name").isEmpty())
+                    hashByName.putIfAbsent(src.optString("original_name"), src.optString("sha256"));
+            }
+        }
+        // every uri of a local file that is not here and whose hash the record names: [uris array, index, sha256]
+        List<Object[]> missing = new ArrayList<>();
+        Set<String> wanted = new TreeSet<>();
+        for (int i = 0; i < layers.length(); i++) {
+            JSONObject data = layers.optJSONObject(i) == null ? null : layers.optJSONObject(i).optJSONObject("data");
+            JSONArray uris = data == null ? null : data.optJSONArray("uris");
+            for (int j = 0; uris != null && j < uris.length(); j++) {
+                Path p = localPath(uris.optString(j));
+                if (p == null || Files.isRegularFile(p))
+                    continue;
+                String sha = hashByName.get(p.getFileName().toString());
+                if (sha != null) {
+                    missing.add(new Object[] {uris, j, sha});
+                    wanted.add(sha);
+                }
+            }
+        }
+        if (missing.isEmpty())
+            return 0;
+        JSONObject found = locate.apply(new ArrayList<>(wanted));
+        if (found == null) {
+            notes.add(missing.size() + " local source file(s) are not here, and no FITS library with HelioFITS Core could be asked for them.");
+            return 0;
+        }
+        int moved = 0;
+        for (Object[] m : missing) {
+            JSONObject row = found.optJSONObject((String) m[2]);
+            String status = row == null ? "" : row.optString("status");
+            String path = row == null ? "" : row.optString("path");
+            if (path.isEmpty() || !("in_library".equals(status) || "superseded".equals(status)) || !Files.isRegularFile(Path.of(path)))
+                continue;
+            ((JSONArray) m[0]).put((int) m[1], Path.of(path).toUri().toString());
+            moved++;
+        }
+        notes.add("FITS library: " + moved + " of " + missing.size() + " missing local source file(s) found by SHA-256.");
+        return moved;
+    }
+
+    /** The path of a file uri, or null for anything else. */
+    @Nullable
+    private static Path localPath(String uri) {
+        try {
+            URI u = URI.create(uri);
+            return "file".equals(u.getScheme()) ? Path.of(u) : null;
+        } catch (IllegalArgumentException | java.nio.file.FileSystemNotFoundException e) {
+            return null;
+        }
+    }
+
+    /** record.locate of the Core that serves this computer's library; null when there is none or it cannot answer. */
+    @Nullable
+    private static JSONObject askLibrary(List<String> hashes) {
+        try {
+            FitsLibrary.Location lib = FitsLibrary.find();
+            if (lib == null || !FitsCoreIngest.coreFound(lib.root()))
+                return null;
+            return FitsCoreIngest.call(lib.root(), "record.locate", new JSONObject().put("sha256", new JSONArray(hashes)), Duration.ofSeconds(30));
+        } catch (IOException e) {
+            return null; // an older Core without record.locate, or one that is busy: the replay goes on without it
+        }
     }
 
     /** Keep, per layer, the sources of the first output frame and what a difference needs; false when no layer could be narrowed. */

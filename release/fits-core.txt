@@ -6,4 +6,4 @@
 # Studio's Use FITS and ingest speak to exactly this core. The core must provide the Python package
 # Studio runs it as: pyheliofits.core (pyHelioFITS #44 and later) or heliofits_core (before it).
 # The bundling scripts find out which and write it to HFCORE_MODULE in the bundle.
-864b2362b195bf453ae8982c854053af1d4b8f44
+10892f0bb6f8aa4ea51032537901c4b2bb21d93f
