@@ -113,6 +113,9 @@ the template and the bump script are `release/homebrew/` here. Rules:
 - **Never `brew uninstall --zap` to test it**: the cask's `zap` trashes `~/HFStudio`. Test with
   `brew install --cask --appdir=<temp dir> GillySpace27/tap/hfstudio`, then plain `brew uninstall`.
   A leftover `Caskroom/hfstudio` (or old `Caskroom/heliofits-studio`) folder makes the in-app updater defer to brew on that machine.
+- **Why a tap:** Homebrew's main cask repository wants notable software, so a bare `brew install hfstudio` is not
+  possible; users run `brew tap GillySpace27/tap` once. Newer Homebrew may ask them to `brew trust gillyspace27/tap`.
+  The tap's README holds the user text and the Peek cask's bump steps; keep it in step with the README here.
 - The cask needs macOS 14 (`depends_on`, and `LSMinimumSystemVersion` in the bundle): the bundled Python
   extensions are built for it. Livecheck reads the releases Atom feed because every release is a pre-release.
 - Changing the cask's layout (the `on_arm`/`on_intel` blocks, the `version` line) means changing
