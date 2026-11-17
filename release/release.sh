@@ -211,10 +211,10 @@ tap() {
     _tap="${HFS_TAP_DIR:-$HOME_DIR/tap-$V}"
     [ -d "$_tap/.git" ] || gh repo clone "$TAP_REPO" "$_tap" -- -q || fail "cannot clone $TAP_REPO"
     git -C "$_tap" pull -q --ff-only origin main || fail "the tap clone $_tap does not fast-forward"
-    ( cd "$CLONE" && python3 release/homebrew/bump_cask.py "$_tap/Casks/heliofits-studio.rb" "$V" ) || fail "bump_cask.py failed"
+    ( cd "$CLONE" && python3 release/homebrew/bump_cask.py "$_tap/Casks/hfstudio.rb" "$V" ) || fail "bump_cask.py failed"
     cd "$_tap"
-    git diff --quiet || { git commit -qam "heliofits-studio $V" && git push -q origin HEAD || fail "push to $TAP_REPO failed"; }
-    curl -fsS "https://raw.githubusercontent.com/$TAP_REPO/main/Casks/heliofits-studio.rb" | grep -q "version \"$V\"" \
+    git diff --quiet || { git commit -qam "hfstudio $V" && git push -q origin HEAD || fail "push to $TAP_REPO failed"; }
+    curl -fsS "https://raw.githubusercontent.com/$TAP_REPO/main/Casks/hfstudio.rb" | grep -q "version \"$V\"" \
         || fail "$TAP_REPO does not serve a cask at $V"
 }
 
