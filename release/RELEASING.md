@@ -101,7 +101,7 @@ also carries that platform's file.
 
 ## Homebrew tap
 
-The Mac cask lives in its own repository, **`GillySpace27/homebrew-tap`** (`Casks/heliofits-studio.rb`);
+The Mac cask lives in its own repository, **`GillySpace27/homebrew-tap`** (`Casks/hfstudio.rb`; the tap's `cask_renames.json` keeps the old token `heliofits-studio` working);
 the template and the bump script are `release/homebrew/` here. Rules:
 
 - **Every release updates the tap.** `release.sh` has a `tap` step after the site PR: it bumps `version` and
@@ -111,8 +111,8 @@ the template and the bump script are `release/homebrew/` here. Rules:
   `~/hfs-release/tap-<version>`. The value `skip` is the only way to leave the step out; the run says so and
   the tap must then be bumped by hand. Any other failure stops the run, so the tap cannot go stale quietly.
 - **Never `brew uninstall --zap` to test it**: the cask's `zap` trashes `~/HFStudio`. Test with
-  `brew install --cask --appdir=<temp dir> GillySpace27/tap/heliofits-studio`, then plain `brew uninstall`.
-  A leftover `Caskroom/heliofits-studio` folder makes the in-app updater defer to brew on that machine.
+  `brew install --cask --appdir=<temp dir> GillySpace27/tap/hfstudio`, then plain `brew uninstall`.
+  A leftover `Caskroom/hfstudio` (or old `Caskroom/heliofits-studio`) folder makes the in-app updater defer to brew on that machine.
 - The cask needs macOS 14 (`depends_on`, and `LSMinimumSystemVersion` in the bundle): the bundled Python
   extensions are built for it. Livecheck reads the releases Atom feed because every release is a pre-release.
 - Changing the cask's layout (the `on_arm`/`on_intel` blocks, the `version` line) means changing

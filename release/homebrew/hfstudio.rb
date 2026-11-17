@@ -1,4 +1,4 @@
-cask "heliofits-studio" do
+cask "hfstudio" do
   version "0.9.2"
 
   on_arm do

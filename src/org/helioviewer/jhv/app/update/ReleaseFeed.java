@@ -246,7 +246,9 @@ public final class ReleaseFeed {
         return manual || (!"debug".equals(channel) && !release.version().equals(skipped));
     }
 
-    static final String CASK = "heliofits-studio";
+    static final String CASK = "hfstudio";
+    /** The cask token before 2026-11-17; installs made under it keep this Caskroom folder until brew migrates them. */
+    static final String LEGACY_CASK = "heliofits-studio";
 
     /**
      * Whether Homebrew installed this copy as the cask: it keeps a folder for it under its Caskroom,
@@ -255,7 +257,8 @@ public final class ReleaseFeed {
      */
     public static boolean brewManaged(java.nio.file.Path... prefixes) {
         for (java.nio.file.Path p : prefixes)
-            if (java.nio.file.Files.isDirectory(p.resolve("Caskroom").resolve(CASK)))
+            if (java.nio.file.Files.isDirectory(p.resolve("Caskroom").resolve(CASK))
+                || java.nio.file.Files.isDirectory(p.resolve("Caskroom").resolve(LEGACY_CASK)))
                 return true;
         return false;
     }

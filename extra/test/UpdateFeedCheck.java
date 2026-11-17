@@ -133,7 +133,10 @@ public final class UpdateFeedCheck {
         Path prefix = Files.createTempDirectory("brewprefix");
         expect("no Caskroom entry: not a brew copy", !ReleaseFeed.brewManaged(prefix));
         Files.createDirectories(prefix.resolve("Caskroom").resolve("heliofits-studio").resolve("0.9.2"));
-        expect("a Caskroom entry: a brew copy", ReleaseFeed.brewManaged(Path.of("/nonexistent"), prefix));
+        expect("an old-token Caskroom entry: a brew copy", ReleaseFeed.brewManaged(Path.of("/nonexistent"), prefix));
+        Path prefix2 = Files.createTempDirectory("brewprefix2");
+        Files.createDirectories(prefix2.resolve("Caskroom").resolve("hfstudio").resolve("0.9.2"));
+        expect("a Caskroom entry: a brew copy", ReleaseFeed.brewManaged(Path.of("/nonexistent"), prefix2));
 
         // Once a day.
         long day = ReleaseFeed.DAY_MS;
