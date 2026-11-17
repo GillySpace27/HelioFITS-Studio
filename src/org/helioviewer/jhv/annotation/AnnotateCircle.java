@@ -10,6 +10,7 @@ import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.math.FastFormat;
 import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.opengl.BufVertex;
+import org.helioviewer.jhv.opengl.FOVShape;
 
 import org.json.JSONObject;
 
@@ -64,7 +65,7 @@ final class AnnotateCircle extends AbstractAnnotateable {
     @Override
     public void draw(MapView mv, Viewport vp, BufVertex vexBuf) {
         boolean dragged = beingDragged();
-        if ((startPoint == null || endPoint == null) && !dragged)
+        if (sky || ((startPoint == null || endPoint == null) && !dragged))
             return;
 
         byte[] color = color(dragged);
@@ -81,7 +82,25 @@ final class AnnotateCircle extends AbstractAnnotateable {
 
     @Override
     protected Vec3 computeDragPoint(Viewport vp, int x, int y) {
-        return mouseToSurface(vp, x, y);
+        return surfaceOrSky(vp, x, y);
+    }
+
+    // Off the disk: a circle in the plane of the sky, centred on the press, through the cursor.
+    @Override
+    public void drawTransformed(MapView mv, double lineThickness, BufVertex lineBuf, BufVertex centerBuf) {
+        boolean dragged = beingDragged();
+        if (!sky || ((startPoint == null || endPoint == null) && !dragged))
+            return;
+
+        Vec3 p0 = dragged ? dragStartPoint : startPoint;
+        Vec3 p1 = dragged ? dragEndPoint : endPoint;
+        double r = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+        double d = 2 * r;
+        if (d != diameter) {
+            diameter = d;
+            diameterStr = FastFormat.appendFixed2(new StringBuilder("Dann: "), d, 7, false).append("R\u2609").toString();
+        }
+        FOVShape.putCircLine(p0.x, p0.y, r, mv.isHpc(), lineThickness, color(dragged), lineBuf);
     }
 
     @Nullable

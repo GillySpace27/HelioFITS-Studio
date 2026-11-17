@@ -31,11 +31,15 @@ abstract class AbstractAnnotateable implements Annotateable {
 
     private final double thickness;
     private final Colors baseColor;
+    // Drawn in the plane of the sky rather than on the solar sphere: set by a press off the disk,
+    // where the sphere has no point to give (a coronagraph or heliospheric field).
+    boolean sky;
 
     AbstractAnnotateable(JSONObject jo) {
         thickness = jo == null ? Annotations.getThickness() : jo.optDouble("thickness", Annotations.getDefaultThickness());
         baseColor = jo == null ? Annotations.getBaseColor() : Colors.parse(jo.optString("color", Colors.Blue.name()));
         if (jo != null) {
+            sky = jo.optBoolean("sky", false);
             startPoint = fromPointJson(jo, "startPoint");
             endPoint = fromPointJson(jo, "endPoint");
         }
@@ -80,6 +84,20 @@ abstract class AbstractAnnotateable implements Annotateable {
     @Nullable
     static Vec3 mouseToSky(Viewport vp, int x, int y) {
         return GLRenderer.getMapView().mouseToSky(vp, x, y);
+    }
+
+    // The surface point under the cursor; a press that misses the sphere turns this annotation
+    // into a sky one, which then takes every point from the plane of the sky. A drag that began
+    // on the disk and leaves it keeps its last surface point, as before.
+    @Nullable
+    Vec3 surfaceOrSky(Viewport vp, int x, int y) {
+        if (!sky) {
+            Vec3 pt = mouseToSurface(vp, x, y);
+            if (pt != null || dragStartPoint != null || startPoint != null)
+                return pt;
+            sky = true;
+        }
+        return mouseToSky(vp, x, y);
     }
 
     @Nullable
@@ -154,6 +172,14 @@ abstract class AbstractAnnotateable implements Annotateable {
     @Override
     public JSONObject toJson() {
         JSONObject jo = new JSONObject().put("type", getTypeName()).put("thickness", thickness).put("color", baseColor.name());
+        if (sky) { // sky points are plane coordinates, kept as they are
+            jo.put("sky", true);
+            if (startPoint != null)
+                jo.put("startPoint", startPoint.toJson());
+            if (endPoint != null)
+                jo.put("endPoint", endPoint.toJson());
+            return jo;
+        }
         if (startPoint != null)
             jo.put("startPoint", toPointJson(startPoint));
         if (endPoint != null)

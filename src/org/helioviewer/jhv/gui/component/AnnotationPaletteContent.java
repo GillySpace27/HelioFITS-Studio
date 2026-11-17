@@ -23,6 +23,10 @@ import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.base.Colors;
 import org.helioviewer.jhv.annotation.AnnotationMode;
 import org.helioviewer.jhv.gui.Actions;
+import org.helioviewer.jhv.app.Settings;
+import org.helioviewer.jhv.input.InputController;
+import org.helioviewer.jhv.input.InputMouseListener;
+import org.helioviewer.jhv.input.PointerEvent;
 
 /**
  * Drawing mode, colour and thickness as a palette, next to Projection, HDR, Grid and Camera.
@@ -52,6 +56,12 @@ final class AnnotationPaletteContent {
         if (built)
             return panel;
         built = true;
+        InputController.addListener(new InputMouseListener() {
+            @Override
+            public void mouseDragged(PointerEvent e) {
+                shiftHint(e);
+            }
+        });
 
         JPanel modes = new JPanel(new GridLayout(0, 2, 0, 0));
         modes.setBorder(BorderFactory.createTitledBorder("Draw (hold Shift)"));
@@ -155,6 +165,30 @@ final class AnnotationPaletteContent {
             g.setColor(Color.DARK_GRAY);
             g.drawRect(x, y, SIZE - 1, SIZE - 1);
         }
+    }
+
+    static final String HINT_KEY = "annotation.shiftHint.shown";
+
+    // Once ever: the palette is showing, so the tool was picked, and a plain drag is moving the
+    // view instead of drawing. Say what draws, at the pointer, for a few seconds.
+    private static void shiftHint(PointerEvent e) {
+        if (e.shiftDown() || Annotations.hasPending() || "true".equals(Settings.getProperty(HINT_KEY)))
+            return;
+        java.awt.EventQueue.invokeLater(() -> {
+            Palette palette = Palette.named("Annotation");
+            java.awt.PointerInfo pointer = java.awt.GraphicsEnvironment.isHeadless() ? null : java.awt.MouseInfo.getPointerInfo();
+            if (palette == null || !palette.isOpen() || pointer == null || "true".equals(Settings.getProperty(HINT_KEY)))
+                return;
+            Settings.setProperty(HINT_KEY, "true");
+            javax.swing.JToolTip tip = new javax.swing.JToolTip();
+            tip.setTipText("Hold Shift and drag to draw an annotation");
+            java.awt.Point at = pointer.getLocation();
+            javax.swing.Popup popup = javax.swing.PopupFactory.getSharedInstance().getPopup(panel, tip, at.x + 14, at.y + 14);
+            popup.show();
+            javax.swing.Timer hide = new javax.swing.Timer(5000, done -> popup.hide());
+            hide.setRepeats(false);
+            hide.start();
+        });
     }
 
     private AnnotationPaletteContent() {}
