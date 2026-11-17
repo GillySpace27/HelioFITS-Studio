@@ -80,6 +80,15 @@ jobs:
           grep -E 'OpenJPEG .* loaded from .*HFStudio' app-linux-pkg.log \
             || { echo "::error::no JPEG 2000 file was decoded by the bundled OpenJPEG"; exit 1; }
 
+      # 0.9.2 shipped hfcore with the runner's own Python path on its first line, so it ran nowhere else.
+      - name: Do the bundled console scripts run from another folder
+        run: |
+          if grep -l "$GITHUB_WORKSPACE" pkg-out/HFStudio/lib/heliofits-core/bin/*; then
+            echo "::error::a bundled console script names the build folder"; exit 1
+          fi
+          cp -a pkg-out/HFStudio/lib/heliofits-core "$RUNNER_TEMP/core-moved"
+          "$RUNNER_TEMP/core-moved/bin/hfcore" --version
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
