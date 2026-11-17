@@ -93,7 +93,7 @@ abstract class AbstractAnnotateable implements Annotateable {
     Vec3 surfaceOrSky(Viewport vp, int x, int y) {
         if (!sky) {
             Vec3 pt = mouseToSurface(vp, x, y);
-            if (pt != null || dragStartPoint != null || startPoint != null)
+            if (pt != null || dragStartPoint != null || startPoint != null || !GLRenderer.getMapView().rendersIn3D()) // a projected map's empty pixels are off the map, not off the disk
                 return pt;
             sky = true;
         }

@@ -18,7 +18,10 @@ final class InteractionAnnotate extends Interaction.Type {
         // A rectangle lies on the solar sphere, so a press off the disk (a coronagraph or
         // heliospheric field) has no surface point and used to draw nothing, silently. The sky
         // rectangle (FOV) is the same shape in the plane of the sky and can start anywhere.
-        if (mode == AnnotationMode.Rectangle && GLRenderer.getMapView().mouseToSurface(vp, e.x(), e.y()) == null)
+        // Only in the orthographic view: a projected map also has pixels with no surface point,
+        // and those are off the map, not off the disk.
+        if (mode == AnnotationMode.Rectangle && GLRenderer.getMapView().rendersIn3D()
+                && GLRenderer.getMapView().mouseToSurface(vp, e.x(), e.y()) == null)
             mode = AnnotationMode.FOV;
         Annotateable annotateable = mode.generate(null);
         Annotations.start(annotateable);
