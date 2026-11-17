@@ -3,6 +3,14 @@
 
 Each new entry ends with a `[docs: ...]` pointer to where it is documented (`release/RELEASING.md`, "Docs pointers in the changelog"); the app and the release notes hide them.
 
+## HelioFITS Studio 0.9.3 (unreleased)
+
+### New
+- Opening an export record (.hfrec) on a computer where its local files are not at the recorded paths now finds them in the FITS library by their SHA-256 and replays from the library's copies; the notes in the replay window say how many were found. [docs: release/RELEASING.md]
+
+### Changes
+- HelioFITS Core moves to pyHelioFITS 10892f0 (from 864b2362): looking files up by hash (`record.locate`), a verdict for every frame of a movie, the Windows socket fix, and a golden set of four records. A release now runs that golden set against the pinned Core (`release/replay.sh`) and stops if a pixel digest drifts. [docs: release/RELEASING.md]
+
 ## HelioFITS Studio 0.9.2 (unreleased)
 
 ### Changes
