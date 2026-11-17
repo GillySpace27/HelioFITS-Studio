@@ -5,7 +5,7 @@
     python3 release/bundle_core.py linux   pkg-out/HFStudio/lib/heliofits-core
 
 The core is the commit release/fits-core.txt pins, cloned from HFCORE_REPO (default: the GitHub
-repository), installed with its archives extra into a python-build-standalone "install_only"
+repository), installed with its archives and mcp extras into a python-build-standalone "install_only"
 Python for the target. The Python download is checked against the SHA-256 digest GitHub publishes
 for the asset and refused without one. Studio finds the result with FitsCoreIngest.studioCore.
 
@@ -111,7 +111,7 @@ def main():
         py = python_in(out, target)
         # -s: packages in the build machine's user site would count as installed and be left out.
         if subprocess.run([str(py), "-s", "-m", "pip", "install", "--quiet", "--no-cache-dir", "--no-compile",
-                           "--disable-pip-version-check", f"{src}[archives]"]).returncode:
+                           "--disable-pip-version-check", f"{src}[archives,mcp]"]).returncode:
             die("installing HelioFITS Core failed")
         # The trim the Mac bundle gets too (pyHelioFITS app/tools/trim_python.py, from #43 on): test
         # suites, pip, IDLE, headers. Older pins have no script and ship untrimmed.

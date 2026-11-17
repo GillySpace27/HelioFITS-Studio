@@ -88,6 +88,7 @@ jobs:
           fi
           cp -a pkg-out/HFStudio/lib/heliofits-core "$RUNNER_TEMP/core-moved"
           "$RUNNER_TEMP/core-moved/bin/hfcore" --version
+          "$RUNNER_TEMP/core-moved/bin/heliofits-mcp" --help
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
