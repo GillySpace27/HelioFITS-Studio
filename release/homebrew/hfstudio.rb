@@ -24,7 +24,7 @@ cask "hfstudio" do
   end
 
   # The app's Python extensions are built for macOS 14 (otool minos on the 0.9.2 dmgs).
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
   app "HelioFITS Studio.app"
 
