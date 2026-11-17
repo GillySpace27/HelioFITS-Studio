@@ -280,13 +280,23 @@ public final class FITSImage {
         String quantiz = th.getStringValue("ZQUANTIZ");
         if (quantiz != null && !quantiz.trim().equalsIgnoreCase("NO_DITHER"))
             return;
-        int col = -1;
-        for (int i = 1, n = th.getIntValue("TFIELDS", 0); i <= n; i++)
-            if ("ZSCALE".equalsIgnoreCase(th.getStringValue("TTYPE" + i)))
+        int col = -1, zcol = -1;
+        for (int i = 1, n = th.getIntValue("TFIELDS", 0); i <= n; i++) {
+            String name = th.getStringValue("TTYPE" + i);
+            if ("ZSCALE".equalsIgnoreCase(name))
                 col = i - 1;
+            else if ("ZZERO".equalsIgnoreCase(name))
+                zcol = i - 1;
+        }
         if (col < 0)
             return;
         double[] scale = (double[]) chdu.getData().getColumn(col);
+        // Null pixels: the integer ZBLANK (or BLANK) dequantizes to NaN in astropy and cfitsio, but the
+        // library returns it as a finite value ((blank + 0.5) * ZSCALE + ZZERO), so a CCOR2 image lost
+        // every NaN. Match by value, within a quarter quantum, before the half quantum comes off.
+        boolean hasBlank = zcol >= 0 && (th.containsKey("ZBLANK") || th.containsKey("BLANK"));
+        double blank = th.containsKey("ZBLANK") ? th.getDoubleValue("ZBLANK") : th.getDoubleValue("BLANK", 0);
+        double[] zero = hasBlank ? (double[]) chdu.getData().getColumn(zcol) : null;
         int h = axes[0], w = axes[1];
         int t1 = Math.max(1, th.getIntValue("ZTILE1", w)), t2 = Math.max(1, th.getIntValue("ZTILE2", 1)), t3 = Math.max(1, th.getIntValue("ZTILE3", 1));
         int nx = (w + t1 - 1) / t1, ny = (h + t2 - 1) / t2;
@@ -298,6 +308,16 @@ public final class FITSImage {
                 if (q == 0)
                     continue;
                 int i = (int) (base + (long) y * w + x);
+                if (hasBlank && tile < zero.length) {
+                    double v = all instanceof float[] f ? f[i] : ((double[]) all)[i];
+                    if (Math.abs(v - ((blank + 0.5) * scale[tile] + zero[tile])) < 0.5 * q) {
+                        if (all instanceof float[] f)
+                            f[i] = Float.NaN;
+                        else
+                            ((double[]) all)[i] = Double.NaN;
+                        continue;
+                    }
+                }
                 if (all instanceof float[] f) {
                     if (f[i] != 0) // exactly 0 is how the library returns a blank pixel; not a quantized value
                         f[i] = (float) (f[i] - q);
