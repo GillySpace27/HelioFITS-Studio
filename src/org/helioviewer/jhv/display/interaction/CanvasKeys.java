@@ -348,7 +348,10 @@ public final class CanvasKeys {
                 }
             }
             default -> {
-                if (STATE.down.add(c.id()) && STATE.down.size() == 1) {
+                boolean added = STATE.down.add(c.id());
+                if (added)
+                    explainIdle(c.id());
+                if (added && STATE.down.size() == 1) {
                     STATE.lastNanos = System.nanoTime();
                     SceneUndo.keysDown(true);
                     TICK.start();
@@ -356,6 +359,16 @@ public final class CanvasKeys {
             }
         }
         return true;
+    }
+
+    /** Warp and crop act only in some projections: say so on the press instead of doing nothing. */
+    private static void explainIdle(String id) {
+        boolean warp = id.equals("canvasWarpWeaker") || id.equals("canvasWarpStronger");
+        boolean crop = id.equals("canvasCropTighter") || id.equals("canvasCropLooser");
+        if (warp && !Display.mode.usesWarpLambda())
+            toast("Warp needs a Helioradial view");
+        else if (crop && !Display.mode.usesWarpCrop())
+            toast("Crop needs a Helioradial or Orthographic view");
     }
 
     /** A one-press command: runs on the press, not again while the key repeats. */
