@@ -103,6 +103,8 @@ public final class CanvasKeysCheck {
         double zout = CanvasKeys.zoomFactor(Set.of("canvasZoomOut"), step);
         expect("Up zooms in, Down out, by inverse factors", zin > 1 && zout < 1 && Math.abs(zin * zout - 1) < 1e-12);
         expect("zoom runs at half the turn rate (e-folds per radian of turn)", Math.abs(Math.log(zin) - 0.5 * step) < 1e-12);
+        expect("pan ramp: none is full rate, a ramp starts low and reaches full",
+                CanvasKeys.rampFactor(0, 0) == 1 && CanvasKeys.rampFactor(0, 2) < 0.5 && CanvasKeys.rampFactor(5, 2) == 1);
         expect("both zoom keys held cancel", CanvasKeys.zoomFactor(Set.of("canvasZoomIn", "canvasZoomOut"), step) == 1
                 && CanvasKeys.zoomFactor(Set.of("canvasPitchUp"), step) == 1);
 

@@ -155,6 +155,24 @@ public final class KeybindingsPanel extends JPanel {
         invert.setToolTipText("By default a key moves the near side of the scene the way a drag that way would: D to the right, W up");
         JSpinner rate = new JSpinner(new SpinnerNumberModel(CanvasKeys.degreesPerSecond(), 1, 360, 5));
         rate.setToolTipText("How fast a held key turns the scene; Shift held makes it five times faster, Option five times slower");
+        String opt = org.helioviewer.jhv.app.Platform.isMacOS() ? "Option" : "Alt";
+        JSpinner pan = new JSpinner(new SpinnerNumberModel(CanvasKeys.panPixelsPerSecond(), 1, 5000, 25));
+        pan.setToolTipText(opt + " with the pitch and yaw keys (W A S D) pans the view with no mouse, this many screen pixels a second");
+        JSpinner panFast = new JSpinner(new SpinnerNumberModel(CanvasKeys.panFast(), 1, 100, 1));
+        panFast.setToolTipText("Pan rate factor with Shift held");
+        JSpinner panFine = new JSpinner(new SpinnerNumberModel(CanvasKeys.panFine(), 0.01, 1, 0.05));
+        panFine.setToolTipText("Pan rate factor with Ctrl held");
+        JSpinner panRamp = new JSpinner(new SpinnerNumberModel(CanvasKeys.panRampSeconds(), 0, 10, 0.25));
+        panRamp.setToolTipText("Seconds a held pan takes to reach full rate; 0 is no ramp");
+        JPanel panRow = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
+        panRow.add(new JLabel(opt + "+W A S D pan, pixels per second"));
+        panRow.add(pan);
+        panRow.add(new JLabel("Shift x"));
+        panRow.add(panFast);
+        panRow.add(new JLabel("Ctrl x"));
+        panRow.add(panFine);
+        panRow.add(new JLabel("Ramp s"));
+        panRow.add(panRamp);
         JPanel extra = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
         extra.add(invert);
         extra.add(new JLabel("Degrees per second"));
@@ -162,7 +180,10 @@ public final class KeybindingsPanel extends JPanel {
         extra.add(new JLabel("Hold Shift: faster. Hold " + (org.helioviewer.jhv.app.Platform.isMacOS() ? "Option" : "Alt") + ": slower."));
         JPanel p = new JPanel(new BorderLayout(0, 8));
         p.add(grid, BorderLayout.CENTER);
-        p.add(extra, BorderLayout.PAGE_END);
+        JPanel below = new JPanel(new GridLayout(0, 1));
+        below.add(extra);
+        below.add(panRow);
+        p.add(below, BorderLayout.PAGE_END);
         if (JOptionPane.showConfirmDialog(this, p, "Canvas keys", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION)
             return;
         // Clear every binding first so a swap between two of them is not refused as a clash
@@ -181,6 +202,10 @@ public final class KeybindingsPanel extends JPanel {
         }
         org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.INVERT, Boolean.toString(invert.isSelected()));
         org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.RATE, String.valueOf(((Number) rate.getValue()).doubleValue()));
+        org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.PAN_RATE, String.valueOf(((Number) pan.getValue()).doubleValue()));
+        org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.PAN_FAST, String.valueOf(((Number) panFast.getValue()).doubleValue()));
+        org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.PAN_FINE, String.valueOf(((Number) panFine.getValue()).doubleValue()));
+        org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.PAN_RAMP, String.valueOf(((Number) panRamp.getValue()).doubleValue()));
         status.setText(problems.length() == 0 ? "Canvas keys saved." : problems.toString().strip());
     }
 
