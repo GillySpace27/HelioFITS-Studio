@@ -18,6 +18,7 @@ import org.helioviewer.jhv.display.CMETracker;
 import org.helioviewer.jhv.display.Display;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.Viewport;
+import org.helioviewer.jhv.display.ViewportMath;
 import org.helioviewer.jhv.input.KeyInputEvent;
 import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.movie.ExportMovie;
@@ -91,12 +92,21 @@ public final class CanvasKeys {
     public static final String PREFIX = "canvasKeys.";
     public static final String INVERT = PREFIX + "invert";
     public static final String RATE = PREFIX + "degreesPerSecond";
+    /** Option+W A S D pan the view with no mouse. Power-user settings, all in Settings (Gilly, 2026-11-18). */
+    public static final String PAN_RATE = PREFIX + "panPixelsPerSecond";
+    public static final String PAN_FAST = PREFIX + "panFastFactor";
+    public static final String PAN_FINE = PREFIX + "panFineFactor";
+    public static final String PAN_RAMP = PREFIX + "panRampSeconds";
     /** The Record panel's switch: keep the attitude keys live while recording. */
     public static final String LIVE_WHILE_RECORDING = "record.liveChanges";
 
     /** Turn rate, degrees a second (judgement: a quarter turn in two seconds), and the factor Option takes off it. */
     public static final double DEFAULT_DEGREES_PER_SECOND = 45;
     static final double SLOW = 0.2;
+    static final double DEFAULT_PAN_PIXELS_PER_SECOND = 300; // judgement: a screen's width in a few seconds
+    static final double DEFAULT_PAN_FAST = 5;
+    static final double DEFAULT_PAN_FINE = 0.2; // Ctrl held: a fifth
+    private static final double PAN_RAMP_START = 0.2; // with a ramp, a press starts at this fraction of the rate
     /** The factor Shift puts on it: the inverse of Option's. */
     static final double FAST = 1 / SLOW;
     /** Zoom runs at this fraction of the turn rate: radians a second of turn, e-folds a second of zoom. Gilly: about half. */
@@ -110,7 +120,9 @@ public final class CanvasKeys {
         final Set<String> shot = new LinkedHashSet<>(); // one-press commands whose key is still down: a held key does not repeat them
         boolean slow;
         boolean fast;
+        boolean fine; // Ctrl (Meta off a Mac) held: slow pan
         long lastNanos;
+        long panSince; // nanoTime the current pan began, 0 when not panning
         boolean sky; // a look-around was steered: commit it when the keys are let go
         String toast = "";
         long toastUntil;
@@ -311,8 +323,9 @@ public final class CanvasKeys {
     static boolean pressed(KeyInputEvent e) {
         STATE.slow = e.altDown(); // first, so Option or Shift pressed during a hold changes its speed at once
         STATE.fast = e.shiftDown();
-        if (otherMod(e))
-            return false;
+        STATE.fine = otherMod(e);
+        if (otherMod(e) && !(e.altDown() && panId(e.code()) != null))
+            return false; // Ctrl is the axis modes', except as fine pan with Option+W A S D
         boolean withCmd = cmd(e);
         if (withCmd && e.shiftDown())
             return false; // Cmd+Shift is the menus' (Cmd+Shift+Left and Right select text)
@@ -371,6 +384,55 @@ public final class CanvasKeys {
             toast("Crop needs a Helioradial or Orthographic view");
     }
 
+    /** The pitch or yaw command id on {@code code}, which Option turns into a pan, or null. */
+    @Nullable
+    private static String panId(int code) {
+        Cmd c = command(code, false);
+        return c != null && isPanId(c.id()) ? c.id() : null;
+    }
+
+    private static boolean isPanId(String id) {
+        return id.equals("canvasPitchUp") || id.equals("canvasPitchDown") || id.equals("canvasYawLeft") || id.equals("canvasYawRight");
+    }
+
+    public static double panPixelsPerSecond() {
+        return number(PAN_RATE, DEFAULT_PAN_PIXELS_PER_SECOND, 1, 5000);
+    }
+
+    public static double panFast() {
+        return number(PAN_FAST, DEFAULT_PAN_FAST, 1, 100);
+    }
+
+    public static double panFine() {
+        return number(PAN_FINE, DEFAULT_PAN_FINE, 0.01, 1);
+    }
+
+    /** Seconds to reach full pan rate from a press; 0 (the default) is no ramp. */
+    public static double panRampSeconds() {
+        return number(PAN_RAMP, 0, 0, 10);
+    }
+
+    private static double number(String key, double dflt, double lo, double hi) {
+        try {
+            double d = Double.parseDouble(Settings.getProperty(key));
+            return Double.isFinite(d) ? Math.clamp(d, lo, hi) : dflt;
+        } catch (RuntimeException e) {
+            return dflt; // unset, or not a number
+        }
+    }
+
+    /** The rate factor {@code seconds} into a pan, for a ramp of {@code ramp} seconds (0 is none). */
+    static double rampFactor(double seconds, double ramp) {
+        return ramp <= 0 ? 1 : PAN_RAMP_START + (1 - PAN_RAMP_START) * Math.min(1, seconds / ramp);
+    }
+
+    /** Pan the camera: {@code right} and {@code up} are -1, 0 or 1 in the sense the key moves the scene. */
+    private static void pan(int right, int up, double pixels) {
+        var camera = Display.getCamera();
+        double m = 1 / ViewportMath.getImagePixelFactor(camera, Display.getActiveViewport());
+        camera.setTranslation(camera.getTranslationX() + right * pixels * m, camera.getTranslationY() + up * pixels * m);
+    }
+
     /** A one-press command: runs on the press, not again while the key repeats. */
     private static void once(Cmd c, Runnable run) {
         if (STATE.shot.add(c.id()))
@@ -386,6 +448,7 @@ public final class CanvasKeys {
     static void released(KeyInputEvent e) {
         STATE.slow = e.altDown();
         STATE.fast = e.shiftDown();
+        STATE.fine = otherMod(e);
         for (Cmd c : ALL)
             if (key(c.id()) == e.code()) {
                 STATE.down.remove(c.id());
@@ -403,6 +466,7 @@ public final class CanvasKeys {
     }
 
     private static void stop() {
+        STATE.panSince = 0;
         TICK.stop();
         SceneUndo.keysDown(false);
         if (STATE.sky) {
@@ -421,7 +485,34 @@ public final class CanvasKeys {
             return;
         double step = Math.toRadians(degreesPerSecond()) * dt * speed(STATE.slow, STATE.fast);
         boolean changed = false;
-        double[] turn = turn(STATE.down, step, invert());
+        // Option with W A S D pans the view instead of turning it, in every view (the sky pans as Option+Cmd drag does)
+        Set<String> turning = STATE.down;
+        if (STATE.slow) {
+            turning = new LinkedHashSet<>(STATE.down);
+            turning.removeIf(CanvasKeys::isPanId);
+        }
+        int right = 0, up = 0;
+        if (turning != STATE.down) {
+            for (String id : STATE.down)
+                switch (id) {
+                    case "canvasPitchUp" -> up++;
+                    case "canvasPitchDown" -> up--;
+                    case "canvasYawLeft" -> right--;
+                    case "canvasYawRight" -> right++;
+                    default -> { }
+                }
+        }
+        if (right != 0 || up != 0) {
+            if (STATE.panSince == 0)
+                STATE.panSince = now;
+            double rate = panPixelsPerSecond() * (STATE.fast ? panFast() : 1) * (STATE.fine ? panFine() : 1)
+                    * rampFactor((now - STATE.panSince) / 1e9, panRampSeconds());
+            double flip = invert() ? -1 : 1;
+            pan((int) (right * flip), (int) (up * flip), rate * dt);
+            changed = true;
+        } else
+            STATE.panSince = 0;
+        double[] turn = turn(turning, step, invert());
         boolean three = Display.mode.rendersIn3D();
         if (three) {
             var camera = Display.getCamera();
@@ -431,7 +522,7 @@ public final class CanvasKeys {
                 camera.rotateAboutScreenAxis(Vec3.YAxis, turn[1]);
             if (turn[2] != 0)
                 camera.rotateAboutScreenAxis(Vec3.ZAxis, turn[2]);
-            changed = turn[0] != 0 || turn[1] != 0 || turn[2] != 0;
+            changed |= turn[0] != 0 || turn[1] != 0 || turn[2] != 0;
         } else if (Display.mode == org.helioviewer.jhv.display.MapMode.ObserverSky && (turn[0] != 0 || turn[1] != 0)) {
             // The sky follows the key as it follows a drag, so the aim goes the other way
             Display.steerSkyLook(-turn[1], turn[0]);
