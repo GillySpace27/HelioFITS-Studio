@@ -312,8 +312,48 @@ public final class Commands {
         DisplayController.resetView();
     }
 
+    // Zoom, warp and crop as they stood when a session file was last loaded or explicitly saved in this run
+    // (autosave does not count, or / would restore whatever was on screen a moment ago); null before either.
+    // Crop is not in the session file, so it is remembered here rather than read back from the file.
+    private static final java.util.concurrent.atomic.AtomicReference<double[]> savedScaling = new java.util.concurrent.atomic.AtomicReference<>();
+
+    /** Zoom, warp and crop to remember as "last saved": on a session load completing and on an explicit save. */
+    public static void rememberScaling() {
+        savedScaling.set(new double[]{org.helioviewer.jhv.display.Display.getActiveViewport().zoom,
+                org.helioviewer.jhv.display.Display.getWarpLambda(), org.helioviewer.jhv.display.Display.getWarpOuterRadius()});
+    }
+
+    /** The defaults {@link #resetScaling} writes, as {zoom, warp lambda, crop radius}. */
+    public static final double[] DEFAULT_SCALING = {1, 1, 0};
+
+    /** What the / key goes back to: {@code saved} when there is one, else the defaults. */
+    public static double[] scalingTarget(@Nullable double[] saved) {
+        return saved != null ? saved.clone() : DEFAULT_SCALING.clone();
+    }
+
     /**
-     * Zoom, warp and crop back to their defaults, the / canvas key and the Projection palette's Reset view:
+     * The / canvas key (Gilly, 2026-11-20): zoom, warp and crop back to the last saved session's values,
+     * or to the defaults when nothing has been loaded or saved in this run. R stays the fit-zoom reset.
+     * Returns whether saved values were used.
+     */
+    public static boolean restoreScaling() {
+        double[] saved = savedScaling.get();
+        if (saved == null) {
+            resetScaling();
+            return false;
+        }
+        double[] t = scalingTarget(saved);
+        org.helioviewer.jhv.display.CMETracker.stop();
+        ViewState.setWarpLambda(t[1]);
+        org.helioviewer.jhv.display.Display.setWarpOuterRadius(t[2]);
+        for (org.helioviewer.jhv.display.Viewport vp : org.helioviewer.jhv.display.Display.getViewports())
+            vp.zoom = t[0];
+        DisplayController.display();
+        return true;
+    }
+
+    /**
+     * Zoom, warp and crop back to their defaults, the Projection palette's Reset view (and / before any save):
      * warp off (lambda 1, the identity; 0 is the hard logarithmic warp), crop auto, magnification 1x. CME
      * tracking lets go first, or its next tick would write over them.
      */

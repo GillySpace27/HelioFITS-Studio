@@ -116,7 +116,7 @@ public final class KeybindingsPanel extends JPanel {
             }
         });
 
-        JButton canvasBtn = button("Canvas keys...", "The bare keys the picture answers to while it has focus: W A S D Q E turn the scene, [ and ] zoom, comma and period warp, apostrophe and semicolon crop, G shows or hides the grid, R resets the view, / resets zoom, warp and crop", this::canvasKeys);
+        JButton canvasBtn = button("Canvas keys...", "The bare keys the picture answers to while it has focus: W A S D Q E turn the scene, [ and ] zoom, comma and period warp, apostrophe and semicolon crop, G shows or hides the grid, R resets the view and fits the zoom, / puts zoom, warp and crop back as last saved (or to their defaults)", this::canvasKeys);
 
         JPanel top = new JPanel(new BorderLayout(6, 0));
         top.add(new JLabel("Search:"), BorderLayout.LINE_START);

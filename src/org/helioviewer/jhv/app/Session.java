@@ -120,6 +120,8 @@ public final class Session {
         if (success)
             Recovery.written(); // the scene is the file just read
         SceneUndo.settle(); // the load's result is the present; State.load cleared the history when it began
+        if (success)
+            Commands.rememberScaling(); // what / goes back to
         List<java.util.function.Consumer<Boolean>> copy = new ArrayList<>(stateLoadListeners);
         stateLoadListeners.clear();
         for (java.util.function.Consumer<Boolean> r : copy)
@@ -207,6 +209,7 @@ public final class Session {
             State.saveNow(sessionFile.getParent(), sessionFile.getName());
             Recovery.written();
             markSaved();
+            Commands.rememberScaling();
         }
     }
 
@@ -354,6 +357,7 @@ public final class Session {
         if (dir == null)
             dir = Directories.STATES.getPath();
         State.saveNow(dir, clean + ".jhv");
+        Commands.rememberScaling();
         setSessionFile(new File(dir, clean + ".jhv"), true);
     }
 

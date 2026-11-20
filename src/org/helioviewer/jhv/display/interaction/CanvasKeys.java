@@ -28,7 +28,7 @@ import org.helioviewer.jhv.opengl.GLText;
  * The keys the canvas answers to while it has focus (Gilly, 2026-11-08, revised 2026-11-09 and 2026-11-11):
  * W and S pitch, A and D yaw and Q and E roll the scene; [ and ] zoom, comma and period warp, and
  * apostrophe and semicolon crop, continuously while held (Gilly's defaults, 2026-11-11) (2026-11-11: the right hand has zoom, warp, crop and the
- * playhead; F and V are free); G turns the grid on or off; I and O trim the movie and Home and End go to its first and last frame (2026-11-11); R resets the view and / resets zoom, warp and crop (2026-11-20); Cmd+Left and Cmd+Right (Ctrl off a Mac) lower and raise the playback
+ * playhead; F and V are free); G turns the grid on or off; I and O trim the movie and Home and End go to its first and last frame (2026-11-11); R resets the view (fitting the zoom) and / puts zoom, warp and crop back as last saved, or to their defaults (2026-11-20); Cmd+Left and Cmd+Right (Ctrl off a Mac) lower and raise the playback
  * rate. The plain arrows' stepping and Space stay where they were ({@link Interaction}).
  *
  * <p>They are bare keys on purpose: the canvas is the one place they cannot be mistaken for typing,
@@ -81,7 +81,7 @@ public final class CanvasKeys {
             new Cmd("canvasCropTighter", "Crop Tighter", KeyEvent.VK_QUOTE, false, "Tighten the crop while held, as the Crop slider moved right"),
             new Cmd("canvasCropLooser", "Crop Looser", KeyEvent.VK_SEMICOLON, false, "Loosen the crop while held, back to none, as the Crop slider moved left"),
             new Cmd("canvasResetView", "Reset View", KeyEvent.VK_R, false, "Put the view back to its default"),
-            new Cmd("canvasResetScaling", "Reset Zoom, Warp and Crop", KeyEvent.VK_SLASH, false, "Put zoom, warp and crop back to their defaults, as the Projection palette's Reset view does"),
+            new Cmd("canvasResetScaling", "Restore Zoom, Warp and Crop", KeyEvent.VK_SLASH, false, "Put zoom, warp and crop back as the session was last loaded or saved, or to their defaults before any"),
             new Cmd("canvasToggleGrid", "Show or Hide Grid", KeyEvent.VK_G, false, "Turn the grid on or off: the master switch of the Grid row"),
             new Cmd("canvasTrimStart", "Trim Start Here", KeyEvent.VK_I, false, "Start the movie at this frame, as I does on the time slider"),
             new Cmd("canvasTrimEnd", "Trim End Here", KeyEvent.VK_O, false, "End the movie at this frame, as O does on the time slider"),
@@ -352,8 +352,7 @@ public final class CanvasKeys {
             }
             case "canvasResetScaling" -> {
                 if (STATE.shot.add(c.id()) && !recordingLocked()) {
-                    Commands.resetScaling();
-                    toast("Zoom, warp and crop reset");
+                    toast(Commands.restoreScaling() ? "Zoom, warp and crop as last saved" : "Zoom, warp and crop reset");
                 }
             }
             case "canvasTrimStart" -> once(c, Commands::trimStartHere);

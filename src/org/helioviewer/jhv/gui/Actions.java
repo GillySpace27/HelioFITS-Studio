@@ -635,6 +635,7 @@ public final class Actions {
         public void actionPerformed(ActionEvent e) {
             State.save(Settings.getProperty("path.state"), "state__" + TimeUtils.formatFilename(System.currentTimeMillis()) + ".jhv");
             org.helioviewer.jhv.app.Session.markSaved();
+            org.helioviewer.jhv.app.Commands.rememberScaling(); // what the / canvas key goes back to
         }
     }
 

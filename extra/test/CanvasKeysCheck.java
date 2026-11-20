@@ -194,8 +194,14 @@ public final class CanvasKeysCheck {
                         && CanvasKeys.readout(quiet, "Grid on", false, CanvasKeys.READOUT_IDLE_MS).length() == naming.length()
                         && !CanvasKeys.readout(quiet, "Grid on", false, CanvasKeys.READOUT_IDLE_MS - 1).isBlank()
                         && !CanvasKeys.readout(quiet, "Zoom In", true, 10 * CanvasKeys.READOUT_IDLE_MS).isBlank());
-        expect("/ is Reset Zoom, Warp and Crop, as R is Reset View", CanvasKeys.key("canvasResetScaling") == KeyEvent.VK_SLASH
+        expect("/ is Restore Zoom, Warp and Crop, beside R's Reset View", CanvasKeys.key("canvasResetScaling") == KeyEvent.VK_SLASH
                 && CanvasKeys.command(KeyEvent.VK_SLASH).id().equals("canvasResetScaling"));
+        double[] saved = {0.5, -0.25, 12};
+        double[] back = org.helioviewer.jhv.app.Commands.scalingTarget(saved);
+        expect("/ goes back to the last saved zoom, warp and crop when there are some",
+                java.util.Arrays.equals(back, saved) && back != saved);
+        expect("and to the defaults (1x, warp off at lambda 1, crop auto) before any load or save",
+                java.util.Arrays.equals(org.helioviewer.jhv.app.Commands.scalingTarget(null), new double[]{1, 1, 0}));
         expect("a plain F is no longer a canvas key", !CanvasKeys.pressed(key(KeyEvent.VK_F, false, false, false, false)));
         expect("a plain Left is the frame step, left alone", !CanvasKeys.pressed(key(KeyEvent.VK_LEFT, false, false, false, false)));
         System.out.println(failures == 0 ? "CanvasKeysCheck: all passed" : "CanvasKeysCheck: " + failures + " FAILED");
