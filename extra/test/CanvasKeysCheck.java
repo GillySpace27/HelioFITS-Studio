@@ -171,8 +171,15 @@ public final class CanvasKeysCheck {
         expect("Cmd+Option+Left is Step Frame, not ours", !CanvasKeys.pressed(cmdOptLeft));
         expect("a plain [ is the zoom key and Cmd+[ (left sidebar) is not", CanvasKeys.pressed(key(KeyEvent.VK_OPEN_BRACKET, false, false, false, false))
                 && CanvasKeys.heldForCheck().equals(java.util.List.of("canvasZoomIn")) && !CanvasKeys.pressed(cmdBracket));
+        expect("the footer names what the held [ edits", CanvasKeys.editing().equals("Zoom In"));
         CanvasKeys.released(key(KeyEvent.VK_OPEN_BRACKET, false, false, false, false));
         expect("[ let go ends the zoom", CanvasKeys.heldForCheck().isEmpty());
+        expect("the readout gives zoom as a magnification, warp and crop, n/a where unused",
+                CanvasKeys.scaling(0.5, -0.25, 0, true, true, Set.of()).equals("Zoom 2.00×  Warp -0.250  Crop auto")
+                        && CanvasKeys.scaling(1, 0, 8, false, true, Set.of()).equals("Zoom 1.00×  Warp n/a  Crop 8.0 R☉")
+                        && CanvasKeys.scaling(1, 0, 0, false, false, Set.of()).equals("Zoom 1.00×  Warp n/a  Crop n/a"));
+        expect("and brackets the one a held key is changing",
+                CanvasKeys.scaling(1, 0.5, 0, true, true, Set.of("canvasWarpStronger")).equals("Zoom 1.00×  [Warp 0.500]  Crop auto"));
         expect("a plain F is no longer a canvas key", !CanvasKeys.pressed(key(KeyEvent.VK_F, false, false, false, false)));
         expect("a plain Left is the frame step, left alone", !CanvasKeys.pressed(key(KeyEvent.VK_LEFT, false, false, false, false)));
         System.out.println(failures == 0 ? "CanvasKeysCheck: all passed" : "CanvasKeysCheck: " + failures + " FAILED");

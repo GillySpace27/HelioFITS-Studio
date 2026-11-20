@@ -85,6 +85,8 @@ final class TimestampLayerOptions extends JPanel {
                 layer.isShowObserver(), layer::setShowObserver, 1, 1);
         addCheckBox(panelAnnotate, "Credit", "A credit line for talks and shows: the program, the master layer and, with RHEF on, that the picture is not a calibrated radiance. Kept for every session on this computer.",
                 layer.isShowCredit(), layer::setShowCredit, 0, 2);
+        addCheckBox(panelAnnotate, "Scaling", "The scene's zoom (as a magnification), warp and crop, as the footer shows them; n/a where the projection does not use one.",
+                layer.isShowScaling(), layer::setShowScaling, 1, 2);
 
         setLayout(new BoxLayout(this, BoxLayout.PAGE_AXIS));
         add(panelSlider);

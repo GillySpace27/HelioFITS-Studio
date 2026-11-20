@@ -646,6 +646,49 @@ public final class CanvasKeys {
         GLText.drawTextFloat(vp, List.of(STATE.toast), 14, 14);
     }
 
+    // ---- the readout, for the footer and the timestamp overlay ----
+
+    /**
+     * What the held keys are editing, by their names in Settings &gt; Keybindings (Option+W A S D read
+     * "Pan"); with none held, the one-press reading while it shows (Grid on, Playback 5 fps); else "".
+     */
+    public static String editing() {
+        List<String> names = new ArrayList<>();
+        for (String id : STATE.down) {
+            Cmd c = byId(id);
+            String t = STATE.slow && isPanId(id) ? "Pan" : c == null ? id : c.title();
+            if (!names.contains(t))
+                names.add(t);
+        }
+        if (!names.isEmpty())
+            return String.join(" + ", names);
+        return System.currentTimeMillis() < STATE.toastUntil ? STATE.toast : "";
+    }
+
+    /**
+     * The three scene-scaling controls of viewport {@code vp} as they stand: zoom as a magnification (as
+     * the Projection palette shows it), warp and crop, or n/a where the projection does not use them.
+     * With {@code mark}, the ones a held key is changing are bracketed.
+     */
+    public static String scaling(Viewport vp, boolean mark) {
+        Set<String> held = mark ? STATE.down : Set.of();
+        return scaling(vp.zoom, Display.getWarpLambda(), Display.getWarpOuterRadius(), Display.mode.usesWarpLambda(), Display.mode.usesWarpCrop(), held);
+    }
+
+    static String scaling(double zoom, double lambda, double crop, boolean warpUsed, boolean cropUsed, Set<String> held) {
+        double m = 1 / zoom;
+        String z = "Zoom " + (m >= 100 || m < 0.01 ? String.format("%.0e×", m) : String.format(m < 10 ? "%.2f×" : "%.1f×", m));
+        String w = warpUsed ? String.format("Warp %.3f", lambda) : "Warp n/a";
+        String c = !cropUsed ? "Crop n/a" : crop > 0 ? String.format("Crop %.1f R☉", crop) : "Crop auto";
+        return marked(z, held.contains("canvasZoomIn") || held.contains("canvasZoomOut"))
+                + "  " + marked(w, held.contains("canvasWarpWeaker") || held.contains("canvasWarpStronger"))
+                + "  " + marked(c, held.contains("canvasCropTighter") || held.contains("canvasCropLooser"));
+    }
+
+    private static String marked(String s, boolean on) {
+        return on ? "[" + s + "]" : s;
+    }
+
     /** For a check: the held ids, in order. */
     static List<String> heldForCheck() {
         return new ArrayList<>(STATE.down);

@@ -17,6 +17,7 @@ import org.helioviewer.jhv.display.MapMode;
 import org.helioviewer.jhv.display.MapScale;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
+import org.helioviewer.jhv.display.interaction.CanvasKeys;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.image.fourier.SequenceParams;
 import org.helioviewer.jhv.math.Vec2;
@@ -83,6 +84,8 @@ public final class TimestampLayer extends AbstractLayer {
     private boolean showProjection = false;
     private boolean showFilter = false;
     private boolean showObserver = false;
+    // Zoom, warp and crop as the footer shows them (Gilly, 2026-11-19), for this viewport's zoom.
+    private boolean showScaling = false;
     // Unlike the four above, a preference rather than part of the session: a talk or a dome show
     // wants the credit on every movie made on this machine, whichever session it comes from.
     private boolean showCredit = Boolean.parseBoolean(Settings.getProperty("display.creditLine"));
@@ -99,6 +102,7 @@ public final class TimestampLayer extends AbstractLayer {
         jo.put("showProjection", showProjection);
         jo.put("showFilter", showFilter);
         jo.put("showObserver", showObserver);
+        jo.put("showScaling", showScaling);
         if (color != null)
             jo.put("color", toHex(color));
     }
@@ -122,6 +126,7 @@ public final class TimestampLayer extends AbstractLayer {
         showProjection = jo.optBoolean("showProjection", showProjection);
         showFilter = jo.optBoolean("showFilter", showFilter);
         showObserver = jo.optBoolean("showObserver", showObserver);
+        showScaling = jo.optBoolean("showScaling", showScaling);
         String hex = jo.optString("color", "");
         if (!hex.isEmpty()) {
             try {
@@ -173,7 +178,7 @@ public final class TimestampLayer extends AbstractLayer {
             }
         }
 
-        List<String> notes = annotationLines(mv, viewpoint);
+        List<String> notes = annotationLines(mv, vp, viewpoint);
 
         int size = (int) (vp.height * (scale * 0.01 * 0.024));
         float lineStep = size * LINE_HEIGHT;
@@ -256,8 +261,8 @@ public final class TimestampLayer extends AbstractLayer {
      * on the change rather than on the frame (see the caches below). With every box unticked,
      * which is the default, it allocates nothing at all.
      */
-    private List<String> annotationLines(MapView mv, Position viewpoint) {
-        if (!(showVersion || showProjection || showFilter || showObserver || showCredit))
+    private List<String> annotationLines(MapView mv, Viewport vp, Position viewpoint) {
+        if (!(showVersion || showProjection || showScaling || showFilter || showObserver || showCredit))
             return List.of();
 
         List<String> lines = new ArrayList<>(5);
@@ -265,6 +270,8 @@ public final class TimestampLayer extends AbstractLayer {
             lines.add(versionLine());
         if (showProjection)
             lines.add(projectionLine(mv.mode()));
+        if (showScaling)
+            lines.add(CanvasKeys.scaling(vp, false));
         if (showFilter)
             lines.add(filterLine());
         if (showObserver) {
@@ -569,6 +576,15 @@ public final class TimestampLayer extends AbstractLayer {
 
     public void setShowProjection(boolean _showProjection) {
         showProjection = _showProjection;
+        DisplayController.display();
+    }
+
+    public boolean isShowScaling() {
+        return showScaling;
+    }
+
+    public void setShowScaling(boolean _showScaling) {
+        showScaling = _showScaling;
         DisplayController.display();
     }
 
