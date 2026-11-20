@@ -56,6 +56,13 @@ public final class PunchNameCheck {
         expect("the polarized one at an older version reads differently",
                 "PUNCH PAM v0k".equals(FitsMetaData.observation(new MapMetaDataContainer(polarized)).displayName()));
 
+        // v0m, as a real frame from the SDAC archive carries it (TYPECODE "PA", OBSCODE "M", FILEVRSN "0m";
+        // PUNCH_L3_PAM_20250918234400_v0m.fits, read 2026-11-19). The layer list, the timestamp overlay and
+        // the cache manager all show this name.
+        polarized.put("FILEVRSN", "0m");
+        expect("a v0m polarized mosaic is \"PUNCH PAM v0m\"",
+                "PUNCH PAM v0m".equals(FitsMetaData.observation(new MapMetaDataContainer(polarized)).displayName()));
+
         Map<String, String> noVersion = punch();
         noVersion.remove("FILEVRSN");
         expect("a file with no version card is named without one",
