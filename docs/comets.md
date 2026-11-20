@@ -52,8 +52,11 @@ orbit solution, and for each image layer where its observer came from and why it
 C/2025 R3 seen from SOHO with Horizons' own SOHO observer tables (S-O-T, PsAng and the Sun's NP.ang,
 fixtures in `extra/test/data/`).
 
-That row found a limit of the Track comet plane-of-sky marks (`Comets.parse`): they use
-PsAng minus NP.ang as the angle at the Sun, but Horizons measures PsAng at the comet, from the
+That row found an error in the Track comet plane-of-sky track (`Comets.parse`), since fixed: it
+used PsAng minus NP.ang as the angle at the Sun, but Horizons measures PsAng at the comet, from the
 celestial north there. Near the Sun the two agree; away from it they do not. Over the C/2025 R3
-window the marks are off by 87 arcsec at 13 Rsun, 532 arcsec at 23.5 Rsun and about 3.9 degrees at
-30 degrees elongation (printed by CometSightCheck). The rings do not use that reduction.
+window the old track was off by 66 arcsec at 12.8 Rsun, 532 arcsec at 23.5 Rsun and about 3.9 degrees
+at 30 degrees elongation. `Comets.parse` now solves for the angle at the Sun (`Comets.bearingAtSun`),
+with the Sun's direction from SOHO's Horizons states (one more request per window, cached; Earth's
+direction would be up to 100 arcsec off). `extra/test/CometTrackAngleCheck.java` pins the track
+against the state vectors at 12.8 Rsun, 23.5 Rsun and 44.6 degrees elongation.
