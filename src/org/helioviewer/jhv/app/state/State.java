@@ -536,7 +536,7 @@ public final class State {
         try {
             openTemplate(jo); // before anything reads the times
             ViewState.ModeData modeData = ViewState.readModeJson(jo);
-            ViewState.setProjection(modeData.projection()); // to be set before viewpoint
+            ViewState.restoreProjection(modeData.projection()); // to be set before viewpoint, at once, not as an interactive switch
             ViewState.applyRecordingJson(jo.optJSONObject("recording"));
 
             // Unconditional, and before the timelines gate: the tracks load, apply and record

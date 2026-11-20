@@ -274,8 +274,9 @@ public class MlsoDialog extends StandardDialog implements MlsoClient.Receiver {
             if (saved != null)
                 usernameField.setText(saved);
         }
-        if (start > TimeUtils.START.milli && end > start)
-            timeSelectorPanel.setTime(start, end);
+        // Always the caller's range. A guard of start > TimeUtils.START (the launch moment) used to
+        // drop every range in the past, so the dialog kept whatever it last held.
+        timeSelectorPanel.setTime(start, end);
         if (!instrumentsDownloaded) {
             statusLabel.setText("Listing MLSO instruments...");
             MlsoClient.submitGetInstruments(this);
