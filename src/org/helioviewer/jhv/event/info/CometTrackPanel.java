@@ -23,6 +23,7 @@ import org.helioviewer.jhv.astronomy.Comets;
 import org.helioviewer.jhv.display.CMETracker;
 import org.helioviewer.jhv.identify.Drawn;
 import org.helioviewer.jhv.display.MapMode;
+import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.Palette;
 import org.helioviewer.jhv.gui.component.RightSidebar;
 import org.helioviewer.jhv.layers.ImageLayers;
@@ -58,6 +59,7 @@ public final class CometTrackPanel extends JPanel implements TimeListener.Range 
             instance = new CometTrackPanel();
         if (palette == null) {
             palette = new Palette("Track comet", () -> instance, () -> instance.search());
+            palette.setIcon(Buttons.trackComet);
             palette.restoreHome(RightSidebar.getInstance());
         }
         return palette;

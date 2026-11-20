@@ -319,7 +319,13 @@ public final class Palette {
             dockInto(host);
     }
 
-    void setIcon(@Nullable Icon _icon) {
+    /**
+     * The glyph for its sidebar header. A palette docked before its toolbar button is bound (Identify,
+     * Track CME) or with none at all (Track comet) has no button to borrow one from, and a header
+     * without a glyph pushed its L1/R1 number out of the column the others make (Gilly, 2026-11-19).
+     * Set before {@link #restoreHome}, which is what adds the section.
+     */
+    public void setIcon(@Nullable Icon _icon) {
         icon = _icon;
     }
 

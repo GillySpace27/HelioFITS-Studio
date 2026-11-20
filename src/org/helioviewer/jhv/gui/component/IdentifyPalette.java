@@ -53,6 +53,7 @@ public final class IdentifyPalette {
                 if (HOLDER.readout != null)
                     HOLDER.readout.refresh();
             }, true); // spinners take keystrokes
+            HOLDER.palette.setIcon(Buttons.identify);
             HOLDER.palette.restoreHome(RightSidebar.getInstance());
         }
         return HOLDER.palette;
