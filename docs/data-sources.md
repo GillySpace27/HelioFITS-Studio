@@ -164,6 +164,7 @@ Event types and suppliers come from `resources/settings/SWEK.json`; the request 
 | PFSS coronal field lines | ROB, `https://swhv.oma.be/pfss/` | `plugins/pfss/PfssSettings.java` |
 | Spacecraft and planet positions | ROB, `https://swhv.oma.be/position` | `astronomy/PositionLoad.java` |
 | Comet catalog and ephemerides | JPL SBDB (`https://ssd-api.jpl.nasa.gov/sbdb_query.api`) and Horizons (`https://ssd.jpl.nasa.gov/api/horizons.api`) | `astronomy/Comets.java` |
+| Comet and SOHO positions in 3D | JPL Horizons VECTORS (`https://ssd.jpl.nasa.gov/api/horizons.api`, VEC_TABLE 2: Sun-centred J2000 ecliptic state vectors in km and km/s), the comet as `DES=<designation>; CAP; NOFRAG;` and SOHO as `-21`; answers kept, never deleted by the application, in `<HFStudio>/Catalogs/Comets/` | `astronomy/CometEphemeris.java`, `io/JplHorizons.java` |
 | CME cone fits | NASA CCMC DONKI, `https://kauai.ccmc.gsfc.nasa.gov/DONKI/WS/get/CMEAnalysis` | `plugins/pointcloud/DonkiCone.java` |
 
 ## Opening a session on another computer

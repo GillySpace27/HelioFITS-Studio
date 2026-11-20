@@ -3,6 +3,7 @@ package org.helioviewer.jhv.astronomy;
 import java.io.IOException;
 import java.io.Reader;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -354,7 +355,15 @@ public final class Comets {
     }
 
     private static String ephemerisText(String command, String quantities, long start, long end, long stepMinutes) throws Exception {
-        URI uri = new URI(query(HORIZONS,
+        URI uri = ephemerisUri(command, quantities, start, end, stepMinutes);
+        try (NetClient nc = NetClient.of(uri, true); Reader reader = nc.getReader()) {
+            return CharStreams.toString(reader);
+        }
+    }
+
+    /** The observer-table request from SOHO that {@link #ephemerisText} sends; separate so checks can rebuild it. */
+    static URI ephemerisUri(String command, String quantities, long start, long end, long stepMinutes) throws URISyntaxException {
+        return new URI(query(HORIZONS,
                 "format", "text",
                 "COMMAND", command,
                 "OBJ_DATA", "NO",
@@ -366,9 +375,6 @@ public final class Comets {
                 "STEP_SIZE", "'" + stepMinutes + " m'",
                 "QUANTITIES", quantities,
                 "CSV_FORMAT", "'YES'"));
-        try (NetClient nc = NetClient.of(uri, true); Reader reader = nc.getReader()) {
-            return CharStreams.toString(reader);
-        }
     }
 
     /**
