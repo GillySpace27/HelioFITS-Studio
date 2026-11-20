@@ -96,6 +96,7 @@ test("refusals: not POST, not JSON, missing fields, bad kind, bad email, too lar
   assert.equal((await post(report({ category: "rant" }))).status, 400);
   assert.equal((await post(report({ installId: "me" }))).status, 400);
   assert.equal((await post(report({ replyTo: "nobody" }))).status, 400);
+  assert.equal((await post(report({ contact: 7 }))).status, 400);
   assert.equal((await post(report({ log: "x".repeat(7 * 1024 * 1024) }))).status, 413);
   delete env.GITHUB_REPO;
   assert.equal((await post(report())).status, 500);
