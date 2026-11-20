@@ -74,10 +74,12 @@ public final class FeedbackDialog extends JDialog {
     /** The button an error or warning dialog offers, here so its label is written once. */
     public static final String REPORT_THIS = "Report this...";
 
+    private static final String EMAIL = "[^@\\s]+@[^@\\s]+\\.[^@\\s]+";
+
     private final JComboBox<FeedbackReport.Category> category = new JComboBox<>(FeedbackReport.Category.values());
     private final JTextField title = new JTextField();
     private final JTextArea message = new JTextArea(8, 56);
-    private final JTextField replyTo = new JTextField();
+    private final JTextField replyTo = new JTextField(); // the identifier: an email, a name or a GitHub handle
     private final JCheckBox errorBox = new JCheckBox("The error shown and its stack trace", true);
     private final JCheckBox systemBox = new JCheckBox("System info: version, revision and commit, operating system, Java, graphics", true);
     private final JCheckBox logBox = new JCheckBox("The last " + FeedbackReport.LOG_LINES + " lines of this run's log", true);
@@ -140,7 +142,10 @@ public final class FeedbackDialog extends JDialog {
         form.add(new JScrollPane(message), c);
         c.fill = GridBagConstraints.HORIZONTAL;
         c.weighty = 0;
-        form.add(new JLabel("Your email, if you would like a reply (optional)"), c);
+        form.add(new JLabel(error == null
+                ? "Your name, email or GitHub handle (required)"
+                : "Your name, email or GitHub handle, if you would like a reply (optional)"), c);
+        replyTo.setToolTipText("Used only so the developer can ask you for more details about this report. It is not checked or shared.");
         form.add(replyTo, c);
         c.insets = new Insets(8, 0, 0, 0);
         form.add(new JLabel("Also send:"), c);
@@ -241,16 +246,22 @@ public final class FeedbackDialog extends JDialog {
                 ? "Send by Email opens an email to the developer (" + AppInfo.emailAddress + ") in your mail program, with your note and the main details,"
                   + " and shows the full report file so you can attach it. The report is also kept in ~/HFStudio/Outbox."
                 : "Send delivers the report to the developer of " + AppInfo.programName + ".";
-        destination.setText("<html><div style='width:420px'>" + where + " Your home folder is written as ~ in everything sent. Preview shows all of it.</div>");
+        destination.setText("<html><div style='width:420px'>" + where + (error == null
+                ? " The name, email or handle you give is used only to contact you for more details about this report."
+                : "") + " Your home folder is written as ~ in everything sent. Preview shows all of it.</div>");
         revalidate();
     }
 
     private void updateSend() {
-        String email = replyTo.getText().strip();
-        boolean emailOk = email.isEmpty() || email.matches("[^@\\s]+@[^@\\s]+\\.[^@\\s]+");
+        String who = replyTo.getText().strip();
+        // Light check only: nothing is verified. Something with an @ in the middle must look like an email;
+        // a name or a handle (@name) passes as typed.
+        boolean whoOk = who.isEmpty() ? error != null : !who.contains("@") || who.startsWith("@") || who.matches(EMAIL);
         boolean described = !title.getText().isBlank();
-        send.setEnabled(described && emailOk);
-        send.setToolTipText(!described ? "Give the report a title first" : emailOk ? null : "That email address looks incomplete");
+        send.setEnabled(described && whoOk);
+        send.setToolTipText(!described ? "Give the report a title first"
+                : who.isEmpty() && !whoOk ? "Add your name, email or GitHub handle so the developer can ask you for details"
+                : !whoOk ? "That email address looks incomplete" : null);
     }
 
     /**
@@ -292,11 +303,15 @@ public final class FeedbackDialog extends JDialog {
         }
         // The Worker and the email need a message, so a report with no details sends its title as the message.
         String details = message.getText().isBlank() ? title.getText() : message.getText();
-        JSONObject p = FeedbackReport.build((FeedbackReport.Category) category.getSelectedItem(), title.getText(), details, replyTo.getText(),
+        String who = replyTo.getText().strip();
+        boolean isEmail = who.matches(EMAIL);
+        JSONObject p = FeedbackReport.build((FeedbackReport.Category) category.getSelectedItem(), title.getText(), details, isEmail ? who : "",
                 errorBox.isSelected() ? error : null,
                 systemBox.isSelected() ? FeedbackReport.systemInfo() : null,
                 logBox.isSelected() ? FeedbackReport.logTail(FeedbackReport.LOG_LINES) : null,
                 session);
+        if (!isEmail && !who.isEmpty()) // the Worker takes an email as replyTo; a name or handle goes in contact
+            p.put("contact", who.length() > FeedbackReport.CONTACT_MAX ? who.substring(0, FeedbackReport.CONTACT_MAX) : who);
         if (screenshotBox.isSelected() && screenshot != null)
             FeedbackReport.attachScreenshot(p, screenshot);
         return p;

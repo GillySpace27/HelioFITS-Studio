@@ -97,6 +97,8 @@ export function validate(r) {
   if (typeof r.created !== "string" || r.created.length > 40) return "created must be a time";
   if (r.replyTo !== undefined && (typeof r.replyTo !== "string" || r.replyTo.length > 254 || !EMAIL.test(r.replyTo)))
     return "replyTo must be an email address";
+  if (r.contact !== undefined && (typeof r.contact !== "string" || r.contact.length > 120))
+    return "contact must be text of at most 120 characters";
   for (const key of ["userAgent", "log"])
     if (r[key] !== undefined && typeof r[key] !== "string") return `${key} must be text`;
   for (const key of ["error", "system", "session", "screenshot"])
@@ -152,6 +154,7 @@ export function toIssue(r) {
   const parts = [
     `**Kind:** ${r.category}  `,
     `**Reply to:** ${r.replyTo ? "`" + r.replyTo + "`" : "not given"}  `,
+    `**Contact:** ${r.contact ? "`" + r.contact.replace(/`/g, "'") + "`" : "not given"}  `,
     `**Build:** ${r.system ? quiet(r.system.buildId) : "not sent"}  `,
     `**Install:** \`${r.installId.slice(0, 8)}\`, report \`${r.id}\`, ${r.created}`,
     "",

@@ -135,6 +135,9 @@ public final class FeedbackReport {
     /** The longest title the form takes, in characters; the Worker refuses longer ones. */
     public static final int TITLE_MAX = 120;
 
+    /** The longest name, email or handle kept in the payload's contact field. */
+    public static final int CONTACT_MAX = 120;
+
     /**
      * As {@link #build(Category, String, String, ErrorContext, JSONObject, String, JSONObject)}, with the title
      * the user gave the report. A blank title is left out of the payload, as older versions did, and the
@@ -469,6 +472,7 @@ public final class FeedbackReport {
                 .append(p.has("title") ? "Title: " + p.optString("title") + "\n" : "")
                 .append("Message:\n").append(p.optString("message")).append("\n\n")
                 .append("Reply to: ").append(p.optString("replyTo", "(none given)")).append('\n')
+                .append(p.has("contact") ? "Contact: " + p.optString("contact") + "\n" : "")
                 .append("Report id: ").append(p.optString("id")).append('\n')
                 .append("Created: ").append(p.optString("created")).append('\n')
                 .append("Install id: ").append(p.optString("installId")).append('\n')
