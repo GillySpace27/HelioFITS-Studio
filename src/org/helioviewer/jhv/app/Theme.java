@@ -168,7 +168,7 @@ public final class Theme {
     }
 
     public boolean builtIn() {
-        return parentId == null;
+        return parentId == null || bundled != null && bundled.get(id) == this;
     }
 
     @Nullable
@@ -592,9 +592,46 @@ public final class Theme {
 
     public static List<Theme> all() {
         load();
+        loadBundled();
         List<Theme> out = new ArrayList<>(BUILT_IN);
+        out.addAll(bundled.values());
         out.addAll(user.values());
         return out;
+    }
+
+    /**
+     * Themes that ship in the jar (resources/themes/bundled.json, the same shape as the user's
+     * themes.json): an overrides-only theme on one of the built-ins, listed with them and not editable.
+     * Ids must not start with "user-". Made by Theme Manager's "Copy as built-in".
+     */
+    @Nullable private static LinkedHashMap<String, Theme> bundled;
+
+    private static void loadBundled() {
+        if (bundled != null)
+            return;
+        bundled = new LinkedHashMap<>();
+        try (var in = Theme.class.getResourceAsStream("/themes/bundled.json")) {
+            if (in == null)
+                return;
+            JSONArray arr = new JSONObject(new JSONTokener(new java.io.InputStreamReader(in, StandardCharsets.UTF_8))).optJSONArray("themes");
+            if (arr == null)
+                return;
+            for (Object o : arr)
+                if (o instanceof JSONObject jo) {
+                    Theme t = fromJson(jo);
+                    if (t != null && !t.id.startsWith("user-"))
+                        bundled.put(t.id, t);
+                }
+        } catch (IOException | RuntimeException e) {
+            Log.error("Could not read the bundled themes", e);
+        }
+    }
+
+    /** This theme as an entry for resources/themes/bundled.json: a user theme's id without its "user-". */
+    public String toBundledJson() {
+        JSONObject jo = toJson();
+        jo.put("id", id.startsWith("user-") ? id.substring("user-".length()) : id);
+        return jo.toString(2);
     }
 
     @Nullable
