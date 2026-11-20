@@ -312,6 +312,19 @@ public final class Commands {
         DisplayController.resetView();
     }
 
+    /**
+     * Zoom, warp and crop back to their defaults, the / canvas key and the Projection palette's Reset view:
+     * warp off (lambda 1, the identity; 0 is the hard logarithmic warp), crop auto, magnification 1x. CME
+     * tracking lets go first, or its next tick would write over them.
+     */
+    public static void resetScaling() {
+        org.helioviewer.jhv.display.CMETracker.stop();
+        ViewState.setWarpLambda(1);
+        org.helioviewer.jhv.display.Display.setWarpOuterRadius(0);
+        org.helioviewer.jhv.display.Display.resetViewportZoom();
+        DisplayController.display();
+    }
+
     public static void resetViewAxis() {
         DisplayController.resetViewAxis();
     }
