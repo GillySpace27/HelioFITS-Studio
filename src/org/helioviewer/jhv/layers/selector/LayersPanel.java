@@ -80,6 +80,22 @@ public final class LayersPanel extends JPanel {
             UITimer.register(this);
         }
 
+        // Always the focused selection colours. FlatLaf swaps in its dimmed inactive pair when the table
+        // loses focus, which is exactly when the selected layers' shared controls below are being worked,
+        // so the rows those controls act on faded out while they were in use (Gilly, 2026-11-19). Read
+        // from the defaults each time, so a theme switch still reaches them.
+        @Override
+        public java.awt.Color getSelectionBackground() {
+            java.awt.Color c = javax.swing.UIManager.getColor("Table.selectionBackground");
+            return c == null ? super.getSelectionBackground() : c;
+        }
+
+        @Override
+        public java.awt.Color getSelectionForeground() {
+            java.awt.Color c = javax.swing.UIManager.getColor("Table.selectionForeground");
+            return c == null ? super.getSelectionForeground() : c;
+        }
+
         @Override
         public void changeSelection(int row, int col, boolean toggle, boolean extend) {
             if (col != ENABLED_COL && col != MASTER_COL && col != REMOVE_COL)
@@ -192,8 +208,8 @@ public final class LayersPanel extends JPanel {
         grid.setIntercellSpacing(new Dimension(0, 0));
 
         grid.getColumnModel().getColumn(HANDLE_COL).setCellRenderer(new CellRenderer.Handle());
-        grid.getColumnModel().getColumn(HANDLE_COL).setPreferredWidth(ICON_WIDTH + 4);
-        grid.getColumnModel().getColumn(HANDLE_COL).setMaxWidth(ICON_WIDTH + 4);
+        grid.getColumnModel().getColumn(HANDLE_COL).setPreferredWidth(ICON_WIDTH + 12); // room for the selected row's arrow
+        grid.getColumnModel().getColumn(HANDLE_COL).setMaxWidth(ICON_WIDTH + 12);
 
         grid.getColumnModel().getColumn(ENABLED_COL).setCellRenderer(new CellRenderer.Enabled());
         grid.getColumnModel().getColumn(ENABLED_COL).setPreferredWidth(ICON_WIDTH + 8);
