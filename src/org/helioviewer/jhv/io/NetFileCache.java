@@ -48,6 +48,9 @@ public class NetFileCache {
                     swept++;
         if (swept > 0)
             Log.info("Swept " + swept + " abandoned download temp file(s) from " + Directories.FILECACHE.getFile());
+        Thread cap = new Thread(CacheCap::enforce, "HFS-CacheCap"); // no-op unless Settings > Storage sets a cap
+        cap.setDaemon(true);
+        cap.start();
     }
 
     private static DataUri fetch(URI uri, java.util.function.LongConsumer onBytes) throws IOException {
@@ -61,8 +64,8 @@ public class NetFileCache {
 
         // Persistent content-addressed cache, keyed by the remote URI: a saved session reloads
         // from disk instead of re-downloading every launch (the app's main iteration cost).
-        // ponytail: no eviction — a research tool re-visits the same datasets; add an LRU/size
-        // cap (in Settings) if the FileCache dir ever grows past what the disk can spare.
+        // No eviction unless the user sets a cap in Settings > Storage (CacheCap), which spares
+        // every file a saved session names: a research tool re-visits the same datasets.
         File cached = persistentPath(uri);
         if (cached.isFile() && cached.length() > 0) {
             // One store (LibraryStore): a FITS file still in the cache moves into the library the
