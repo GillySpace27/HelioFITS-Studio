@@ -142,11 +142,11 @@ public final class CometSightCheck {
 
         // Today's track, by Comets' own (package-private) parser, and the raw rows it was read from
         Method rows = Comets.class.getDeclaredMethod("rows", String.class);
-        Method parse = Comets.class.getDeclaredMethod("parse", String[].class, String[].class, String.class);
+        Method parse = Comets.class.getDeclaredMethod("parse", String[].class, String[].class, String.class, CometEphemeris.class);
         rows.setAccessible(true);
         parse.setAccessible(true);
         String[] targetRows = (String[]) rows.invoke(null, target), sunRows = (String[]) rows.invoke(null, sun);
-        Comets.Track track = (Comets.Track) parse.invoke(null, targetRows, sunRows, "C/2025 R3");
+        Comets.Track track = (Comets.Track) parse.invoke(null, targetRows, sunRows, "C/2025 R3", soho);
         long[] m = track.milli();
         if (m.length != targetRows.length || m.length != sunRows.length) {
             expect(false, "every row of the SOHO observer fixtures is read (" + m.length + " of " + targetRows.length + ")");
@@ -154,10 +154,10 @@ public final class CometSightCheck {
         }
 
         // Horizons measures PsAng at the comet, from the celestial north there, and the Sun's pole
-        // angle at the Sun. Comets.parse subtracts the two as if both were measured at the Sun, which
-        // is good near the Sun only. The reference here is Horizons' own numbers (S-O-T, PsAng, NP.ang)
-        // read without that shortcut: the comet is put on the sky where the great circle from the Sun
-        // reaches it with Horizons' PsAng, and its angle is then measured at the Sun.
+        // angle at the Sun, so subtracting one from the other is good near the Sun only. The reference
+        // here is Horizons' own numbers (S-O-T, PsAng, NP.ang) read without that shortcut: the comet is
+        // put on the sky where the great circle from the Sun reaches it with Horizons' PsAng, and its
+        // angle is then measured at the Sun. Comets.parse now does the same (CometTrackAngleCheck).
         double worst = 0, worstOff = 0, worstTrack = 0, field = 0, fieldOff = 0, maxElong = 0;
         int n = 0, nField = 0;
         for (int i = 0; i < m.length; i += 4) {
@@ -200,7 +200,7 @@ public final class CometSightCheck {
                 "C/2025 R3 seen from SOHO (Horizons states, light time on) is where the SOHO observer tables put it, within %.0f Rsun of the Sun, at %d times (worst %.2f arcsec; %.0f arcsec without light time)", FIELD_RSUN, nField, field, fieldOff));
         expect(n >= 300 && worst <= 15, String.format(Locale.ROOT,
                 "and over the whole window, out to %.0f deg from the Sun, at %d times (worst %.2f arcsec; %.0f arcsec without light time)", maxElong, n, worst, worstOff));
-        System.out.printf(Locale.ROOT, "  info today's plane-of-sky track (PsAng - NP.ang) is off this reference by up to %.0f arcsec over the window%n", worstTrack);
+        System.out.printf(Locale.ROOT, "  info the Track comet track (Comets.parse) is off this reference by up to %.2f arcsec over the window%n", worstTrack);
     }
 
     /** S-O-T and PsAng, degrees, from one row of a Horizons observer table, found as Comets.parse finds them. */
