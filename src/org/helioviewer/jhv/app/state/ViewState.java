@@ -500,6 +500,26 @@ public final class ViewState {
         notifyModeListeners();
     }
 
+    /**
+     * Session restore's projection: applied at once, with no crossfade and no carrying the disk
+     * size over from whatever was on screen before. The interactive switch defers to the next GL
+     * frame, by which time the session's camera is already in, and then solves the viewport zoom
+     * that keeps the old disk size against that camera: an Orthographic camera framing a PUNCH
+     * field going into Helioradial came out at a zoom near 183, a Sun at 0.005x until a
+     * double-click reset it.
+     */
+    public static void restoreProjection(MapMode newProjection) {
+        if (projection == newProjection)
+            return;
+        suppressModeNotifications = true;
+        try {
+            setProjection(newProjection);
+        } finally {
+            suppressModeNotifications = false;
+        }
+        notifyModeListeners();
+    }
+
     public static double getWarpLambda() {
         return Display.getWarpLambda();
     }
