@@ -72,6 +72,11 @@ public final class Interaction {
             announce();
     }
 
+    /** The mode chosen on the toolbar, ignoring any modifier held now. */
+    public Mode chosenMode() {
+        return mode;
+    }
+
     /** The mode in effect right now: the held one while a modifier is down, else the chosen one. */
     public Mode getMode() {
         return held != null ? held : mode;
