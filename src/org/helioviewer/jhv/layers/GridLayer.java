@@ -2,6 +2,8 @@ package org.helioviewer.jhv.layers;
 
 import java.util.List;
 
+import javax.annotation.Nullable;
+
 import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.astronomy.Sun;
 import org.helioviewer.jhv.base.Colors;
@@ -93,6 +95,11 @@ public final class GridLayer extends AbstractLayer {
     private boolean showPlanetOrbits = true;
     private boolean showPlanetNames = true;
     private double planetOrbitAlpha = 0.5;
+    // The planet markers' own look: one colour for all of them (null keeps each planet's own) and a size multiplier.
+    @Nullable
+    private Colors planetColor;
+    private double planetScale = 1;
+    public static final String PLANET_COLOR_OWN = "byPlanet"; // the stored value for "each its own"
     /**
      * On by default, because this is the frame everything else in the scene is in.
      *
@@ -232,6 +239,8 @@ public final class GridLayer extends AbstractLayer {
         jo.put("showPlanetOrbits", showPlanetOrbits);
         jo.put("showPlanetNames", showPlanetNames);
         jo.put("planetOrbitAlpha", planetOrbitAlpha);
+        jo.put("planetColor", planetColor == null ? PLANET_COLOR_OWN : planetColor.name());
+        jo.put("planetScale", planetScale);
         jo.put("planetsFollowRotation", planetsFollowRotation);
         jo.put("thomsonDensity", thomsonDensity);
         jo.put("eclipticDensity", eclipticDensity);
@@ -280,6 +289,8 @@ public final class GridLayer extends AbstractLayer {
         showPlanetOrbits = jo.optBoolean("showPlanetOrbits", showPlanetOrbits);
         showPlanetNames = jo.optBoolean("showPlanetNames", showPlanetNames);
         planetOrbitAlpha = Math.clamp(jo.optDouble("planetOrbitAlpha", planetOrbitAlpha), 0, 1);
+        planetColor = Colors.parse(jo.optString("planetColor", PLANET_COLOR_OWN), null);
+        planetScale = Math.clamp(jo.optDouble("planetScale", planetScale), 0.25, 4);
         planetsFollowRotation = jo.optBoolean("planetsFollowRotation", planetsFollowRotation);
         thomsonDensity = Math.clamp(jo.optDouble("thomsonDensity", thomsonDensity), 0.25, 4);
         eclipticDensity = Math.clamp(jo.optDouble("eclipticDensity", eclipticDensity), 0.25, 4);
@@ -448,9 +459,10 @@ public final class GridLayer extends AbstractLayer {
             planetOrbitLine.renderLine(vp, LINEWIDTH);
 
         planetBuf.clear();
-        float size = (float) (OBSERVER_POINT_FRACTION * cameraWidth);
+        float size = (float) (OBSERVER_POINT_FRACTION * cameraWidth * planetScale);
+        byte[] one = planetColor == null ? null : planetColor.bytes();
         for (org.helioviewer.jhv.layers.grid.PlanetMarkers.Marker m : planetMarkers)
-            planetBuf.putVertex((float) m.position().x, (float) m.position().y, (float) m.position().z, size, m.color());
+            planetBuf.putVertex((float) m.position().x, (float) m.position().y, (float) m.position().z, size, one == null ? m.color() : one);
         planetPoints.uploadAndClear(planetBuf);
 
         // Markers are positions, not surfaces: depth-testing them against the modelled surface
@@ -974,6 +986,26 @@ public final class GridLayer extends AbstractLayer {
 
     public void setPlanetsFollowRotation(boolean v) {
         planetsFollowRotation = v;
+        DisplayController.display();
+    }
+
+    /** The one colour of every planet marker, or null when each planet keeps its own. */
+    @Nullable
+    public Colors getPlanetColor() {
+        return planetColor;
+    }
+
+    public void setPlanetColor(@Nullable Colors c) {
+        planetColor = c;
+        DisplayController.display();
+    }
+
+    public double getPlanetScale() {
+        return planetScale;
+    }
+
+    public void setPlanetScale(double v) {
+        planetScale = Math.clamp(v, 0.25, 4);
         DisplayController.display();
     }
 
