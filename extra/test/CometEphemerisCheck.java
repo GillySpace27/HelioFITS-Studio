@@ -31,8 +31,14 @@ import org.helioviewer.jhv.time.JHVTime;
  * window by a day each side, and its URLs are the ones the capture script prints; (9) the cache:
  * round trip, coverage, expiry, Refresh, a corrupt file, no .part left; (12) null outside the
  * samples; the guard resamples an orbit tighter than the catalogue's; and the synthetic parts of
- * (1) column order, (2) refusals and (11) the source tag. Rows 1, 2, 5, 10 and 11 against a real
- * Horizons comet answer come with the fixtures.
+ * (1) column order, (2) refusals and (11) the source tag.
+ *
+ * <p>Against the C/2025 R3 (PANSTARRS) answers captured with extra/tools/capture_horizons_fixtures.py
+ * (extra/test/data/horizons-*-c_2025_r3-*, sbdb-c_2025_r3.json): (1) the VEC_TABLE 2 header names
+ * the columns the parser assumes, and the tables parse to their printed times and values; (5) every
+ * other sample, dropped and Hermite-interpolated back, lands inside the plan's error bound; (10)
+ * every request Studio builds is the URL in the .url sidecar; (11) the source tag is the target
+ * line's; and both forms of a numbered periodic designation resolve. A missing fixture is a FAIL.
  */
 public final class CometEphemerisCheck {
 
@@ -62,6 +68,12 @@ public final class CometEphemerisCheck {
         checkParseSynthetic();
         checkRefusals();
         checkSourceTag();
+
+        checkFixtureParse();
+        checkFixtureHermite();
+        checkFixtureUrls();
+        checkFixtureSourceTag();
+        checkProbes();
 
         if (failures != 0) {
             System.out.println("CometEphemerisCheck: " + failures + " failure(s)");
@@ -281,20 +293,20 @@ public final class CometEphemerisCheck {
         expect(asked > 0 && f.asked.size() == asked, "cache: the same window again asks Horizons nothing (" + (f.asked.size() - asked) + " requests)");
         expect(Arrays.equals(first.sampleTimes(), again.sampleTimes()) && Arrays.equals(first.eclipticKm(TP), again.eclipticKm(TP))
                 && "{source: JPL#K42}".equals(again.sourceTag()) && again.fetchedAt() == now, "cache: round trip keeps samples, positions, source tag and fetch time");
-        expect(files.size() == 1 && files.getFirst().getFileName().toString().equals(CometEphemeris.fileName("C_2026_Q9", first.first(), first.last(), now)),
+        expect(files.size() == 1 && files.getFirst().getFileName().toString().equals(CometEphemeris.fileName("C_2026_Q9", start - DAY, end + DAY, now)),
                 "cache: one file, named <slug>_<startDay>_<endDay>_<fetched>_v2.json (got " + files + ")");
 
         asked = f.asked.size();
         CometEphemeris.fetch(c, start - 3 * DAY, end, false, now, f);
         expect(f.asked.size() > asked, "cache: a narrower file is not used for a wider need");
 
-        // Same days in the name, but the samples start six hours too late: the content decides, not the name.
+        // Same days in the name, but the window starts six hours too late: the content decides, not the name.
         Comets.Comet coarse = new Comets.Comet("C/2026 Q8", "", 5 / Sun.MeanEarthDistance, 0);
         Fake fc = new Fake(5, TP);
         CometEphemeris.fetch(coarse, t("2026-04-24T12:00:00"), end, false, now, fc);
         asked = fc.asked.size();
         CometEphemeris.fetch(coarse, t("2026-04-24T06:00:00"), end, false, now, fc);
-        expect(fc.asked.size() > asked, "cache: a file whose name days cover the need but whose samples do not is not used");
+        expect(fc.asked.size() > asked, "cache: a file whose name days cover the need but whose window does not is not used");
 
         // Perihelion within a year: a file 8 days old is passed over. Far from perihelion it is still used.
         asked = f.asked.size();
@@ -371,17 +383,19 @@ public final class CometEphemerisCheck {
         expect(Arrays.equals(s.milli(), new long[]{t("2026-04-20T00:00:00"), t("2026-04-20T06:00:00")}), "parseStates: JDUT to UT milliseconds");
         expect(Arrays.equals(s.km(), new double[]{1e6, 2e6, 3e6, 7e6, 8e6, 9e6}) && Arrays.equals(s.kms(), new double[]{40, 50, 60, 10, 11, 12}),
                 "parseStates: X, Y, Z from columns 3-5 and VX, VY, VZ from 6-8");
-        String ulysses = Files.readString(Path.of("extra/test/data/horizons-ulysses-2005-06-01.txt"));
-        expect(threw(ulysses) != null, "parseStates refuses a position-only table (the VEC_TABLE 1 Ulysses fixture): " + threw(ulysses));
+        String ulysses = fixture("horizons-ulysses-2005-06-01.txt");
+        if (ulysses != null)
+            expect(threw(ulysses) != null, "parseStates refuses a position-only table (the VEC_TABLE 1 Ulysses fixture): " + threw(ulysses));
     }
 
-    // Row 2, synthetic part.
+    // Row 2. No captured refusal exists (both probe forms resolved), so these are hand-made strings in Horizons'
+    // wording as ExternalEphemerisCheck has it; they make no claim about a fixture.
     private static void checkRefusals() {
         String noEphem = "API VERSION: 1.2\nNo ephemeris for target \"Synthetic\" prior to A.D. 1600-JAN-01\n";
         String noMatch = "API VERSION: 1.2\n    No matches found.\n";
         String a = threw(noEphem), b = threw(noMatch);
-        expect(a != null && a.contains("No ephemeris for target \"Synthetic\" prior to A.D. 1600-JAN-01"), "a \"No ephemeris\" answer is an IOException with that line (" + a + ")");
-        expect(b != null && b.contains("No matches found."), "a \"No matches\" answer is an IOException with that line (" + b + ")");
+        expect(a != null && a.contains("No ephemeris for target \"Synthetic\" prior to A.D. 1600-JAN-01"), "hand-made \"No ephemeris\" answer: an IOException with that line (" + a + ")");
+        expect(b != null && b.contains("No matches found."), "hand-made \"No matches\" answer: an IOException with that line (" + b + ")");
     }
 
     private static String threw(String text) {
@@ -398,8 +412,202 @@ public final class CometEphemerisCheck {
         String text = "Target body name: Synthetic (fake)    {source: JPL#K42}\nCenter body name: Sun (10)    {source: DE441}\n";
         expect("{source: JPL#K42}".equals(JplHorizons.sourceTag(text)), "sourceTag: the target line's tag, not the centre's (" + JplHorizons.sourceTag(text) + ")");
         expect(JplHorizons.sourceTag("no header\n").isEmpty(), "sourceTag: \"\" when there is no target line");
-        String ulysses = Files.readString(Path.of("extra/test/data/horizons-ulysses-2005-06-01.txt"));
-        expect("{source: ulysses}".equals(JplHorizons.sourceTag(ulysses)), "sourceTag of the Ulysses fixture: {source: ulysses}");
+        String ulysses = fixture("horizons-ulysses-2005-06-01.txt");
+        if (ulysses != null)
+            expect("{source: ulysses}".equals(JplHorizons.sourceTag(ulysses)), "sourceTag of the Ulysses fixture: {source: ulysses}");
+    }
+
+    // Fixtures
+
+    private static final Path DATA = Path.of("extra/test/data");
+
+    /** The fixture's text, or null after a FAIL line when it is missing. */
+    private static String fixture(String name) {
+        try {
+            return Files.readString(DATA.resolve(name), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            expect(false, "fixture extra/test/data/" + name + " is readable (" + e + ")");
+            return null;
+        }
+    }
+
+    private static final String COMET = "horizons-comet-c_2025_r3-states-";
+    private static final String[] COMET_PIECES = {COMET + "0.txt", COMET + "1.txt", COMET + "2.txt"};
+
+    // Row 1
+    private static void checkFixtureParse() throws IOException {
+        String t0 = fixture(COMET_PIECES[0]);
+        if (t0 != null) {
+            String header = t0.lines().takeWhile(l -> !l.startsWith("$$SOE")).filter(l -> l.strip().startsWith("JDUT")).findFirst().orElse("");
+            List<String> names = Arrays.stream(header.split(",")).map(String::strip).toList();
+            expect(names.equals(List.of("JDUT", "Calendar Date (UT )", "X", "Y", "Z", "VX", "VY", "VZ")),
+                    "the VEC_TABLE 2 header names JDUT, date, X, Y, Z, VX, VY, VZ in the order parseStates reads (" + names + ")");
+            JplHorizons.States s = JplHorizons.parseStates(t0);
+            expect(Arrays.equals(Arrays.copyOf(s.km(), 3), new double[]{-2.421163857753373E+07, -5.969670750236343E+07, 4.537612401032251E+07})
+                            && Arrays.equals(Arrays.copyOf(s.kms(), 3), new double[]{-4.111603352657935E+01, 3.336297652575228E+00, -4.083465572975827E+01}),
+                    "comet piece 0, first row: X, Y, Z and VX, VY, VZ are the printed values");
+        }
+        String[][] want = { // file, rows, first UT, last UT (the fixtures' calendar column)
+                {COMET_PIECES[0], "6", "2026-04-12T21:26:00", "2026-04-17T21:26:00"},
+                {COMET_PIECES[1], "6", "2026-04-17T21:26:00", "2026-04-22T21:26:00"},
+                {COMET_PIECES[2], "22", "2026-04-22T21:26:00", "2026-05-13T21:26:00"},
+                {"horizons-soho-c_2025_r3-states.txt", "707", "2026-04-13T12:28:29", "2026-05-12T22:28:29"},
+                {"horizons-earth-2025-06-21-ecliptic.txt", "9", "2025-06-20T00:00:00", "2025-06-22T00:00:00"}};
+        for (String[] w : want) {
+            String text = fixture(w[0]);
+            if (text == null)
+                continue;
+            JplHorizons.States s = JplHorizons.parseStates(text);
+            long[] m = s.milli();
+            expect(m.length == Integer.parseInt(w[1]) && m[0] == t(w[2]) && m[m.length - 1] == t(w[3]),
+                    w[0] + ": " + m.length + " states from " + w[2] + " to " + w[3] + " UT");
+        }
+    }
+
+    // Row 5: every other sample of the comet, dropped and interpolated back from its neighbours.
+    private static void checkFixtureHermite() throws IOException {
+        List<String> texts = new ArrayList<>();
+        for (String f : COMET_PIECES) {
+            String text = fixture(f);
+            if (text == null)
+                return;
+            texts.add(text);
+        }
+        CometEphemeris all = CometEphemeris.parse("C/2025 R3", texts, 0, Double.NaN);
+        long[] t = all.sampleTimes();
+        int keep = (t.length + 1) / 2;
+        long[] kt = new long[keep];
+        double[] km = new double[3 * keep], kms = new double[3 * keep];
+        JplHorizons.States full = CometEphemeris.merge(texts.stream().map(x -> {
+            try {
+                return JplHorizons.parseStates(x);
+            } catch (IOException e) {
+                throw new IllegalStateException(e);
+            }
+        }).toList());
+        for (int i = 0; i < keep; i++) {
+            kt[i] = t[2 * i];
+            System.arraycopy(full.km(), 6 * i, km, 3 * i, 3);
+            System.arraycopy(full.kms(), 6 * i, kms, 3 * i, 3);
+        }
+        CometEphemeris half = CometEphemeris.of("half", new JplHorizons.States(kt, km, kms), "", 0);
+        int bad = 0, n = 0;
+        double worst = 0;
+        for (int i = 1; i < t.length - 1; i += 2) {
+            double[] p = half.eclipticKm(t[i]);
+            double r = Math.sqrt(sq(full.km()[3 * i]) + sq(full.km()[3 * i + 1]) + sq(full.km()[3 * i + 2])) * 1000 / RS;
+            double h2 = 2 * (t[i + 1] - t[i]) / (double) MINUTE; // the doubled step, minutes
+            double bound = Math.max(1e-6, 16 * 1.95e-8 * Math.pow(h2, 4) / Math.pow(r, 5)); // C = 1.95e-8 Rsun min^-4 Rsun^5, plan 1.4
+            double err = p == null ? Double.POSITIVE_INFINITY
+                    : Math.sqrt(sq(p[0] - full.km()[3 * i]) + sq(p[1] - full.km()[3 * i + 1]) + sq(p[2] - full.km()[3 * i + 2])) * 1000 / RS;
+            worst = Math.max(worst, err / bound);
+            n++;
+            if (err > bound)
+                bad++;
+        }
+        expect(n > 10 && bad == 0, String.format(Locale.ROOT, "C/2025 R3: %d samples dropped and interpolated back, each inside max(1e-6 Rsun, 16 C (2h)^4 / r^5) (worst %.3f of its bound)", n, worst));
+    }
+
+    // Row 10: the requests Studio builds are the URLs the capture asked, byte for byte.
+    private static void checkFixtureUrls() throws IOException {
+        String sbdb = fixture("sbdb-c_2025_r3.json");
+        if (sbdb == null)
+            return;
+        double qAu = Double.NaN, tpJd = Double.NaN;
+        org.json.JSONArray el = new org.json.JSONObject(sbdb).getJSONObject("orbit").getJSONArray("elements");
+        for (int i = 0; i < el.length(); i++) {
+            org.json.JSONObject e = el.getJSONObject(i);
+            if ("q".equals(e.getString("name")))
+                qAu = Double.parseDouble(e.getString("value"));
+            if ("tp".equals(e.getString("name")))
+                tpJd = Double.parseDouble(e.getString("value"));
+        }
+        // As the capture script: tp is JD TDB, less TT-UTC 69.184 s. (Comets.catalog does not subtract it: one minute of difference in the grid.)
+        long tp = Math.round((tpJd - 2440587.5) * 864e5) - 69_184;
+        long start = t("2026-04-14T12:28:29"), end = t("2026-05-11T22:36:29"); // ReversingComet.jhv's master window, as captured
+        long now = t("2026-11-20T00:00:00");
+
+        Map<String, String> answers = new HashMap<>(); // sidecar URL -> its captured result
+        String[] states = {"horizons-comet-c_2025_r3-states-0", "horizons-comet-c_2025_r3-states-1", "horizons-comet-c_2025_r3-states-2",
+                "horizons-soho-c_2025_r3-states", "horizons-stereo-a-c_2025_r3-states"};
+        for (String name : states) {
+            String url = fixture(name + ".url"), text = fixture(name + ".txt");
+            if (url == null || text == null)
+                return;
+            answers.put(url.strip(), text);
+        }
+        List<String> asked = new ArrayList<>();
+        CometEphemeris.Source captured = u -> {
+            asked.add(u);
+            String a = answers.get(u);
+            if (a == null)
+                throw new IOException("no captured answer for " + u);
+            return a;
+        };
+        CometEphemeris comet = null;
+        try {
+            comet = CometEphemeris.fetch(new Comets.Comet("C/2025 R3", "PANSTARRS", qAu, tp), start, end, true, now, captured);
+        } catch (IOException e) {
+            expect(false, "fetch for C/2025 R3 is answered from the captured files (" + e.getMessage() + ")");
+        }
+        expect(asked.equals(List.of(fixture(states[0] + ".url").strip(), fixture(states[1] + ".url").strip(), fixture(states[2] + ".url").strip())),
+                "fetch for C/2025 R3 asks exactly the three comet sidecar URLs (DES=C/2025 R3; CAP; NOFRAG;, the script's piece bounds)");
+        expect(comet != null && comet.first() <= start - DAY && comet.last() >= end + DAY && comet.sampleTimes().length == 32,
+                "and the captured answers make one 32-sample path covering the padded window");
+        asked.clear();
+        try {
+            CometEphemeris.fetchBody("-21", "SOHO", start, end, true, now, captured);
+            CometEphemeris.fetchBody("-234", "STEREO-A", start, end, true, now, captured);
+        } catch (IOException e) {
+            expect(false, "fetchBody is answered from the captured files (" + e.getMessage() + ")");
+        }
+        expect(asked.equals(List.of(fixture(states[3] + ".url").strip(), fixture(states[4] + ".url").strip())),
+                "fetchBody asks exactly the SOHO (-21) and STEREO-A (-234) sidecar URLs");
+
+        sidecar("horizons-earth-2025-06-21-ecliptic.url", JplHorizons.statesUrl("399", t("2025-06-20T00:00:00"), t("2025-06-22T00:00:00"), 360));
+        sidecar("horizons-probe-2P.url", JplHorizons.statesUrl("DES=2P; CAP; NOFRAG;", t("2023-10-01T00:00:00"), t("2023-10-02T00:00:00"), 360));
+        sidecar("horizons-probe-P_2P.url", JplHorizons.statesUrl("DES=P/2P; CAP; NOFRAG;", t("2023-10-01T00:00:00"), t("2023-10-02T00:00:00"), 360));
+
+        // The observer tables, as Comets.ephemeris asks. URLEncoder writes a space as '+', the script's quote() as %20;
+        // a literal '+' would be %2B in both, so swapping the one for the other is the whole difference.
+        long step = Math.clamp((end - start) / 60_000 / 2000, 1, 30);
+        try {
+            String c = Comets.ephemerisUri("'DES=C/2025 R3; CAP;'", "'23,27'", start, end, step).toString();
+            String sun = Comets.ephemerisUri("'10'", "'17,20'", start, end, step).toString();
+            sidecar("horizons-comet-c_2025_r3-observer-soho.url", c.replace("+", "%20"), " once its '+' spaces are written %20");
+            sidecar("horizons-sun-c_2025_r3-observer-soho.url", sun.replace("+", "%20"), " once its '+' spaces are written %20");
+        } catch (java.net.URISyntaxException e) {
+            expect(false, "Comets.ephemerisUri builds a URI (" + e + ")");
+        }
+    }
+
+    private static void sidecar(String name, String built) {
+        sidecar(name, built, ", byte for byte");
+    }
+
+    private static void sidecar(String name, String built, String how) {
+        String want = fixture(name);
+        if (want != null)
+            expect(built.equals(want.strip()), "the request Studio builds equals " + name + how + (built.equals(want.strip()) ? "" : " (built " + built + ")"));
+    }
+
+    // Row 11
+    private static void checkFixtureSourceTag() {
+        String text = fixture(COMET_PIECES[0]);
+        if (text == null)
+            return;
+        expect("{source: JPL#33}".equals(JplHorizons.sourceTag(text)),
+                "sourceTag of the comet fixture: {source: JPL#33}, its Target body name line's tag (got " + JplHorizons.sourceTag(text) + ")");
+    }
+
+    // Review finding 12: Comets.catalog builds prefix + '/' + pdes; does Horizons resolve that form as well as the bare one?
+    private static void checkProbes() throws IOException {
+        String bare = fixture("horizons-probe-2P.txt"), slash = fixture("horizons-probe-P_2P.txt");
+        if (bare == null || slash == null)
+            return;
+        boolean both = bare.contains("Target body name: 2P/Encke") && slash.contains("Target body name: 2P/Encke");
+        JplHorizons.States a = JplHorizons.parseStates(bare), b = JplHorizons.parseStates(slash);
+        expect(both && Arrays.equals(a.km(), b.km()) && a.milli().length == 5, "DES=2P and DES=P/2P both resolve to 2P/Encke, with the same five states");
     }
 
     private static void expect(boolean ok, String what) {

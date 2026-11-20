@@ -57,7 +57,7 @@ public final class CometEphemeris {
         Vec3 world(long milli, JHVTime frame);
     }
 
-    /** One uniform Horizons request: whole minutes, end a whole number of steps after start. */
+    /** One uniform Horizons request. A comet's piece is on whole minutes and ends a whole number of steps after its start. */
     public record Segment(long start, long end, int stepMinutes) {}
 
     /** Where Horizons answers come from: the network, or a check's stand-in. */
@@ -166,11 +166,13 @@ public final class CometEphemeris {
         return out;
     }
 
-    /** A spacecraft's request: one uniform step of an hour, coarser only to stay under the cap. */
+    /**
+     * A spacecraft's request: the window as given, seconds included, at one hour, coarser only to stay
+     * under the cap. The last sample can fall up to a step before {@code end}, inside the pad.
+     */
     static Segment bodySegment(long start, long end) {
-        long span = Math.max(end - start, MINUTE);
-        int step = (int) Math.max(BODY_STEP, Math.ceilDiv(span, JplHorizons.MAX_STEPS * MINUTE));
-        return new Segment(start, start + step * MINUTE * Math.ceilDiv(span, step * MINUTE), step);
+        int step = (int) Math.max(BODY_STEP, Math.ceilDiv(Math.max(end - start, MINUTE), JplHorizons.MAX_STEPS * MINUTE));
+        return new Segment(start, end, step);
     }
 
     private static int capped(int step, long a, long b) {
@@ -264,8 +266,9 @@ public final class CometEphemeris {
         return designation.replaceAll("[^A-Za-z0-9-]", "_");
     }
 
-    static String fileName(String slug, long first, long last, long stamp) {
-        return slug + '_' + DAY_NAME.format(Instant.ofEpochMilli(first)) + '_' + DAY_NAME.format(Instant.ofEpochMilli(last)) + '_'
+    /** {@code start} and {@code end}: the padded window the file answers. */
+    static String fileName(String slug, long start, long end, long stamp) {
+        return slug + '_' + DAY_NAME.format(Instant.ofEpochMilli(start)) + '_' + DAY_NAME.format(Instant.ofEpochMilli(end)) + '_'
                 + STAMP_NAME.format(Instant.ofEpochMilli(stamp)) + "_v" + POLICY + ".json";
     }
 
@@ -274,16 +277,16 @@ public final class CometEphemeris {
         for (int i = 0; i < urls.size(); i++)
             requests.put(new JSONObject().put("url", urls.get(i)).put("result", results.get(i)));
         JSONObject jo = new JSONObject().put("designation", r.designation()).put("label", r.label()).put("policy", POLICY)
-                .put("fetched", e.fetchedAt).put("source", e.sourceTag).put("requests", requests);
+                .put("fetched", e.fetchedAt).put("start", r.start()).put("end", r.end()).put("source", e.sourceTag).put("requests", requests);
         if (Double.isFinite(e.gridRsun))
             jo.put("gridRsun", e.gridRsun);
 
         Files.createDirectories(dir);
         long stamp = e.fetchedAt;
-        Path file = dir.resolve(fileName(r.slug(), e.first(), e.last(), stamp));
+        Path file = dir.resolve(fileName(r.slug(), r.start(), r.end(), stamp));
         while (Files.exists(file)) { // two fetches in one second: never overwrite, take the next free name
             stamp += 1000;
-            file = dir.resolve(fileName(r.slug(), e.first(), e.last(), stamp));
+            file = dir.resolve(fileName(r.slug(), r.start(), r.end(), stamp));
         }
         Path tmp = file.resolveSibling(file.getFileName() + ".part");
         Files.writeString(tmp, jo.toString(), StandardCharsets.UTF_8);
@@ -295,7 +298,7 @@ public final class CometEphemeris {
     }
 
     /**
-     * The newest cached answer for {@code slug} whose samples cover {@code [start, end]}, or null. A file
+     * The newest cached answer for {@code slug} whose window covers {@code [start, end]}, or null. A file
      * older than {@link #EXPIRE} is passed over while the perihelion is within a year of {@code now}. A
      * file that cannot be read is passed over and left where it is.
      */
@@ -323,15 +326,13 @@ public final class CometEphemeris {
             try {
                 JSONObject jo = new JSONObject(Files.readString(f, StandardCharsets.UTF_8));
                 long fetched = jo.getLong("fetched");
-                if (refining && now - fetched > EXPIRE)
+                if (refining && now - fetched > EXPIRE || jo.getLong("start") > start || jo.getLong("end") < end)
                     continue;
                 JSONArray requests = jo.getJSONArray("requests");
                 List<String> results = new ArrayList<>(requests.length());
                 for (int i = 0; i < requests.length(); i++)
                     results.add(requests.getJSONObject(i).getString("result"));
-                CometEphemeris e = parse(jo.optString("label", slug), results, fetched, jo.optDouble("gridRsun", Double.NaN));
-                if (e.first() <= start && e.last() >= end)
-                    return e;
+                return parse(jo.optString("label", slug), results, fetched, jo.optDouble("gridRsun", Double.NaN));
             } catch (IOException | JSONException e) {
                 Log.warn("Comet ephemeris: skipping unreadable cache file " + f, e);
             }
