@@ -49,7 +49,7 @@ public final class CanvasKeysCheck {
         boolean distinct = true;
         for (CanvasKeys.Cmd c : CanvasKeys.ALL)
             distinct &= seen.add(CanvasKeys.key(c.id()));
-        expect("every canvas key starts on its own key", distinct && CanvasKeys.ALL.size() == 20);
+        expect("every canvas key starts on its own key", distinct && CanvasKeys.ALL.size() == 21);
         expect("W S A D Q E turn; [ and ] zoom; G the grid; R resets; Cmd+Right and Cmd+Left set the rate",
                 CanvasKeys.key("canvasPitchUp") == KeyEvent.VK_W && CanvasKeys.key("canvasYawRight") == KeyEvent.VK_D
                         && CanvasKeys.key("canvasRollLeft") == KeyEvent.VK_Q && CanvasKeys.key("canvasZoomIn") == KeyEvent.VK_OPEN_BRACKET && CanvasKeys.key("canvasZoomOut") == KeyEvent.VK_CLOSE_BRACKET
@@ -175,11 +175,33 @@ public final class CanvasKeysCheck {
         CanvasKeys.released(key(KeyEvent.VK_OPEN_BRACKET, false, false, false, false));
         expect("[ let go ends the zoom", CanvasKeys.heldForCheck().isEmpty());
         expect("the readout gives zoom as a magnification, warp and crop, n/a where unused",
-                CanvasKeys.scaling(0.5, -0.25, 0, true, true, Set.of()).equals("Zoom 2.00×  Warp -0.250  Crop auto")
-                        && CanvasKeys.scaling(1, 0, 8, false, true, Set.of()).equals("Zoom 1.00×  Warp n/a  Crop 8.0 R☉")
-                        && CanvasKeys.scaling(1, 0, 0, false, false, Set.of()).equals("Zoom 1.00×  Warp n/a  Crop n/a"));
+                CanvasKeys.scaling(0.5, -0.25, 0, true, true, Set.of(), false).equals("Zoom 2.00×  Warp -0.250  Crop auto")
+                        && CanvasKeys.scaling(1, 0, 8, false, true, Set.of(), false).equals("Zoom 1.00×  Warp n/a  Crop 8.0 R☉")
+                        && CanvasKeys.scaling(1, 0, 0, false, false, Set.of(), false).equals("Zoom 1.00×  Warp n/a  Crop n/a"));
         expect("and brackets the one a held key is changing",
-                CanvasKeys.scaling(1, 0.5, 0, true, true, Set.of("canvasWarpStronger")).equals("Zoom 1.00×  [Warp 0.500]  Crop auto"));
+                CanvasKeys.scaling(1, 0.5, 0, true, true, Set.of("canvasWarpStronger"), false).equals("Zoom 1.00×  [Warp 0.500]  Crop auto"));
+        String quiet = CanvasKeys.scaling(1, 1, 0, true, true, Set.of(), true);
+        String busy = CanvasKeys.scaling(0.001, -0.25, 120, true, true, Set.of("canvasZoomIn", "canvasCropTighter"), true);
+        expect("in the footer each field keeps its width whatever the value or bracket", quiet.length() == busy.length()
+                && quiet.indexOf("Warp") == busy.indexOf("Warp") && quiet.indexOf("Crop") == busy.indexOf("Crop"));
+        String naming = CanvasKeys.readout(quiet, "Zoom In", true, 0);
+        expect("the footer puts the command name at the end, in a slot of fixed width",
+                naming.startsWith(quiet) && naming.stripTrailing().endsWith("Zoom In")
+                        && naming.length() == CanvasKeys.readout(quiet, "", false, 0).length()
+                        && naming.length() == CanvasKeys.readout(quiet, "Faster Playback (with Cmd) and more besides", true, 0).length());
+        expect("the footer blanks to spaces of the same width after the idle time, but not while a key is held",
+                CanvasKeys.readout(quiet, "Grid on", false, CanvasKeys.READOUT_IDLE_MS).isBlank()
+                        && CanvasKeys.readout(quiet, "Grid on", false, CanvasKeys.READOUT_IDLE_MS).length() == naming.length()
+                        && !CanvasKeys.readout(quiet, "Grid on", false, CanvasKeys.READOUT_IDLE_MS - 1).isBlank()
+                        && !CanvasKeys.readout(quiet, "Zoom In", true, 10 * CanvasKeys.READOUT_IDLE_MS).isBlank());
+        expect("/ is Restore Zoom, Warp and Crop, beside R's Reset View", CanvasKeys.key("canvasResetScaling") == KeyEvent.VK_SLASH
+                && CanvasKeys.command(KeyEvent.VK_SLASH).id().equals("canvasResetScaling"));
+        double[] saved = {0.5, -0.25, 12};
+        double[] back = org.helioviewer.jhv.app.Commands.scalingTarget(saved);
+        expect("/ goes back to the last saved zoom, warp and crop when there are some",
+                java.util.Arrays.equals(back, saved) && back != saved);
+        expect("and to the defaults (1x, warp off at lambda 1, crop auto) before any load or save",
+                java.util.Arrays.equals(org.helioviewer.jhv.app.Commands.scalingTarget(null), new double[]{1, 1, 0}));
         expect("a plain F is no longer a canvas key", !CanvasKeys.pressed(key(KeyEvent.VK_F, false, false, false, false)));
         expect("a plain Left is the frame step, left alone", !CanvasKeys.pressed(key(KeyEvent.VK_LEFT, false, false, false, false)));
         System.out.println(failures == 0 ? "CanvasKeysCheck: all passed" : "CanvasKeysCheck: " + failures + " FAILED");

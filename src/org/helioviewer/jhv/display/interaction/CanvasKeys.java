@@ -28,7 +28,7 @@ import org.helioviewer.jhv.opengl.GLText;
  * The keys the canvas answers to while it has focus (Gilly, 2026-11-08, revised 2026-11-09 and 2026-11-11):
  * W and S pitch, A and D yaw and Q and E roll the scene; [ and ] zoom, comma and period warp, and
  * apostrophe and semicolon crop, continuously while held (Gilly's defaults, 2026-11-11) (2026-11-11: the right hand has zoom, warp, crop and the
- * playhead; F and V are free); G turns the grid on or off; I and O trim the movie and Home and End go to its first and last frame (2026-11-11); R resets the view; Cmd+Left and Cmd+Right (Ctrl off a Mac) lower and raise the playback
+ * playhead; F and V are free); G turns the grid on or off; I and O trim the movie and Home and End go to its first and last frame (2026-11-11); R resets the view (fitting the zoom) and / puts zoom, warp and crop back as last saved, or to their defaults (2026-11-20); Cmd+Left and Cmd+Right (Ctrl off a Mac) lower and raise the playback
  * rate. The plain arrows' stepping and Space stay where they were ({@link Interaction}).
  *
  * <p>They are bare keys on purpose: the canvas is the one place they cannot be mistaken for typing,
@@ -81,6 +81,7 @@ public final class CanvasKeys {
             new Cmd("canvasCropTighter", "Crop Tighter", KeyEvent.VK_QUOTE, false, "Tighten the crop while held, as the Crop slider moved right"),
             new Cmd("canvasCropLooser", "Crop Looser", KeyEvent.VK_SEMICOLON, false, "Loosen the crop while held, back to none, as the Crop slider moved left"),
             new Cmd("canvasResetView", "Reset View", KeyEvent.VK_R, false, "Put the view back to its default"),
+            new Cmd("canvasResetScaling", "Restore Zoom, Warp and Crop", KeyEvent.VK_SLASH, false, "Put zoom, warp and crop back as the session was last loaded or saved, or to their defaults before any"),
             new Cmd("canvasToggleGrid", "Show or Hide Grid", KeyEvent.VK_G, false, "Turn the grid on or off: the master switch of the Grid row"),
             new Cmd("canvasTrimStart", "Trim Start Here", KeyEvent.VK_I, false, "Start the movie at this frame, as I does on the time slider"),
             new Cmd("canvasTrimEnd", "Trim End Here", KeyEvent.VK_O, false, "End the movie at this frame, as O does on the time slider"),
@@ -347,6 +348,11 @@ public final class CanvasKeys {
                 if (STATE.shot.add(c.id()) && !recordingLocked()) {
                     Commands.resetView();
                     toast("View reset");
+                }
+            }
+            case "canvasResetScaling" -> {
+                if (STATE.shot.add(c.id()) && !recordingLocked()) {
+                    toast(Commands.restoreScaling() ? "Zoom, warp and crop as last saved" : "Zoom, warp and crop reset");
                 }
             }
             case "canvasTrimStart" -> once(c, Commands::trimStartHere);
@@ -648,6 +654,33 @@ public final class CanvasKeys {
 
     // ---- the readout, for the footer and the timestamp overlay ----
 
+    /** The footer readout blanks once nothing in it has changed and no key is held for this long (Gilly, 2026-11-20: "a few seconds"). */
+    public static final long READOUT_IDLE_MS = 3000;
+    /** Characters kept for the command name at the end of the footer readout, so nothing before or after it moves. */
+    static final int NAME_SLOT = 30;
+    // Fixed widths of the three fields in the footer, brackets included, wide enough for their longest values
+    private static final int ZOOM_WIDTH = 13, WARP_WIDTH = 13, CROP_WIDTH = 15;
+
+    /** Whether a continuous canvas key (turn, pan, zoom, warp, crop) is held now. */
+    public static boolean held() {
+        return !STATE.down.isEmpty();
+    }
+
+    /**
+     * The footer line: the three scaling values, each in a fixed-width field, then what is being edited in
+     * a fixed slot at the end, where the eye already is (Gilly, 2026-11-20). After {@link #READOUT_IDLE_MS}
+     * with nothing held, spaces of the same width, so the footer around it does not move.
+     */
+    static String readout(String scaling, String editing, boolean held, long idleMs) {
+        String line = scaling + "  " + String.format("%-" + NAME_SLOT + "." + NAME_SLOT + "s", editing);
+        return held || idleMs < READOUT_IDLE_MS ? line : " ".repeat(line.length());
+    }
+
+    /** The footer line for viewport {@code vp}, given how long its contents have stood unchanged. */
+    public static String readout(Viewport vp, long idleMs) {
+        return readout(scaling(vp, true), editing(), held(), idleMs);
+    }
+
     /**
      * What the held keys are editing, by their names in Settings &gt; Keybindings (Option+W A S D read
      * "Pan"); with none held, the one-press reading while it shows (Grid on, Playback 5 fps); else "".
@@ -672,21 +705,26 @@ public final class CanvasKeys {
      */
     public static String scaling(Viewport vp, boolean mark) {
         Set<String> held = mark ? STATE.down : Set.of();
-        return scaling(vp.zoom, Display.getWarpLambda(), Display.getWarpOuterRadius(), Display.mode.usesWarpLambda(), Display.mode.usesWarpCrop(), held);
+        return scaling(vp.zoom, Display.getWarpLambda(), Display.getWarpOuterRadius(), Display.mode.usesWarpLambda(), Display.mode.usesWarpCrop(), held, mark);
     }
 
-    static String scaling(double zoom, double lambda, double crop, boolean warpUsed, boolean cropUsed, Set<String> held) {
+    /** With {@code fixed} (the footer), each field keeps one width whatever its value or bracket. */
+    static String scaling(double zoom, double lambda, double crop, boolean warpUsed, boolean cropUsed, Set<String> held, boolean fixed) {
         double m = 1 / zoom;
         String z = "Zoom " + (m >= 100 || m < 0.01 ? String.format("%.0e×", m) : String.format(m < 10 ? "%.2f×" : "%.1f×", m));
         String w = warpUsed ? String.format("Warp %.3f", lambda) : "Warp n/a";
         String c = !cropUsed ? "Crop n/a" : crop > 0 ? String.format("Crop %.1f R☉", crop) : "Crop auto";
-        return marked(z, held.contains("canvasZoomIn") || held.contains("canvasZoomOut"))
-                + "  " + marked(w, held.contains("canvasWarpWeaker") || held.contains("canvasWarpStronger"))
-                + "  " + marked(c, held.contains("canvasCropTighter") || held.contains("canvasCropLooser"));
+        String sep = fixed ? "" : "  ";
+        return marked(z, held.contains("canvasZoomIn") || held.contains("canvasZoomOut"), fixed ? ZOOM_WIDTH : 0)
+                + sep + marked(w, held.contains("canvasWarpWeaker") || held.contains("canvasWarpStronger"), fixed ? WARP_WIDTH : 0)
+                + sep + marked(c, held.contains("canvasCropTighter") || held.contains("canvasCropLooser"), fixed ? CROP_WIDTH : 0);
     }
 
-    private static String marked(String s, boolean on) {
-        return on ? "[" + s + "]" : s;
+    /** Bracketed when {@code on}; with a {@code width}, a space stands where a bracket would and the field is padded to it. */
+    private static String marked(String s, boolean on, int width) {
+        if (width == 0)
+            return on ? "[" + s + "]" : s;
+        return String.format("%-" + width + "s", on ? "[" + s + "]" : " " + s + " ");
     }
 
     /** For a check: the held ids, in order. */

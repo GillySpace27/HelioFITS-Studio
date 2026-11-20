@@ -390,13 +390,10 @@ final class ProjectionPaletteContent {
     // directly rather than by moving the sliders, because a slider already sitting at its
     // default fires no change event and would silently skip its half of the reset.
     private void resetProjectionControls() {
-        CMETracker.stop();
-        ViewState.setWarpLambda(1); // the identity member: no warp at all
-        Display.setWarpOuterRadius(0); // auto: the full loaded field
+        org.helioviewer.jhv.app.Commands.resetScaling(); // warp off, crop auto, 1x: the defaults the / canvas key falls back to
         Display.setDiskScale(Display.DEFAULT_DISK_SCALE); // the shipped default, not the raw anchor
         if (diskSlider != null)
             diskSlider.setValue(diskScaleToSlider(Display.DEFAULT_DISK_SCALE));
-        Display.resetViewportZoom();
 
         syncingFromTracker = true; // the widgets are following state here, not driving it
         try {
