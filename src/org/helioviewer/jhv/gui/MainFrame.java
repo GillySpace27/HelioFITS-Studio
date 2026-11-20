@@ -326,6 +326,7 @@ public final class MainFrame {
         // out to have one, because a frame that is not advancing and a frame that is advancing
         // slowly look the same without it.
         statusPanel.addPlugin(new org.helioviewer.jhv.gui.status.FramerateStatusPanel(), StatusPanel.Alignment.LEFT);
+        statusPanel.addPlugin(new org.helioviewer.jhv.gui.status.ControlStatusPanel(), StatusPanel.Alignment.LEFT); // zoom, warp, crop and the held canvas key
         statusPanel.addPlugin(new org.helioviewer.jhv.gui.status.ExportStatusPanel(), StatusPanel.Alignment.LEFT); // a movie export's progress
         statusPanel.addPlugin(new org.helioviewer.jhv.gui.status.PunchAgeStatusPanel(), StatusPanel.Alignment.LEFT);
         statusPanel.addPlugin(positionStatus, StatusPanel.Alignment.RIGHT);
