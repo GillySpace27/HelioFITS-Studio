@@ -31,7 +31,7 @@ import org.helioviewer.jhv.time.TimeUtils;
 public final class PunchClient {
 
     private static final String BASE_URL = "https://umbra.nascom.nasa.gov/punch";
-    private static final Pattern FILE_PATTERN = Pattern.compile("href=\"(PUNCH_L[0-9A-Z]_[A-Z0-9]{3}_(\\d{14})_v([0-9A-Za-z]+)\\.fits)\"");
+    static final Pattern FILE_PATTERN = Pattern.compile("href=\"(PUNCH_L[0-9A-Z]_[A-Z0-9]{3}_(\\d{14})_v([0-9A-Za-z]+)\\.fits)\"");
     public static final String LATEST_VERSION = "Latest"; // sentinel: newest pipeline version present in the range
     private static final Pattern DIR_PATTERN = Pattern.compile("href=\"([A-Z0-9]{2,4})/\"");
     private static final Pattern NUM_DIR_PATTERN = Pattern.compile("href=\"(\\d{2,4})/\"");
@@ -248,9 +248,7 @@ public final class PunchClient {
             // range; otherwise the exact version requested. Frames lacking that version are dropped
             // (gaps are preferable to mixing). Version strings are short and same-length (v0k < v0l),
             // so natural ordering gives the newest.
-            String target = (version == null || version.isBlank() || LATEST_VERSION.equals(version))
-                    ? all.stream().map(DataItem::version).max(Comparator.naturalOrder()).orElse(null)
-                    : version;
+            String target = targetVersion(all, version);
 
             // Keep the chosen version, newest-per-timestamp (each timestamp+version is unique here).
             TreeMap<Long, DataItem> found = new TreeMap<>();
@@ -287,6 +285,18 @@ public final class PunchClient {
             }
             Log.info("PUNCH parsed " + matched + " files from " + dirUrl);
         }
+    }
+
+    /**
+     * The one version a query keeps: the newest present for "Latest" (v0m over v0l), else the one asked for.
+     * The dialog offers "v0m" while a file name parses to "0m", so a leading "v" is dropped; comparing them
+     * as they were found 0 frames for every version picked by name.
+     */
+    static String targetVersion(List<DataItem> all, String version) {
+        if (version == null || version.isBlank() || LATEST_VERSION.equals(version))
+            return all.stream().map(DataItem::version).max(Comparator.naturalOrder()).orElse(null);
+        String v = version.trim();
+        return v.length() > 1 && (v.charAt(0) == 'v' || v.charAt(0) == 'V') ? v.substring(1) : v;
     }
 
     private PunchClient() {}

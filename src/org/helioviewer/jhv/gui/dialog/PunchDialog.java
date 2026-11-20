@@ -81,7 +81,7 @@ public class PunchDialog extends StandardDialog implements PunchClient.ReceiverI
     // Pipeline version to load: "Latest" picks the newest version in the range; a specific code
     // (e.g. v0l) loads only that version, so a movie is never a mix of calibrations. Editable so a
     // newly released version can be typed without a code change.
-    private final JComboBox<String> versionCombo = new JComboBox<>(new String[]{PunchClient.LATEST_VERSION, "v0k", "v0l"});
+    private final JComboBox<String> versionCombo = new JComboBox<>(new String[]{PunchClient.LATEST_VERSION, "v0k", "v0l", "v0m"});
     private final TimeSelectorPanel timeSelectorPanel = new TimeSelectorPanel();
     private final JList<PunchClient.DataItem> listPane = new JList<>();
     private final JLabel foundLabel = new JLabel("0 found", JLabel.RIGHT);
@@ -163,7 +163,7 @@ public class PunchDialog extends StandardDialog implements PunchClient.ReceiverI
         dataSelector.add(productCombo);
         dataSelector.add(cadenceCombo);
         versionCombo.setEditable(true);
-        versionCombo.setToolTipText("Pipeline version: \"Latest\" loads the newest version in the range; a specific code (e.g. v0l) loads only that version so a movie is never a mix of calibrations");
+        versionCombo.setToolTipText("Pipeline version: \"Latest\" loads the newest version in the range; a specific code (e.g. v0m) loads only that version so a movie is never a mix of calibrations");
         dataSelector.add(new JLabel("Version", JLabel.RIGHT));
         dataSelector.add(versionCombo);
         JButton searchButton = getSearchButton();
