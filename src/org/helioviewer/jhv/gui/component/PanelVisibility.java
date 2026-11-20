@@ -27,6 +27,7 @@ public final class PanelVisibility {
     public static final String STRIPE = "ui.visibility.stripe";
     public static final String NUMBERS = "ui.visibility.numbers";
     public static final String HOVER = "ui.visibility.hover";
+    public static final String SHADOW = "ui.visibility.shadow";
     public static final String SCROLLBAR = "ui.visibility.scrollbar";
 
     /** The scroll bar width Studio has always had, and the narrowest the slider offers. */
@@ -73,6 +74,16 @@ public final class PanelVisibility {
 
     public static boolean hover() {
         return on(HOVER);
+    }
+
+    /** A soft shadow under each top-level header, so a section lifts off the panel behind it. Off until ticked, unlike the rest. */
+    public static boolean shadow() {
+        return enabled() && "true".equals(Settings.getProperty(SHADOW));
+    }
+
+    /** Rows the shadow takes under a top-level header, 0 when there is none. */
+    public static int shadowHeight() {
+        return shadow() ? 5 : 0;
     }
 
     /** Width of the sidebars' and palettes' scroll bars in pixels: wide enough to grab for those who scroll by dragging. */
