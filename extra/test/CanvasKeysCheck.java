@@ -49,7 +49,7 @@ public final class CanvasKeysCheck {
         boolean distinct = true;
         for (CanvasKeys.Cmd c : CanvasKeys.ALL)
             distinct &= seen.add(CanvasKeys.key(c.id()));
-        expect("every canvas key starts on its own key", distinct && CanvasKeys.ALL.size() == 20);
+        expect("every canvas key starts on its own key", distinct && CanvasKeys.ALL.size() == 21 && CanvasKeys.key("canvasToggleTool") == KeyEvent.VK_T);
         expect("W S A D Q E turn; [ and ] zoom; G the grid; R resets; Cmd+Right and Cmd+Left set the rate",
                 CanvasKeys.key("canvasPitchUp") == KeyEvent.VK_W && CanvasKeys.key("canvasYawRight") == KeyEvent.VK_D
                         && CanvasKeys.key("canvasRollLeft") == KeyEvent.VK_Q && CanvasKeys.key("canvasZoomIn") == KeyEvent.VK_OPEN_BRACKET && CanvasKeys.key("canvasZoomOut") == KeyEvent.VK_CLOSE_BRACKET

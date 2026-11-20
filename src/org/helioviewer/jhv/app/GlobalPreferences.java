@@ -350,7 +350,7 @@ public final class GlobalPreferences {
             return v.isEmpty() || v.equals("none") || keystroke(v) ? null : "'" + value + "' is not a keystroke";
         }
         if (key.startsWith("canvasKeys.") && !key.equals("canvasKeys.invert") && !key.equals("canvasKeys.degreesPerSecond")
-                && !key.startsWith("canvasKeys.pan")) {
+                && !key.startsWith("canvasKeys.pan") && !key.equals("canvasKeys.toolMomentary")) {
             String v = value.strip();
             return v.isEmpty() || v.equals("none") || KeyBindings.keyCode(v) != 0 ? null : "'" + value + "' is not a key name";
         }
