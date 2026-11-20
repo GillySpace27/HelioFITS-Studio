@@ -203,6 +203,11 @@ public final class CometEphemeris {
 
     // Fetching and the cache
 
+    /** What {@link #fetch} and {@link #fetchBody} ask for: {@code [start, end]} widened by {@link #PAD} each side. */
+    public static long[] window(long start, long end) {
+        return new long[]{start - PAD, end + PAD};
+    }
+
     private record Request(String command, String designation, String label, String slug, long perihelion, long start, long end) {}
 
     /** The comet over {@code [start, end]} padded by {@link #PAD} each side; cached. Off the event thread. */
@@ -214,7 +219,7 @@ public final class CometEphemeris {
         double q = comet.perihelionRsun();
         long tp = comet.perihelion();
         Request r = new Request("DES=" + comet.designation() + "; CAP; NOFRAG;", comet.designation(), comet.label(),
-                slug(comet.designation()), tp, start - PAD, end + PAD);
+                slug(comet.designation()), tp, window(start, end)[0], window(start, end)[1]);
         CometEphemeris e = load(r, q, segments(q, tp, r.start(), r.end()), refresh, now, horizons);
         if (tp <= 0 || !Double.isFinite(q))
             return e.withNote(COARSE);
@@ -232,7 +237,7 @@ public final class CometEphemeris {
     }
 
     static CometEphemeris fetchBody(String command, String label, long start, long end, boolean refresh, long now, Source horizons) throws IOException {
-        Request r = new Request(command, command, label, "body" + slug(command), 0, start - PAD, end + PAD);
+        Request r = new Request(command, command, label, "body" + slug(command), 0, window(start, end)[0], window(start, end)[1]);
         return load(r, Double.NaN, List.of(bodySegment(r.start(), r.end())), refresh, now, horizons);
     }
 

@@ -26,6 +26,7 @@ import org.helioviewer.jhv.display.MapMode;
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.Palette;
 import org.helioviewer.jhv.gui.component.RightSidebar;
+import org.helioviewer.jhv.layers.CometLayer;
 import org.helioviewer.jhv.layers.ImageLayers;
 import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.thread.Task;
@@ -127,6 +128,17 @@ public final class CometTrackPanel extends JPanel implements TimeListener.Range 
         trackCropButton.setToolTipText("Animate the outer radial crop instead, holding λ: the field of view opens and closes to follow the comet");
         trackCropButton.addActionListener(e -> trackSelected(CMETracker.Mode.CROP));
 
+        JButton showButton = new JButton("Show in scene");
+        showButton.setName("cometShowInScene");
+        showButton.setToolTipText("Add this comet to the scene as a layer: a ring in each image that shows it, where that image's spacecraft saw it at that image's time");
+        showButton.addActionListener(e -> {
+            Comets.Comet comet = selected();
+            if (comet == null)
+                status.setText("Pick a comet in the list first.");
+            else
+                CometLayer.show(comet);
+        });
+
         JButton cancelButton = new JButton("Cancel");
         cancelButton.setToolTipText("Stop tracking and put the warp (λ) and crop back as they were before it started");
         cancelButton.addActionListener(e -> CMETracker.cancel());
@@ -137,6 +149,7 @@ public final class CometTrackPanel extends JPanel implements TimeListener.Range 
         buttons.add(refreshButton);
         buttons.add(trackWarpButton);
         buttons.add(trackCropButton);
+        buttons.add(showButton);
         // Beside the status, as in the CME panel: the button row already fills a narrow sidebar.
         JPanel top = new JPanel(new BorderLayout());
         top.add(status, BorderLayout.CENTER);
