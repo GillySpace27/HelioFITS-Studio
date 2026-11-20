@@ -325,13 +325,11 @@ public class PunchDialog extends StandardDialog implements PunchClient.ReceiverI
         if (!productsDownloaded && levelCombo.getSelectedItem() instanceof String level)
             PunchClient.submitGetProducts(this, level);
 
-        // Preset the main window's time range so it does not have to be retyped. If nothing sets a
-        // usable range, the time selector defaults to "now", which is past the public archive's
-        // coverage for PUNCH; the coverage probe below then falls back to the archive's latest day.
-        if (start > TimeUtils.START.milli && end > start) {
-            timeSelectorPanel.setTime(start, end);
-            rangeUserChanged = true; // honor the range even if coverage comes back later
-        }
+        // Preset the main window's time range so it does not have to be retyped, every time. This
+        // used to require start > TimeUtils.START, the moment the app launched, so any range in the
+        // past (every range with data in it) was dropped and the dialog kept whatever it last held.
+        timeSelectorPanel.setTime(start, end);
+        rangeUserChanged = true; // honor the range even if coverage comes back later
         applyRequestCadence(cadenceSec); // inherit the Layers-section "time step" so it is actually respected
         coverageLabel.setText("Checking archive coverage...");
         if (levelCombo.getSelectedItem() instanceof String level && productCombo.getSelectedItem() instanceof String product)
