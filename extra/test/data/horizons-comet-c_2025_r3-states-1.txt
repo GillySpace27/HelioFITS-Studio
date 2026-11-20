@@ -1,0 +1,130 @@
+
+Calling TDBMUT with LBND,LMJD= 0.829733160000000E+09  0.611478930555555E+05
+Calling TDBMUT with LBND,LMJD= 0.829819560000000E+09  0.611488930555555E+05
+Calling TDBMUT with LBND,LMJD= 0.829905960000000E+09  0.611498930555555E+05
+Calling TDBMUT with LBND,LMJD= 0.829992360000000E+09  0.611508930555555E+05
+Calling TDBMUT with LBND,LMJD= 0.830078760000000E+09  0.611518930555555E+05
+Calling TDBMUT with LBND,LMJD= 0.830165160000000E+09  0.611528930555555E+05
+
+*******************************************************************************
+Ephemeris / API_USER Fri Nov 20 09:58:08 2026 Pasadena, USA      / Horizons
+*******************************************************************************
+Target body name: PANSTARRS (C/2025 R3)           {source: JPL#33}
+Center body name: Sun (10)                        {source: DE441}
+Center-site name: BODY CENTER
+*******************************************************************************
+Start time      : A.D. 2026-Apr-17 21:26:00.0000 UT 
+Stop  time      : A.D. 2026-Apr-22 21:26:00.0000 UT 
+Step-size       : 1440 minutes
+*******************************************************************************
+Center geodetic : 0.0, 0.0, 0.0                   {E-lon(deg),Lat(deg),Alt(km)}
+Center cylindric: 0.0, 0.0, 0.0                   {E-lon(deg),Dxy(km),Dz(km)}
+Center radii    : 695700.0, 695700.0, 695700.0 km {Equator_a, b, pole_c}
+Small perturbers: Yes                             {source: SB441-N16}
+Output units    : KM-S
+Calendar mode   : Mixed Julian/Gregorian
+Output type     : GEOMETRIC cartesian states
+Output format   : 2 (position and velocity)
+EOP file        : eop.261119.p270215
+EOP coverage    : DATA-BASED 1962-JAN-20 TO 2026-NOV-19. PREDICTS-> 2027-FEB-14
+Reference frame : Ecliptic of J2000.0
+*******************************************************************************
+Initial IAU76/J2000 heliocentric ecliptic osculating elements (au, days, deg.):
+  EPOCH=  2461063.5 ! 2026-Jan-23.0000000 (TDB)    RMSW= n.a.                  
+   EC= 1.000350131023512   QR= .4986121756264827   TP= 2461150.3942897641      
+   OM= 38.69354317688004   W= 162.2256025088725    IN= 124.7309943318079       
+  Equivalent ICRF heliocentric cartesian coordinates (au, au/d):
+   X= 1.431408249615130E+00  Y=-2.308823533558285E-01  Z= 1.052852264647276E+00
+  VX=-1.533837929439934E-02 VY=-6.861849339110937E-03 VZ=-6.938540806565680E-03
+Comet physical (GM= km^3/s^2; RAD= km):                                        
+   GM= n.a.                RAD= n.a.                                           
+   M1=  11.7     M2=  15.6     k1=  11.25  k2=  5.      PHCOF=  .030           
+*******************************************************************************
+            JDUT ,            Calendar Date (UT ),                      X,                      Y,                      Z,                     VX,                     VY,                     VZ,
+**************************************************************************************************************************************************************************************************
+$$SOE
+2461148.393055555, A.D. 2026-Apr-17 21:26:00.0000, -4.116024658555941E+07, -5.666637658088586E+07,  2.668012943756920E+07, -3.688397705049157E+01,  1.081595424621375E+01, -4.543925981734466E+01,
+2461149.393055555, A.D. 2026-Apr-18 21:26:00.0000, -4.429714244572415E+07, -5.566530711665669E+07,  2.272420913031252E+07, -3.571294857192034E+01,  1.235511711874074E+01, -4.611611229768309E+01,
+2461150.393055555, A.D. 2026-Apr-19 21:26:00.0000, -4.732875027294190E+07, -5.453194314369337E+07,  1.871429214552754E+07, -3.444846462651989E+01,  1.387585518367638E+01, -4.668794242216168E+01,
+2461151.393055555, A.D. 2026-Apr-20 21:26:00.0000, -5.024747172197243E+07, -5.326851212134316E+07,  1.465973851812758E+07, -3.310191360731193E+01,  1.536353688085125E+01, -4.714854716088777E+01,
+2461152.393055555, A.D. 2026-Apr-21 21:26:00.0000, -5.304677999691093E+07, -5.187847615470882E+07,  1.057033199685901E+07, -3.168662575864471E+01,  1.680431280311515E+01, -4.749435525830206E+01,
+2461153.393055555, A.D. 2026-Apr-22 21:26:00.0000, -5.572136377264957E+07, -5.036643978919315E+07,  6.456046443867696E+06, -3.021730398552239E+01,  1.818567271915721E+01, -4.772454106795716E+01,
+$$EOE
+**************************************************************************************************************************************************************************************************
+ 
+TIME
+
+ Times PRIOR to 1962 are UT1, a mean-solar time closely related to the
+prior but now-deprecated GMT. Times AFTER 1962 are in UTC, the current
+civil or "wall-clock" atomic time-scale. UTC is kept within 0.9 seconds
+of UT1 using integer leap-seconds for 1972 and later years.
+
+  Conversion from the internal Barycentric Dynamical Time (TDB) of solar
+system dynamics to the discontinuous civil UT time-scale has not been
+determined for UTC times after the next July or January 1st. Therefore,
+the last known leap-second is used as a constant over future intervals,
+a condition noted here as "UT~".
+
+  Future but as yet undetermined leap-seconds can be expected to change
+time-tags in the "UT~" interval and, in general, the UT scale may not be
+suitable for purposes that assume time-tag continuity in the ephemeris.
+Output in continuous TDB and TT timescales may instead be requested,
+though these are not linked to Earth's rotation.
+
+  Time-tags refer to the UT time-scale conversion from TDB on Earth
+regardless of observer location within the solar system, although clock
+rates may differ due to the local gravity field and no analog to "UT"
+may be defined for that location.
+ 
+CALENDAR SYSTEM
+
+  Mixed calendar mode was active such that calendar dates after AD 1582-Oct-15
+(if any) are in the modern Gregorian system. Dates prior to 1582-Oct-5 (if any)
+are in the Julian calendar system, which is automatically extended for dates
+prior to its adoption on 45-Jan-1 BC.  The Julian calendar is useful for
+matching historical dates. The Gregorian calendar more accurately corresponds
+to the Earth's orbital motion and seasons. A "Gregorian-only" calendar mode is
+available if such physical events are the primary interest.
+
+REFERENCE FRAME AND COORDINATES
+
+  Ecliptic at the standard reference epoch
+
+    Reference epoch: J2000.0
+    X-Y plane: adopted Earth orbital plane at the reference epoch
+               Note: IAU76 obliquity of 84381.448 arcseconds wrt ICRF X-Y plane
+    X-axis   : ICRF
+    Z-axis   : perpendicular to the X-Y plane in the directional (+ or -) sense
+               of Earth's north pole at the reference epoch.
+
+  Symbol meaning:
+
+    JDUT     Julian Day Number, Universal Time
+      X      X-component of position vector (km)
+      Y      Y-component of position vector (km)
+      Z      Z-component of position vector (km)
+      VX     X-component of velocity vector (km/sec)                           
+      VY     Y-component of velocity vector (km/sec)                           
+      VZ     Z-component of velocity vector (km/sec)                           
+
+ABERRATIONS AND CORRECTIONS
+
+ Geometric state vectors have NO corrections or aberrations applied.
+
+Computations by ...
+
+    Solar System Dynamics Group, Horizons On-Line Ephemeris System
+    4800 Oak Grove Drive, Jet Propulsion Laboratory
+    Pasadena, CA  91109   USA
+
+    General site: https://ssd.jpl.nasa.gov/
+    Mailing list: https://ssd.jpl.nasa.gov/email_list.html
+    System news : https://ssd.jpl.nasa.gov/horizons/news.html
+    User Guide  : https://ssd.jpl.nasa.gov/horizons/manual.html
+    Connect     : browser        https://ssd.jpl.nasa.gov/horizons/app.html#/x
+                  API            https://ssd-api.jpl.nasa.gov/doc/horizons.html
+                  command-line   telnet ssd.jpl.nasa.gov 6775
+                  e-mail/batch   https://ssd.jpl.nasa.gov/ftp/ssd/horizons_batch.txt
+                  scripts        https://ssd.jpl.nasa.gov/ftp/ssd/SCRIPTS
+    Inquiries   : Jon.D.Giorgini@jpl.nasa.gov
+*******************************************************************************
