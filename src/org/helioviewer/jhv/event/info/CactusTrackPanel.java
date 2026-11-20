@@ -26,6 +26,7 @@ import org.helioviewer.jhv.event.SWEKCatalog;
 import org.helioviewer.jhv.event.SWEKDownloader;
 import org.helioviewer.jhv.event.SWEKSupplier;
 import org.helioviewer.jhv.event.SolarEvent;
+import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.RightSidebar;
 import org.helioviewer.jhv.gui.component.Palette;
 import org.helioviewer.jhv.movie.Player;
@@ -67,6 +68,7 @@ public final class CactusTrackPanel extends JPanel implements EventListener.Hand
                 instance.ensureCactusLoaded();
                 instance.reload();
             });
+            palette.setIcon(Buttons.trackCme);
             palette.restoreHome(RightSidebar.getInstance());
         }
         return palette;

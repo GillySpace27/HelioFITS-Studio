@@ -91,7 +91,7 @@ class CellRenderer {
      *
      * <p>Six dots say "pick me up". A selected row is already tinted, and a tint alone is read as
      * hover or as a format wash, so the grip also gets a solid bar down the row's left edge and a
-     * small arrow on its right, in the selection foreground so they stand out against the tint
+     * large arrow on its right, in the selection foreground so they stand out against the tint
      * in both themes. Sizes come from the row height, so they follow UIScale.
      */
     static final class Handle extends DefaultTableCellRenderer {
@@ -122,15 +122,17 @@ class CellRenderer {
             int h = getHeight(), w = getWidth();
             int d = Math.max(2, h / 9); // dot size
             int gap = d;
-            int gx = (w - (2 * d + gap)) / 2 + (selected ? d / 2 : 0);
+            int t = Math.max(4, h * 3 / 10); // the arrow's half-height
+            // Selected, the grip moves left to give the arrow the right half of the cell.
+            int gx = selected ? Math.max(3, h / 8) + 2 : (w - (2 * d + gap)) / 2;
             int gy = (h - (3 * d + 2 * gap)) / 2;
             for (int r = 0; r < 3; r++)
                 for (int c = 0; c < 2; c++)
                     g2.fillOval(gx + c * (d + gap), gy + r * (d + gap), d, d);
             if (selected) {
                 g2.fillRect(0, 0, Math.max(3, h / 8), h); // the bar
-                int t = Math.max(3, h / 6); // the arrow
-                g2.fillPolygon(new int[]{w - t - 1, w - t - 1, w - 1}, new int[]{h / 2 - t, h / 2 + t, h / 2}, 3);
+                // The arrow: tall and solid, pointing at the controls for this row, which a small one did not (Gilly, 2026-11-19).
+                g2.fillPolygon(new int[]{w - t - 2, w - t - 2, w - 1}, new int[]{h / 2 - t, h / 2 + t, h / 2}, 3);
             }
             g2.dispose();
         }

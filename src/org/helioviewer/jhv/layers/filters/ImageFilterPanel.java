@@ -6,6 +6,7 @@ import java.awt.Component;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
 
+import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
@@ -14,7 +15,9 @@ import javax.swing.JPanel;
 import javax.swing.event.PopupMenuEvent;
 import javax.swing.event.PopupMenuListener;
 
+import org.helioviewer.jhv.app.Theme;
 import org.helioviewer.jhv.display.DisplayController;
+import org.helioviewer.jhv.gui.UIGlobals;
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.JHVSlider;
 import org.helioviewer.jhv.gui.component.SplitButton;
@@ -33,7 +36,11 @@ public final class ImageFilterPanel implements FilterDetails {
 
     private final JPanel filterPanel = new JPanel(new BorderLayout());
     private final JPanel buttonPanel = new JPanel(new BorderLayout());
-    private final JLabel title = new JLabel("Filter ", JLabel.RIGHT);
+    // The per-frame filter (RHEF above all) is the feature people come for, and as one plain row among
+    // Levels, Contrast and Sharpen it went unfound (Gilly, 2026-11-19). It keeps its place in the pipeline
+    // order; what changes is how it looks: its glyph, a bold title in the accent colour, and the controls
+    // ringed in the same colour.
+    private final JLabel title = new JLabel("Filter ", Buttons.sequenceFilter.derive(16), JLabel.RIGHT);
     private JComboBox<ImageFilter.Type> filterCombo;
     private ImageLayer layer;
     // The chain below the first filter: one row per stage, then "add". Rebuilt whenever the layer's chain or first filter differs from what is shown.
@@ -134,6 +141,7 @@ public final class ImageFilterPanel implements FilterDetails {
         } finally {
             syncing = was;
         }
+        seeThrough(chainPanel);
         chainPanel.revalidate();
         chainPanel.repaint();
         java.awt.Container parent = filterPanel.getParent();
@@ -214,6 +222,20 @@ public final class ImageFilterPanel implements FilterDetails {
         return row;
     }
 
+    /** Plain panels inside the ring let its tint through. */
+    private static void seeThrough(JPanel panel) {
+        panel.setOpaque(false);
+        for (Component c : panel.getComponents())
+            if (c instanceof JPanel p)
+                seeThrough(p);
+    }
+
+    /** The theme's accent, pulled until it reads against the panel. */
+    private static java.awt.Color accent() {
+        Theme theme = Theme.current();
+        return Theme.legibleOn(theme.get(Theme.Token.Accent), theme.get(Theme.Token.Background), Theme.STRONG_TEXT_MIN);
+    }
+
     private static String formatLabel(double value) {
         return String.format("%.1f", value);
     }
@@ -257,6 +279,30 @@ public final class ImageFilterPanel implements FilterDetails {
         filterCombo = new JComboBox<>(ImageFilter.Type.values());
         filterCombo.setSelectedItem(layer.getFilter());
         filterCombo.setToolTipText(layer.getFilter().description);
+        filterCombo.getAccessibleContext().setAccessibleName("Filter");
+        // "None" alone says nothing about what there is to choose; a renderer only, so names stay what sessions store.
+        filterCombo.setRenderer(new javax.swing.DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(javax.swing.JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value == ImageFilter.Type.None)
+                    setText("None (try RHEF)");
+                return this;
+            }
+        });
+        title.setLabelFor(filterCombo);
+        UIGlobals.themed(title, c -> {
+            java.awt.Font bold = UIGlobals.uiFontBold; // null before the look-and-feel, as in the headless checks
+            if (bold != null)
+                c.setFont(bold.deriveFont(bold.getSize2D() + 1));
+            c.setForeground(accent());
+        });
+        UIGlobals.themed(filterPanel, c -> {
+            c.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(accent(), 2, true), BorderFactory.createEmptyBorder(2, 2, 2, 2)));
+            Theme theme = Theme.current();
+            c.setBackground(Theme.mix(theme.get(Theme.Token.Background), theme.get(Theme.Token.Accent), 0.14));
+        });
 
         JPanel enhancePanel = createEnhancePanel(layer);
         SplitButton enhanceButton = new SplitButton(Buttons.corona);
@@ -366,6 +412,7 @@ public final class ImageFilterPanel implements FilterDetails {
         JPanel firstRow = new JPanel(new BorderLayout());
         firstRow.add(filterCombo, BorderLayout.CENTER);
         firstRow.add(upsilonButton, BorderLayout.LINE_END);
+        firstRow.setOpaque(false);
         chainPanel.setLayout(new BoxLayout(chainPanel, BoxLayout.PAGE_AXIS));
         filterPanel.add(firstRow, BorderLayout.PAGE_START);
         filterPanel.add(chainPanel, BorderLayout.CENTER);

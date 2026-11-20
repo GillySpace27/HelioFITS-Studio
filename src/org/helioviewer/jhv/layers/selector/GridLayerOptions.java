@@ -248,8 +248,12 @@ public final class GridLayerOptions extends JPanel {
         c.gridwidth = 1;
 
         JPanel rows = new JPanel(new GridBagLayout());
+        addAdjustmentRow(rows, "Color ", createPlanetColorBox(layer), 0);
+        JHVSlider size = createScaleSlider(layer.getPlanetScale(), layer::setPlanetScale);
+        size.setToolTipText("Size of the planet markers, from a quarter to four times the default");
+        addAdjustmentRow(rows, "Marker size ", size, 1);
         addAdjustmentRow(rows, "Orbit opacity ",
-                createOpacitySlider(layer.getPlanetOrbitAlpha(), layer::setPlanetOrbitAlpha), 0);
+                createOpacitySlider(layer.getPlanetOrbitAlpha(), layer::setPlanetOrbitAlpha), 2);
 
         c.gridy = 2;
         c.gridx = 0;
@@ -294,6 +298,21 @@ public final class GridLayerOptions extends JPanel {
         comboBox.setRenderer(new ColorRenderer());
         comboBox.addActionListener(e ->
                 setter.accept((Colors) Objects.requireNonNull(comboBox.getSelectedItem())));
+        return comboBox;
+    }
+
+    /** Each planet in its own colour (the first item), or every marker in one. */
+    static final String PLANET_OWN_COLORS = "Each its own";
+
+    private static JComboBox<Object> createPlanetColorBox(GridLayer layer) {
+        JComboBox<Object> comboBox = new JComboBox<>();
+        comboBox.addItem(PLANET_OWN_COLORS);
+        for (Colors c : Colors.values())
+            comboBox.addItem(c);
+        comboBox.setSelectedItem(layer.getPlanetColor() == null ? PLANET_OWN_COLORS : layer.getPlanetColor());
+        comboBox.setToolTipText("Colour of the planet markers: each planet's own, or one for all of them");
+        comboBox.setRenderer(new ColorRenderer());
+        comboBox.addActionListener(e -> layer.setPlanetColor(comboBox.getSelectedItem() instanceof Colors c ? c : null));
         return comboBox;
     }
 

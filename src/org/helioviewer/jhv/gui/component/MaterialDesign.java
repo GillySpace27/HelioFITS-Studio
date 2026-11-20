@@ -38,6 +38,7 @@ enum MaterialDesign {
     INFORMATION_VARIANT("mdi-information-variant", '\uf64e'),
     INVERT_COLORS("mdi-invert-colors", '\uf301'),
     LOCK("mdi-lock", '\uf33e'),
+    METEOR("mdi-meteor", '\uf629'), // a body trailing its tail, for Track comet; checked in the shipped font's cmap and post tables
     OPEN_IN_NEW("mdi-open-in-new", '\uf3cc'),
     PAGE_LAYOUT_SIDEBAR_LEFT("mdi-page-layout-sidebar-left", '\uf6fc'), // a window with its left panel marked; rasterized from the shipped font
     PAGE_LAYOUT_SIDEBAR_RIGHT("mdi-page-layout-sidebar-right", '\uf6fd'), // a box with an arrow leaving it; verified against the shipped font's cmap
