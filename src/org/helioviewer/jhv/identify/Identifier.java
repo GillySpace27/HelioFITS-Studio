@@ -172,7 +172,21 @@ public final class Identifier {
     }
 
     private static Qualifier qualifier(Target t, Bodies.Body body, Vec3 bodyDir, double range, double elongation, double sunAngR) {
-        if (!body.name().equals("Sun") && range > t.observer().distance && elongation < sunAngR)
+        return qualify(t, bodyDir, range, elongation, sunAngR, body.name().equals("Sun"));
+    }
+
+    /**
+     * Why something at unit sight line {@code dir} (the layer observer's frame) and {@code range}
+     * solar radii from the observer might not show in that layer's image: the body rules, for any
+     * object (the comet's rings use them).
+     */
+    public static Qualifier qualify(Target t, Vec3 dir, double range, boolean isSun) {
+        double sunAngR = Math.asin(Math.min(1, Sun.Radius / t.observer().distance));
+        return qualify(t, unit(dir), range, angle(unit(dir), new Vec3(0, 0, -1)), sunAngR, isSun);
+    }
+
+    private static Qualifier qualify(Target t, Vec3 bodyDir, double range, double elongation, double sunAngR, boolean isSun) {
+        if (!isSun && range > t.observer().distance && elongation < sunAngR)
             return Qualifier.BEHIND_SUN;
         if (t.wcs() == null || t.region() == null)
             return Qualifier.NONE;
@@ -182,7 +196,7 @@ public final class Identifier {
         double r = Math.hypot(hpc.x, hpc.y);
         if (r > t.outerRadius())
             return Qualifier.OUTSIDE_FIELD;
-        if (r < t.innerRadius() && !body.name().equals("Sun"))
+        if (r < t.innerRadius() && !isSun)
             return Qualifier.OCCULTED;
         return inField(t.wcs(), t.region(), bodyDir) ? Qualifier.NONE : Qualifier.OUTSIDE_FIELD;
     }
