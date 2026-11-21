@@ -48,8 +48,10 @@ final class StorageTab extends JPanel {
         c.gridy = 2;
         add(note, c);
         c.gridy = 3;
-        add(otherInstalls(), c);
+        add(cacheCap(), c);
         c.gridy = 4;
+        add(otherInstalls(), c);
+        c.gridy = 5;
         c.weighty = 1;
         c.fill = GridBagConstraints.BOTH;
         add(new JLabel(), c);
@@ -83,6 +85,24 @@ final class StorageTab extends JPanel {
         p.add(on);
         p.add(add);
         p.add(found);
+        return p;
+    }
+
+    /** Optional cap on the download cache; blank means none. Applied at once and at each launch. */
+    private static JPanel cacheCap() {
+        JPanel p = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT));
+        p.setBorder(javax.swing.BorderFactory.createTitledBorder("Download cache limit"));
+        String now = org.helioviewer.jhv.app.Settings.getProperty(org.helioviewer.jhv.io.CacheCap.KEY);
+        javax.swing.JTextField gb = new javax.swing.JTextField(now == null ? "" : now, 5);
+        JButton apply = new JButton("Apply");
+        apply.addActionListener(e -> {
+            org.helioviewer.jhv.app.Settings.setProperty(org.helioviewer.jhv.io.CacheCap.KEY, gb.getText().trim());
+            Task.submitBackground("cache-cap", () -> { org.helioviewer.jhv.io.CacheCap.enforce(); return null; }, r -> {}, (ctx, t) -> {});
+        });
+        p.add(new JLabel("Keep at most"));
+        p.add(gb);
+        p.add(new JLabel("GB (blank: no limit). Oldest files go first; files a saved session uses are kept."));
+        p.add(apply);
         return p;
     }
 
