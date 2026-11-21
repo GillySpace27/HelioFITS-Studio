@@ -62,5 +62,25 @@ public final class CometStyle {
         return new int[]{v >> 16 & 0xFF, v >> 8 & 0xFF, v & 0xFF};
     }
 
+    /** A comet mark's colour: its layer's, or null (not a comet a layer draws: the kind colour applies). */
+    @Nullable
+    public static int[] rgbFor(Mark m) {
+        if (m.kind() != Kind.COMET)
+            return null;
+        org.helioviewer.jhv.layers.CometLayer layer = CometMarks.layerOf(CometMarks.family(m), CometMarks.layers());
+        return layer == null ? null : layer.rgb();
+    }
+
+    /** Whether Identify has {@code designation} hovered or selected now, so its layer lights the dot. */
+    public static boolean lit(String designation) {
+        if (!IdentifySettings.enabled())
+            return false;
+        String family = CometMarks.PREFIX + designation;
+        for (Mark m : IdentifyGlow.hoverMarks())
+            if (CometMarks.family(m).equals(family))
+                return true;
+        return false;
+    }
+
     private CometStyle() {}
 }
