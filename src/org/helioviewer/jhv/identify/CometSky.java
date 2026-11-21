@@ -23,6 +23,8 @@ import org.helioviewer.jhv.movie.Player;
  * That is exact for LASCO, within about a percent of parallax for anything else on the Sun-Earth
  * line (AIA, PUNCH), and wrong for STEREO or Solar Orbiter; see {@link Comets}. The search runs once
  * per movie range in the background, the first time the switch is on, and needs the network.
+ *
+ * <p>A comet with a comet layer on is left to {@link CometMarks}, which places it per image.
  */
 public final class CometSky implements Drawn.Source {
 
@@ -46,7 +48,7 @@ public final class CometSky implements Drawn.Source {
         long now = mv.viewpoint().time.milli;
         List<Drawn.Hit> out = new ArrayList<>();
         for (Tracked t : current()) {
-            if (!inTrack(t, now))
+            if (!shown(t, now))
                 continue;
             double radius = t.track().radius(now), pa = t.track().positionAngle(now);
             Drawn.Hit h = Drawn.planeOfSky(vp, mv, x, y, tolerancePixels, t.comet().label(), "comet, JPL ephemeris for SOHO", radius, pa);
@@ -61,9 +63,14 @@ public final class CometSky implements Drawn.Source {
         long now = mv.viewpoint().time.milli;
         List<Mark> out = new ArrayList<>();
         for (Tracked t : current())
-            if (inTrack(t, now))
+            if (shown(t, now))
                 out.add(mark(t));
         return out;
+    }
+
+    /** Named and marked here: on its sampled track, and not drawn by a comet layer (CometMarks names that one, per image). */
+    static boolean shown(Tracked t, long now) {
+        return inTrack(t, now) && !CometMarks.ownsDesignation(t.comet().designation());
     }
 
     private static boolean inTrack(Tracked t, long now) {

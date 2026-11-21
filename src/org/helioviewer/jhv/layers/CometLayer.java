@@ -26,6 +26,7 @@ import org.helioviewer.jhv.layers.selector.LayerOptions;
 import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.metadata.FitsMetaData;
 import org.helioviewer.jhv.metadata.MetaData;
+import org.helioviewer.jhv.movie.ExportMovie;
 import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.opengl.BufVertex;
 import org.helioviewer.jhv.opengl.GL;
@@ -75,6 +76,8 @@ public final class CometLayer extends AbstractLayer {
     /** The longest orbit window, whole days: three years (estimate), unless the movie itself is longer. */
     static final long MAX_WINDOW = 1096 * DAY;
     private static final double DOT_FRACTION = 0.012; // of the camera width, as GridLayer's planets
+    private static final double HALO = 2.5; // the lit dot's halo, times the dot (judgement)
+    private static final int HALO_ALPHA = 90;
 
     private final Comets.Comet comet;
     private int[] rgb;
@@ -98,7 +101,7 @@ public final class CometLayer extends AbstractLayer {
     private final GLSLLine orbitLine = new GLSLLine(false);
     private final BufVertex orbitBuf = new BufVertex(4096);
     private final GLSLShape dot = new GLSLShape(false);
-    private final BufVertex dotBuf = new BufVertex(1);
+    private final BufVertex dotBuf = new BufVertex(2);
     @Nullable
     private CometEphemeris builtPath;
     private long builtFrame = Long.MIN_VALUE;
@@ -348,6 +351,54 @@ public final class CometLayer extends AbstractLayer {
 
     private record Row(Identifier.Target target, String observatory) {}
 
+    /** The observatory of the image layer named {@code name}, or "" (no such layer, or not FITS). */
+    static String observatory(String name) {
+        for (ImageLayer layer : Layers.getImageLayers()) {
+            View.ImageData data = layer.getImageData();
+            if (data != null && layer.getName().equals(name))
+                return data.metaData() instanceof FitsMetaData f ? f.getObservatory() : "";
+        }
+        return "";
+    }
+
+    // For Identify (CometMarks): the same answers the drawing uses
+
+    /**
+     * Where this comet's ring is in {@code t}'s image, as {@link #renderFloat} places it (that
+     * image's observer, metadata and time, the time mode, light time), or null where it draws none.
+     */
+    @Nullable
+    public Vec3 ringDirection(Identifier.Target t) {
+        CometEphemeris p = path, s = soho;
+        if (p == null || !showRings)
+            return null;
+        CometSight.Look look = CometSight.look(p::world, t, observatory(t.name()), s == null ? null : s::world, lightTime, DisplaySettings.getTimeMode());
+        return look.drawn() ? look.sight().dir() : null;
+    }
+
+    /** Where the dot is drawn at {@code time} (geometric, world frame at that time), or null. */
+    @Nullable
+    public Vec3 positionAt(JHVTime time) {
+        CometEphemeris p = path;
+        return p == null ? null : p.world(time.milli, time);
+    }
+
+    /** The ring's radius on the canvas, pixels. */
+    public static double ringRadiusOnScreen() {
+        return ringRadiusPx(Display.pixelScale[1], Display.captureScale);
+    }
+
+    /** The dot's drawn radius in solar radii, for a camera {@code cameraWidth} wide. */
+    public static double dotRadius(double cameraWidth) {
+        return DOT_FRACTION * cameraWidth / 2;
+    }
+
+    /** A signature of what decides this comet's marks, for Identify's frame cache. */
+    public String identifySignature() {
+        return comet.designation() + ',' + isEnabled() + ',' + showRings + ',' + showDot + ',' + lightTime + ','
+                + System.identityHashCode(path) + ',' + System.identityHashCode(soho) + ',' + CometStyle.hex(rgb);
+    }
+
     /** The image layers visible in {@code vp}, each as the identifier's target, with its observatory. */
     private static List<Row> targets(Viewport vp) {
         List<Row> out = new ArrayList<>();
@@ -486,6 +537,9 @@ public final class CometLayer extends AbstractLayer {
         Vec3 w = showDot && cameraWidth > 0 ? p.world(now.milli, now) : null; // geometric: where it is, not where it was seen
         if (w == null)
             return;
+        if (CometStyle.lit(comet.designation()) && !ExportMovie.isRecording()) // Identify's highlight, never in a recording
+            dotBuf.putVertex((float) w.x, (float) w.y, (float) w.z, (float) (HALO * DOT_FRACTION * cameraWidth),
+                    new byte[]{(byte) rgb[0], (byte) rgb[1], (byte) rgb[2], (byte) HALO_ALPHA});
         dotBuf.putVertex((float) w.x, (float) w.y, (float) w.z, (float) (DOT_FRACTION * cameraWidth),
                 new byte[]{(byte) rgb[0], (byte) rgb[1], (byte) rgb[2], (byte) 255});
         dot.uploadAndClear(dotBuf);
