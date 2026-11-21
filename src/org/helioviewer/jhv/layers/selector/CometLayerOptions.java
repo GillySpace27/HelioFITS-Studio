@@ -12,13 +12,16 @@ import javax.swing.JCheckBox;
 import javax.swing.JColorChooser;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JSpinner;
+import javax.swing.SpinnerNumberModel;
 import javax.swing.Timer;
 
 import org.helioviewer.jhv.layers.CometLayer;
 
 /**
- * A comet layer's options: colour, the rings in each image, light time, Refresh, and status lines
- * saying where the path came from and, per image layer, where its observer came from.
+ * A comet layer's options: colour, the rings in each image, light time, Refresh, the orbit and the
+ * position dot of the 3D modes with the orbit's span, and status lines saying where the path came
+ * from and, per image layer, where its observer came from.
  */
 @SuppressWarnings("serial")
 public final class CometLayerOptions extends JPanel {
@@ -50,11 +53,30 @@ public final class CometLayerOptions extends JPanel {
         again.setToolTipText("Ask JPL Horizons again, ignoring the saved answer: for a comet whose orbit is still being refined");
         again.addActionListener(e -> layer.refresh());
 
+        JCheckBox orbit = new JCheckBox("Orbit", layer.showOrbit());
+        orbit.setToolTipText("In the 3D modes, the comet's path through the scene: brighter where it has been, fainter where it is going");
+        orbit.addActionListener(e -> layer.setShowOrbit(orbit.isSelected()));
+
+        JCheckBox position = new JCheckBox("Position", layer.showDot());
+        position.setToolTipText("In the 3D modes, a dot where the comet is at the display time. It sits on a ring only when the comet is in that image's plane of sky: the images are perspective views.");
+        position.addActionListener(e -> layer.setShowDot(position.isSelected()));
+
+        JSpinner span = new JSpinner(new SpinnerNumberModel(layer.orbitSpanDays(), 1, CometLayer.MAX_SPAN_DAYS, 1));
+        span.setToolTipText("Days of orbit drawn each side of perihelion, besides the movie; fetched from JPL Horizons when changed");
+        span.addChangeListener(e -> layer.setOrbitSpanDays((Integer) span.getValue()));
+        JLabel spanLabel = new JLabel("days");
+
         JPanel row = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
         row.add(colour);
         row.add(rings);
         row.add(light);
         row.add(again);
+
+        JPanel row3d = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
+        row3d.add(orbit);
+        row3d.add(span);
+        row3d.add(spanLabel);
+        row3d.add(position);
 
         GridBagConstraints c = new GridBagConstraints();
         c.gridx = 0;
@@ -64,6 +86,8 @@ public final class CometLayerOptions extends JPanel {
         c.gridy = 0;
         add(row, c);
         c.gridy = 1;
+        add(row3d, c);
+        c.gridy = 2;
         add(status, c);
         updateStatus(layer);
 
