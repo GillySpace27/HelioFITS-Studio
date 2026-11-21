@@ -76,6 +76,7 @@ public final class IdentifyHover {
         dwell.setRepeats(false);
         Drawn.register(DeepSky.source());
         Drawn.register(CometSky.source());
+        Drawn.register(CometMarks.source()); // a comet a layer draws: its rings and dot (CometSky leaves those to it)
         IdentifySettings.addListener(() -> {
             if (!IdentifySettings.enabled() || !IdentifySettings.tooltip())
                 INSTANCE.clear();
@@ -185,11 +186,12 @@ public final class IdentifyHover {
         return out;
     }
 
+    /** The drawn objects' keys, a comet's rings in different images counting as one (its family), so the chosen image may change. */
     private static Set<String> drawnKeys(List<Drawn.Hit> drawn) {
         Set<String> out = new HashSet<>();
         for (Drawn.Hit h : drawn)
             if (h.mark() != null)
-                out.add(h.mark().key());
+                out.add(CometMarks.family(h.mark()));
         return out;
     }
 
@@ -244,7 +246,7 @@ public final class IdentifyHover {
                 matches.add(m);
         List<Drawn.Hit> drawn = new ArrayList<>();
         for (Drawn.Hit h : Drawn.at(vp, mv, x, y, options.tolerancePixels()))
-            if (h.mark() != null && selDrawn.contains(h.mark().key()))
+            if (h.mark() != null && selDrawn.contains(CometMarks.family(h.mark())))
                 drawn.add(h);
         if (matches.isEmpty() && drawn.isEmpty())
             return;

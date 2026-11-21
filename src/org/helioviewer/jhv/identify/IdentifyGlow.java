@@ -437,10 +437,18 @@ public final class IdentifyGlow {
         Map<String, Mark> marks = new LinkedHashMap<>();
         Set<String> hovered = new LinkedHashSet<>();
         Tier lit = IdentifyHover.selected() ? Tier.SELECTED : Tier.HOVER; // the marks the pointer answers are the selection when one is held
+        Set<String> comets = new LinkedHashSet<>();
         for (Mark m : hoverMarks()) {
             marks.put(m.key(), m);
             hovered.add(m.key());
+            if (m.kind() == Kind.COMET)
+                comets.add(CometMarks.family(m));
         }
+        for (String family : comets) // every ring of a hovered comet, asked of the source directly (no whole mark list)
+            for (Mark m : CometMarks.familyMarks(family, vp, mv, targets)) {
+                marks.putIfAbsent(m.key(), m);
+                hovered.add(m.key());
+            }
         if (f.all() || f.always())
             for (Mark m : frame.marks(vp, mv, targets))
                 marks.putIfAbsent(m.key(), m);
@@ -462,7 +470,8 @@ public final class IdentifyGlow {
             Vec3 dir = frame.direction(m, target);
             if (dir == null)
                 continue;
-            int[] rgb = colours.computeIfAbsent(m.kind(), IdentifySettings::iconRgb);
+            int[] own = CometStyle.rgbFor(m);
+            int[] rgb = own != null ? own : colours.computeIfAbsent(m.kind(), IdentifySettings::iconRgb);
             boolean replaces = wantSym && f.instead() && wantRing;
             if (!wantRing || replaces) { // only the centre is needed: a symbol stands where the ring would
                 double[] c = IdentifyPins.locate(vp, mv, target, dir);

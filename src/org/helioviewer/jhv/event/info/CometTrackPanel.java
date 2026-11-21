@@ -21,6 +21,7 @@ import javax.swing.table.DefaultTableModel;
 import org.helioviewer.jhv.app.state.ViewState;
 import org.helioviewer.jhv.astronomy.Comets;
 import org.helioviewer.jhv.display.CMETracker;
+import org.helioviewer.jhv.identify.CometMarks;
 import org.helioviewer.jhv.identify.Drawn;
 import org.helioviewer.jhv.display.MapMode;
 import org.helioviewer.jhv.gui.component.Buttons;
@@ -281,8 +282,8 @@ public final class CometTrackPanel extends JPanel implements TimeListener.Range 
     // Names the tracked comet where its track puts it now, while the tracker follows it.
     private static final Drawn.Source IDENTIFY = (vp, mv, x, y, tolerancePixels) -> {
         Tracked t = tracked.get();
-        if (t == null || !CMETracker.isTracking())
-            return java.util.List.of();
+        if (t == null || !CMETracker.isTracking() || CometMarks.ownsDesignation(t.comet().designation()))
+            return java.util.List.of(); // a comet with a layer is named by CometMarks, per image
         long now = mv.viewpoint().time.milli;
         if (now < t.track().milli()[0] || now > t.track().milli()[t.track().milli().length - 1])
             return java.util.List.of(); // off the sampled track: no position to name
