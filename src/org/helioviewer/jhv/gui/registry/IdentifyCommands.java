@@ -140,6 +140,9 @@ final class IdentifyCommands {
                         + "\"tooltip_dwell_ms\":{\"type\":\"integer\",\"minimum\":0},\"light_time\":{\"type\":\"boolean\"},"
                         + "\"earth_observer_uncertainty_km\":{\"type\":\"number\",\"minimum\":0},\"pluto\":{\"type\":\"boolean\"},"
                         + "\"glow\":{\"type\":\"boolean\"},\"pulse\":{\"type\":\"boolean\"},"
+                        + "\"tooltip_details\":{\"type\":\"boolean\",\"description\":\"the label's second line\"},\"comet_glyph\":{\"type\":\"boolean\"},"
+                        + "\"bold_width\":{\"type\":\"number\",\"minimum\":0.5,\"maximum\":4},\"bold_opacity\":{\"type\":\"number\",\"minimum\":0.25,\"maximum\":3},"
+                        + "\"bold_saturation\":{\"type\":\"number\",\"minimum\":0,\"maximum\":2},\"bold_shadow\":{\"type\":\"number\",\"minimum\":0,\"maximum\":1},"
                         + "\"tooltip_by_kind\":{\"type\":\"boolean\"},\"symbols_instead\":{\"type\":\"boolean\"},\"symbols_always\":{\"type\":\"boolean\"},"
                         + "\"icon_by_kind\":{\"type\":\"boolean\"},\"icon_color\":{\"type\":\"string\",\"description\":\"#RRGGBB, used when the icon is not coloured by kind\"},"
                         + "\"highlight_all\":{\"type\":\"boolean\"},\"comets\":{\"type\":\"boolean\"},\"cmes\":{\"type\":\"boolean\"},"
@@ -152,6 +155,9 @@ final class IdentifyCommands {
                             {"tooltip_dwell_ms", IdentifySettings.DWELL_MS}, {"light_time", IdentifySettings.LIGHT_TIME},
                             {"earth_observer_uncertainty_km", IdentifySettings.EARTH_UNCERTAINTY_KM}, {"pluto", IdentifySettings.PLUTO},
                             {"glow", IdentifySettings.GLOW}, {"pulse", IdentifySettings.PULSE},
+                            {"tooltip_details", IdentifySettings.TOOLTIP_DETAILS}, {"comet_glyph", IdentifySettings.COMET_GLYPH},
+                            {"bold_width", IdentifySettings.BOLD_WIDTH}, {"bold_opacity", IdentifySettings.BOLD_OPACITY},
+                            {"bold_saturation", IdentifySettings.BOLD_SATURATION}, {"bold_shadow", IdentifySettings.BOLD_SHADOW},
                             {"tooltip_by_kind", IdentifySettings.TOOLTIP_BY_KIND}, {"symbols_instead", IdentifySettings.SYMBOLS_INSTEAD},
                             {"symbols_always", IdentifySettings.SYMBOLS_ALWAYS},
                             {"icon_by_kind", IdentifySettings.ICON_BY_KIND}, {"icon_color", IdentifySettings.ICON_COLOR},
