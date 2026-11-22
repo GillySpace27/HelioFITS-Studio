@@ -389,10 +389,12 @@ public final class IdentifyHover {
                 sb.append(", ");
             sb.append(m.label());
             label.add(m.label());
-            label.add(details(m));
             float[] c = tint(Kind.of(m.body()));
             labelColours.add(c);
-            labelColours.add(c);
+            if (IdentifySettings.tooltipDetails()) {
+                label.add(details(m));
+                labelColours.add(c);
+            }
         }
         for (Drawn.Hit h : drawn) {
             if (!sb.isEmpty())
@@ -401,10 +403,12 @@ public final class IdentifyHover {
             if (Drawn.labelledElsewhere(h))
                 continue; // the orbit plot and the event popup label their own
             label.add(h.name());
-            label.add(h.details());
             float[] c = h.mark() == null ? null : tint(h.mark().kind());
             labelColours.add(c);
-            labelColours.add(c);
+            if (IdentifySettings.tooltipDetails()) {
+                label.add(h.details());
+                labelColours.add(c);
+            }
         }
         return sb.toString();
     }

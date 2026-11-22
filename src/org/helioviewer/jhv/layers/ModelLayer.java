@@ -10,9 +10,12 @@ import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
+import org.helioviewer.jhv.layers.grid.GridMath;
 import org.helioviewer.jhv.io.DataUri;
 import org.helioviewer.jhv.io.NetFileCache;
 import org.helioviewer.jhv.math.Vec3;
+import org.helioviewer.jhv.opengl.BufVertex;
+import org.helioviewer.jhv.opengl.GLSLLine;
 import org.helioviewer.jhv.opengl.GLSLModel;
 import org.helioviewer.jhv.opengl.Transform;
 import org.helioviewer.jhv.opengl.model.AssimpModelLoader;
@@ -35,6 +38,12 @@ public final class ModelLayer extends AbstractLayer {
 
     private final ModelPlacement placement = new ModelPlacement();
     private final ModelEphemeris ephemeris = new ModelEphemeris();
+    private final GLSLLine orbitLine = new GLSLLine(false);
+    private final BufVertex orbitBuf = new BufVertex();
+    private long orbitBuiltFor = Long.MIN_VALUE;
+    private int orbitBuiltSpan;
+    private boolean orbitGap;
+    private String orbitBuiltTarget = "";
     private volatile double drawnFactor = Double.NaN; // drawn scale over true scale, for the readout
 
     public ModelLayer(URI uri) throws IOException {
@@ -106,6 +115,8 @@ public final class ModelLayer extends AbstractLayer {
             return;
         }
 
+        if (placement.showOrbit())
+            renderOrbit(mv, vp);
         Position p = ephemeris.at(mv.viewpoint().time);
         if (p == null) {
             drawnFactor = Double.NaN;
@@ -127,14 +138,118 @@ public final class ModelLayer extends AbstractLayer {
         }
     }
 
+    private static final int ORBIT_SAMPLES = 240;
+    private static final long DAY = 86_400_000L;
+
+    /**
+     * The track: this model's object over the span either side of the display time, the past
+     * brighter than the future as the comets' orbits are. Sampled from the same ephemeris the model
+     * is placed by, so it passes through the model. A network source holds only the movie's span, so
+     * there the track is cut to it (asking outside would make the source reload every frame).
+     */
+    private void renderOrbit(MapView mv, Viewport vp) {
+        long now = mv.viewpoint().time.milli;
+        int span = placement.orbitSpanDays();
+        if (orbitGap || now != orbitBuiltFor || span != orbitBuiltSpan || !placement.target().equals(orbitBuiltTarget)) {
+            long lo = now - span * DAY, hi = now + span * DAY;
+            if (!ephemeris.anyTime()) {
+                long[] movie = ModelEphemeris.movieSpan();
+                lo = Math.max(lo, movie[0]);
+                hi = Math.min(hi, movie[1]);
+            }
+            byte[] c = orbitColour();
+            byte[] past = {c[0], c[1], c[2], (byte) Math.round(255 * CometLayer.PAST_ALPHA)};
+            byte[] future = {c[0], c[1], c[2], (byte) Math.round(255 * CometLayer.FUTURE_ALPHA)};
+            boolean open = false;
+            orbitGap = false;
+            for (int i = 0; hi > lo && i <= ORBIT_SAMPLES; i++) {
+                long t = lo + Math.round((hi - lo) * (double) i / ORBIT_SAMPLES);
+                Position q = ephemeris.at(new JHVTime(t));
+                if (q == null) {
+                    orbitGap = true;
+                    if (open)
+                        orbitBuf.endLine();
+                    open = false;
+                    continue;
+                }
+                Vec3 w = ModelPlacement.toWorld(q);
+                byte[] col = t <= now ? past : future;
+                if (open)
+                    orbitBuf.putVertex((float) w.x, (float) w.y, (float) w.z, 1, col);
+                else
+                    orbitBuf.startLine((float) w.x, (float) w.y, (float) w.z, 1, col);
+                open = true;
+            }
+            if (open)
+                orbitBuf.endLine();
+            orbitLine.uploadAndClear(orbitBuf);
+            orbitBuiltFor = now;
+            orbitBuiltSpan = span;
+            orbitBuiltTarget = placement.target();
+        }
+        orbitLine.renderLine(vp, GridMath.LINEWIDTH);
+    }
+
+    private byte[] orbitColour() {
+        org.helioviewer.jhv.astronomy.SpaceObject o = placement.targetObject();
+        return o == null ? org.helioviewer.jhv.base.Colors.White.bytes() : o.getColor();
+    }
+
+    /** The FOV layer's catalog, or null when the session has no FOV layer. */
+    @Nullable
+    private static org.helioviewer.jhv.layers.fov.FOVCatalog fovCatalog() {
+        for (Layer l : Layers.getLayers())
+            if (l instanceof FOVLayer f)
+                return f.getCatalog();
+        return null;
+    }
+
+    /** Whether the FOV layer has a spacecraft for this model's object (SOHO, Solar Orbiter, ...), so the FOV toggle means something. */
+    public boolean hasFov() {
+        var c = fovCatalog();
+        return c != null && c.hasPlatformFor(placement.target());
+    }
+
+    public boolean showFov() {
+        var c = fovCatalog();
+        return c != null && c.isPlatformShown(placement.target());
+    }
+
+    public void setShowFov(boolean v) {
+        var c = fovCatalog();
+        if (c != null)
+            c.setPlatformShown(placement.target(), v);
+        DisplayController.display();
+    }
+
+    public boolean showOrbit() {
+        return placement.showOrbit();
+    }
+
+    public void setShowOrbit(boolean v) {
+        placement.setShowOrbit(v);
+        DisplayController.display();
+    }
+
+    public int orbitSpanDays() {
+        return placement.orbitSpanDays();
+    }
+
+    public void setOrbitSpanDays(int v) {
+        placement.setOrbitSpanDays(v);
+        DisplayController.display();
+    }
+
     @Override
     public void init() {
         model.init();
+        orbitLine.init();
     }
 
     @Override
     public void dispose() {
         model.dispose();
+        orbitLine.dispose();
     }
 
     @Override

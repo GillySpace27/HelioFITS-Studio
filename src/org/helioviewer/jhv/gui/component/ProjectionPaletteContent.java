@@ -104,13 +104,7 @@ final class ProjectionPaletteContent {
     // deferred through the transition like a projection switch, so the outgoing picture is still
     // there to fade from, and the palette follows once it has been applied.
     private void selectProjection(MapMode el) {
-        if (ViewState.getProjection() == MapMode.ObserverSky && el.hostsSky()) {
-            org.helioviewer.jhv.display.ProjectionTransition.requestChange(() -> {
-                Display.setSkyBase(el);
-                toolBar.modeStateChanged(); // the Warp, Crop, Disk and Surface controls follow the base
-            });
-        } else
-            ViewState.setProjection(el);
+        org.helioviewer.jhv.app.Commands.selectProjection(el, toolBar::modeStateChanged); // the Warp, Crop, Disk and Surface controls follow the base
     }
 
     // Mirror the knob CME tracking is animating back into its slider, so the readout matches what

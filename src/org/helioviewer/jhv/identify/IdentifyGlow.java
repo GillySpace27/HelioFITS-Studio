@@ -395,7 +395,7 @@ public final class IdentifyGlow {
         Transform.setIdentityView();
         try {
             for (List<Ring> group : byColour.values()) {
-                int[] rgb = group.getFirst().rgb();
+                int[] rgb = saturate(group.getFirst().rgb(), IdentifySettings.boldSaturation());
                 for (Tier tier : Tier.values()) {
                     Style style = styleFor(tier, f);
                     List<Ring> same = new ArrayList<>();
@@ -404,9 +404,14 @@ public final class IdentifyGlow {
                             same.add(r);
                     if (!style.visible() || same.isEmpty())
                         continue;
-                    double b = tier == Tier.HOVER ? boost : 1;
+                    double b = (tier == Tier.HOVER ? boost : 1) * IdentifySettings.boldOpacity();
+                    double wm = IdentifySettings.boldWidth();
+                    double shadow = IdentifySettings.boldShadow();
+                    if (shadow > 0) // a dark outline under the colour so a mark stands out on a bright corona
+                        draw(LINES[3], full, same, 0, new int[]{0, 0, 0}, (int) Math.min(255, 200 * shadow * Math.min(1, b)),
+                                (style.widths()[0] + 3) * wm * scale);
                     for (int pass = 0; pass < style.widths().length; pass++)
-                        draw(LINES[pass], full, same, 0, rgb, (int) Math.min(255, style.alphas()[pass] * b), style.widths()[pass] * scale);
+                        draw(LINES[pass], full, same, 0, rgb, (int) Math.min(255, style.alphas()[pass] * b), style.widths()[pass] * wm * scale);
                 }
                 if (pulse) {
                     List<Ring> hovered = new ArrayList<>();
@@ -484,10 +489,45 @@ public final class IdentifyGlow {
                 continue;
             double[] c = o.getFirst();
             rings.add(new Ring(rgb, o.subList(1, o.size()), c, tier));
+            if (m.kind() == Kind.COMET && IdentifySettings.cometGlyph())
+                rings.addAll(cometGlyph(rgb, c, tier, scale));
             if (wantSym)
                 glyphs.add(new Glyph(sym, rgb, c, false, tier == Tier.AMBIENT));
         }
         return new Scene(rings, glyphs);
+    }
+
+    /**
+     * A comet as a small glyph at {@code c}: a round head and three tail strokes trailing to the
+     * lower left, like the meteor icon of the Track Comet panel. Strokes are two-point rings (out
+     * and back), so they take the tier's glow and pulse like any outline. The tail direction is
+     * fixed on the page, a symbol and not the comet's real tail.
+     */
+    static List<Ring> cometGlyph(int[] rgb, double[] c, Tier tier, double scale) {
+        List<Ring> out = new ArrayList<>();
+        double r = 3 * scale;
+        List<double[]> head = new ArrayList<>();
+        for (int i = 0; i < 12; i++)
+            head.add(new double[]{c[0] + r * Math.cos(Math.PI / 6 * i), c[1] + r * Math.sin(Math.PI / 6 * i)});
+        out.add(new Ring(rgb, head, c, tier));
+        double[][] tails = {{0, 15}, {-3.5, 10}, {3.5, 10}}; // {sideways offset, length} in points
+        double ux = -Math.sqrt(0.5), uy = Math.sqrt(0.5); // toward the lower left on the page (y down)
+        for (double[] t : tails) {
+            double ox = c[0] - uy * t[0] * scale, oy = c[1] + ux * t[0] * scale; // offset along the perpendicular
+            double[] a = {ox + ux * r * 1.4, oy + uy * r * 1.4};
+            double[] b = {ox + ux * t[1] * scale, oy + uy * t[1] * scale};
+            out.add(new Ring(rgb, List.of(a, b), c, tier));
+        }
+        return out;
+    }
+
+    /** {@code rgb} with its saturation multiplied by {@code factor} (1 keeps it). */
+    static int[] saturate(int[] rgb, double factor) {
+        if (factor == 1)
+            return rgb;
+        float[] hsb = java.awt.Color.RGBtoHSB(rgb[0], rgb[1], rgb[2], null);
+        int v = java.awt.Color.HSBtoRGB(hsb[0], (float) Math.min(1, hsb[1] * factor), hsb[2]);
+        return new int[]{v >> 16 & 255, v >> 8 & 255, v & 255};
     }
 
     /** The symbols, in the label's text pass: centred on the body when they stand in for the ring, else just beside it. */

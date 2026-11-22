@@ -49,7 +49,12 @@ public final class CanvasKeysCheck {
         boolean distinct = true;
         for (CanvasKeys.Cmd c : CanvasKeys.ALL)
             distinct &= seen.add(CanvasKeys.key(c.id()));
-        expect("every canvas key starts on its own key", distinct && CanvasKeys.ALL.size() == 21);
+        expect("T turns Render in 3D on or off; 1 to 5 pick the projections in the palette's order",
+                CanvasKeys.key("canvasToggle3D") == KeyEvent.VK_T && CanvasKeys.key("canvasProjection1") == KeyEvent.VK_1
+                        && CanvasKeys.key("canvasProjection5") == KeyEvent.VK_5
+                        && org.helioviewer.jhv.app.Commands.listedProjections().size() == 5
+                        && org.helioviewer.jhv.app.Commands.listedProjections().get(2) == org.helioviewer.jhv.display.MapMode.Helioradial);
+        expect("every canvas key starts on its own key", distinct && CanvasKeys.ALL.size() == 27);
         expect("W S A D Q E turn; [ and ] zoom; G the grid; R resets; Cmd+Right and Cmd+Left set the rate",
                 CanvasKeys.key("canvasPitchUp") == KeyEvent.VK_W && CanvasKeys.key("canvasYawRight") == KeyEvent.VK_D
                         && CanvasKeys.key("canvasRollLeft") == KeyEvent.VK_Q && CanvasKeys.key("canvasZoomIn") == KeyEvent.VK_OPEN_BRACKET && CanvasKeys.key("canvasZoomOut") == KeyEvent.VK_CLOSE_BRACKET
