@@ -261,10 +261,10 @@ public final class CometTrackPanel extends JPanel implements TimeListener.Range 
      * height, so in a sidebar narrower than the buttons the ones that wrap got no height at all:
      * Show in scene, added fourth, was never on screen (2026-11-21).
      */
-    static JPanel buttonRow(JButton... buttons) {
+    static JPanel buttonRow(javax.swing.AbstractButton... buttons) {
         JPanel row = new JPanel(new GridLayout(0, 2, 4, 4));
         row.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
-        for (JButton b : buttons)
+        for (javax.swing.AbstractButton b : buttons)
             row.add(b);
         return row;
     }

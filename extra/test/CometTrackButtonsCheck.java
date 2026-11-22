@@ -11,7 +11,7 @@ import javax.swing.JTable;
 /**
  * Every Track comet button is on screen in a narrow sidebar. The row used to be a FlowLayout in
  * BorderLayout.PAGE_END: given one row's height, the buttons that wrapped had none, so Show in
- * scene (the fourth) could not be pressed and no comet layer was ever added (2026-11-21).
+ * scene (the fourth, now Show in 3D scene) could not be pressed and no comet layer was ever added (2026-11-21).
  *
  * <p>Run: java -Djava.awt.headless=true -cp "bin:extra/test-classes:resources:lib/*" org.helioviewer.jhv.event.info.CometTrackButtonsCheck
  */
@@ -26,7 +26,7 @@ public final class CometTrackButtonsCheck {
     }
 
     public static void main(String[] args) {
-        String[] names = {"Show in scene", "Refresh", "Track (Warp)", "Track (Crop)"};
+        String[] names = {"Show in 3D scene", "Refresh", "Track (Warp)", "Track (Crop)"};
         for (int width : new int[]{220, 300, 380, 600}) {
             JButton[] buttons = new JButton[names.length];
             for (int i = 0; i < names.length; i++)
