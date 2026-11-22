@@ -83,6 +83,12 @@ public final class CanvasKeys {
             new Cmd("canvasResetView", "Reset View", KeyEvent.VK_R, false, "Put the view back to its default"),
             new Cmd("canvasResetScaling", "Restore Zoom, Warp and Crop", KeyEvent.VK_SLASH, false, "Put zoom, warp and crop back as the session was last loaded or saved, or to their defaults before any"),
             new Cmd("canvasToggleGrid", "Show or Hide Grid", KeyEvent.VK_G, false, "Turn the grid on or off: the master switch of the Grid row"),
+            new Cmd("canvasToggle3D", "Render in 3D On or Off", KeyEvent.VK_T, false, "Turn Render in 3D on or off (Helioradial), as its checkbox in the Projection palette"),
+            new Cmd("canvasProjection1", "Projection 1: Orthographic", KeyEvent.VK_1, false, "Switch to the number 1 projection in the Projection palette"),
+            new Cmd("canvasProjection2", "Projection 2: HPC", KeyEvent.VK_2, false, "Switch to the number 2 projection in the Projection palette"),
+            new Cmd("canvasProjection3", "Projection 3: Helioradial", KeyEvent.VK_3, false, "Switch to the number 3 projection in the Projection palette"),
+            new Cmd("canvasProjection4", "Projection 4: Helioradial Unrolled", KeyEvent.VK_4, false, "Switch to the number 4 projection in the Projection palette"),
+            new Cmd("canvasProjection5", "Projection 5: Latitudinal", KeyEvent.VK_5, false, "Switch to the number 5 projection in the Projection palette"),
             new Cmd("canvasTrimStart", "Trim Start Here", KeyEvent.VK_I, false, "Start the movie at this frame, as I does on the time slider"),
             new Cmd("canvasTrimEnd", "Trim End Here", KeyEvent.VK_O, false, "End the movie at this frame, as O does on the time slider"),
             new Cmd("canvasFirstFrame", "First Frame", KeyEvent.VK_HOME, false, "Go to the first frame of the movie (its trimmed start)"),
@@ -353,6 +359,23 @@ public final class CanvasKeys {
             case "canvasResetScaling" -> {
                 if (STATE.shot.add(c.id()) && !recordingLocked()) {
                     toast(Commands.restoreScaling() ? "Zoom, warp and crop as last saved" : "Zoom, warp and crop reset");
+                }
+            }
+            case "canvasToggle3D" -> {
+                if (STATE.shot.add(c.id()) && !recordingLocked()) {
+                    boolean on = Commands.toggleRender3D();
+                    toast(Display.mode == org.helioviewer.jhv.display.MapMode.Helioradial ? (on ? "3D on" : "3D off")
+                            : (on ? "3D on, shown in Helioradial" : "3D off"));
+                }
+            }
+            case "canvasProjection1", "canvasProjection2", "canvasProjection3", "canvasProjection4", "canvasProjection5" -> {
+                if (STATE.shot.add(c.id()) && !recordingLocked()) {
+                    List<org.helioviewer.jhv.display.MapMode> modes = Commands.listedProjections();
+                    int n = c.id().charAt(c.id().length() - 1) - '1';
+                    if (n < modes.size()) {
+                        Commands.selectProjection(modes.get(n));
+                        toast(modes.get(n).toString());
+                    }
                 }
             }
             case "canvasTrimStart" -> once(c, Commands::trimStartHere);
