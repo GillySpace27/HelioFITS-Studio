@@ -27,6 +27,12 @@ public final class IdentifySettings {
     public static final String PLUTO = "identify.pluto";
     public static final String GLOW = "identify.glow";
     public static final String PULSE = "identify.pulse";
+    public static final String TOOLTIP_DETAILS = "identify.tooltip.details";
+    public static final String COMET_GLYPH = "identify.comet.glyph";
+    public static final String BOLD_WIDTH = "identify.bold.width";
+    public static final String BOLD_OPACITY = "identify.bold.opacity";
+    public static final String BOLD_SATURATION = "identify.bold.saturation";
+    public static final String BOLD_SHADOW = "identify.bold.shadow";
     public static final String ICON_BY_KIND = "identify.icon.byKind";
     public static final String ICON_COLOR = "identify.icon.color";
     public static final String TOOLTIP_BY_KIND = "identify.tooltip.byKind";
@@ -152,6 +158,36 @@ public final class IdentifySettings {
         return bool(PULSE, true);
     }
 
+    /** The second line of the label beside the pointer (distance, elongation, "as PUNCH saw it"); off leaves the name alone. */
+    public static boolean tooltipDetails() {
+        return bool(TOOLTIP_DETAILS, true);
+    }
+
+    /** A comet's highlight carries a small comet glyph (head and tail) at its centre, not only the ring. */
+    public static boolean cometGlyph() {
+        return bool(COMET_GLYPH, true);
+    }
+
+    /** Multiplier on the line width of every highlight, 1 = as it always was. */
+    public static double boldWidth() {
+        return number(BOLD_WIDTH, 1, 0.5, 4);
+    }
+
+    /** Multiplier on the opacity of every highlight (clamped to opaque), 1 = as it always was. */
+    public static double boldOpacity() {
+        return number(BOLD_OPACITY, 1, 0.25, 3);
+    }
+
+    /** Multiplier on the colour saturation of every highlight, 1 = as it was, 0 = grey. */
+    public static double boldSaturation() {
+        return number(BOLD_SATURATION, 1, 0, 2);
+    }
+
+    /** Strength of a dark outline behind every highlight, 0 = none (the default), 1 = strong. */
+    public static double boldShadow() {
+        return number(BOLD_SHADOW, 0, 0, 1);
+    }
+
     /** Icon and name colour follow the kind of object (stars white, planets green, comets red, ...). */
     public static boolean iconByKind() {
         return bool(ICON_BY_KIND, true);
@@ -247,6 +283,12 @@ public final class IdentifySettings {
         values.put(STAR_NAMES_BAYER, "true");
         values.put(GLOW, "true");
         values.put(PULSE, "true");
+        values.put(TOOLTIP_DETAILS, "true");
+        values.put(COMET_GLYPH, "true");
+        values.put(BOLD_WIDTH, "1.0");
+        values.put(BOLD_OPACITY, "1.0");
+        values.put(BOLD_SATURATION, "1.0");
+        values.put(BOLD_SHADOW, "0.0");
         values.put(ICON_BY_KIND, "true");
         values.put(ICON_COLOR, DEFAULT_ICON_COLOR);
         values.put(TOOLTIP_BY_KIND, "true");
@@ -266,6 +308,9 @@ public final class IdentifySettings {
                 .put("tooltipDwellMillis", dwellMillis()).put("lightTime", lightTime())
                 .put("earthObserverUncertaintyKm", earthUncertaintyKm()).put("pluto", pluto())
                 .put("glow", glow()).put("pulse", pulse())
+                .put("tooltipDetails", tooltipDetails()).put("cometGlyph", cometGlyph())
+                .put("boldWidth", boldWidth()).put("boldOpacity", boldOpacity())
+                .put("boldSaturation", boldSaturation()).put("boldShadow", boldShadow())
                 .put("tooltipByKind", tooltipByKind()).put("symbolsInstead", symbolsInstead()).put("symbolsAlways", symbolsAlways())
                 .put("iconByKind", iconByKind()).put("iconColor", String.format("#%06X", iconColor()))
                 .put("highlightAll", highlightAll()).put("comets", dataComets()).put("cmes", dataCmes())

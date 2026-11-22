@@ -29,6 +29,7 @@ public final class ModelPlacement {
 
     public static final String DEFAULT_TARGET = "Earth";
     public static final double DEFAULT_MIN_PIXELS = 24;
+    public static final int DEFAULT_ORBIT_DAYS = 30, MAX_ORBIT_DAYS = 365;
     /** The exaggeration slider runs over this many decades, 1x to 1e10x. */
     public static final int MAX_EXAGGERATION_DECADES = 10;
 
@@ -37,6 +38,8 @@ public final class ModelPlacement {
     private double metersPerUnit = 1;
     private double exaggeration = 1;
     private double minPixels = DEFAULT_MIN_PIXELS;
+    private boolean showOrbit;
+    private int orbitSpanDays = DEFAULT_ORBIT_DAYS;
 
     public Mode mode() {
         return mode;
@@ -84,6 +87,23 @@ public final class ModelPlacement {
 
     public void setExaggeration(double v) {
         exaggeration = Double.isFinite(v) ? Math.clamp(v, 1, Math.pow(10, MAX_EXAGGERATION_DECADES)) : 1;
+    }
+
+    public boolean showOrbit() {
+        return showOrbit;
+    }
+
+    public void setShowOrbit(boolean v) {
+        showOrbit = v;
+    }
+
+    /** Days of track drawn each side of the display time. */
+    public int orbitSpanDays() {
+        return orbitSpanDays;
+    }
+
+    public void setOrbitSpanDays(int v) {
+        orbitSpanDays = Math.clamp(v, 1, MAX_ORBIT_DAYS);
     }
 
     public double minPixels() {
@@ -164,6 +184,8 @@ public final class ModelPlacement {
         p.put("metersPerUnit", metersPerUnit);
         p.put("exaggeration", exaggeration);
         p.put("minPixels", minPixels);
+        p.put("showOrbit", showOrbit);
+        p.put("orbitSpanDays", orbitSpanDays);
         jo.put("placement", p);
     }
 
@@ -181,6 +203,8 @@ public final class ModelPlacement {
         setMetersPerUnit(p.optDouble("metersPerUnit", 1));
         setExaggeration(p.optDouble("exaggeration", 1));
         setMinPixels(p.optDouble("minPixels", DEFAULT_MIN_PIXELS));
+        setShowOrbit(p.optBoolean("showOrbit", false));
+        setOrbitSpanDays(p.optInt("orbitSpanDays", DEFAULT_ORBIT_DAYS));
     }
 
 }

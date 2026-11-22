@@ -5,8 +5,8 @@ Design: the comet3d plan, revision 2, sections 2 and 3 (Gilly's project files, `
 
 ## For users
 
-Pick a comet in **Track comet** and press **Show in scene**. A comet layer appears in the scene
-layers, in the next free comet colour.
+Pick a comet in **Track comet** and switch on **Show in 3D scene** (or use **Add layer** in the 3D Scene pane). A comet layer appears in the scene
+layers, in the next free comet colour. Switching the toggle off turns the layer off without removing it.
 
 - A ring marks where that image's spacecraft saw the comet at that image's time. Rings from
   different spacecraft are in different places: that is parallax, not an error.

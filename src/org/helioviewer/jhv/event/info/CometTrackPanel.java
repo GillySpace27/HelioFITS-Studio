@@ -2,7 +2,7 @@ package org.helioviewer.jhv.event.info;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
+import java.awt.GridLayout;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
@@ -15,6 +15,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
+import javax.swing.JToggleButton;
 import javax.swing.ListSelectionModel;
 import javax.swing.table.DefaultTableModel;
 
@@ -29,6 +30,8 @@ import org.helioviewer.jhv.gui.component.Palette;
 import org.helioviewer.jhv.gui.component.RightSidebar;
 import org.helioviewer.jhv.layers.CometLayer;
 import org.helioviewer.jhv.layers.ImageLayers;
+import org.helioviewer.jhv.layers.Layer;
+import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.thread.Task;
 import org.helioviewer.jhv.time.JHVTime;
@@ -129,15 +132,30 @@ public final class CometTrackPanel extends JPanel implements TimeListener.Range 
         trackCropButton.setToolTipText("Animate the outer radial crop instead, holding λ: the field of view opens and closes to follow the comet");
         trackCropButton.addActionListener(e -> trackSelected(CMETracker.Mode.CROP));
 
-        JButton showButton = new JButton("Show in scene");
+        JToggleButton showButton = new JToggleButton("Show in 3D scene");
         showButton.setName("cometShowInScene");
-        showButton.setToolTipText("Add this comet to the scene as a layer: a ring in each image that shows it, where that image's spacecraft saw it at that image's time");
+        showButton.setToolTipText("On: the comet is a layer of the scene, with a ring in each image that shows it, where that image's spacecraft saw it at that image's time. Off: the layer stays in the 3D Scene list, switched off, so its settings are kept.");
         showButton.addActionListener(e -> {
             Comets.Comet comet = selected();
-            if (comet == null)
+            if (comet == null) {
                 status.setText("Pick a comet in the list first.");
-            else
-                CometLayer.show(comet);
+                showButton.setSelected(false);
+            } else
+                CometLayer.setShown(comet, showButton.isSelected());
+        });
+        Runnable followShown = () -> {
+            Comets.Comet comet = selected();
+            showButton.setSelected(comet != null && CometLayer.isShown(comet));
+        };
+        followShown.run();
+        table.getSelectionModel().addListSelectionListener(e -> followShown.run());
+        Layers.addListener(new Layers.Listener() {
+            public void layerAdded(int index, Layer layer) { followShown.run(); }
+            public void layerRemoved(int index, Layer layer) { followShown.run(); }
+            public void layersCleared() { followShown.run(); }
+            public void nameUpdated(Layer layer) { }
+            public void layerUpdated(Layer layer) { followShown.run(); }
+            public void timeUpdated(Layer layer) { }
         });
 
         JButton cancelButton = new JButton("Cancel");
@@ -146,11 +164,7 @@ public final class CometTrackPanel extends JPanel implements TimeListener.Range 
         cancelButton.setEnabled(CMETracker.isTracking());
         CMETracker.addChangeListener(() -> cancelButton.setEnabled(CMETracker.isTracking())); // the panel lives for the app
 
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.TRAILING));
-        buttons.add(refreshButton);
-        buttons.add(trackWarpButton);
-        buttons.add(trackCropButton);
-        buttons.add(showButton);
+        JPanel buttons = buttonRow(showButton, refreshButton, trackWarpButton, trackCropButton);
         // Beside the status, as in the CME panel: the button row already fills a narrow sidebar.
         JPanel top = new JPanel(new BorderLayout());
         top.add(status, BorderLayout.CENTER);
@@ -240,6 +254,19 @@ public final class CometTrackPanel extends JPanel implements TimeListener.Range 
                 ? "No catalogued comet crossed this field. JPL carries the SOHO comets thickly for 1996-2008 and barely at all after, so an uncatalogued sungrazer will not appear here."
                 : rows.size() + (rows.size() == 1 ? " comet in the field. Double-click it to track." : " comets in the field. Double-click one to track."));
         fitRows();
+    }
+
+    /**
+     * The buttons two to a row. A FlowLayout row in BorderLayout.PAGE_END is given one row's
+     * height, so in a sidebar narrower than the buttons the ones that wrap got no height at all:
+     * Show in scene, added fourth, was never on screen (2026-11-21).
+     */
+    static JPanel buttonRow(javax.swing.AbstractButton... buttons) {
+        JPanel row = new JPanel(new GridLayout(0, 2, 4, 4));
+        row.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
+        for (javax.swing.AbstractButton b : buttons)
+            row.add(b);
+        return row;
     }
 
     private static double round(double value) {
