@@ -129,6 +129,28 @@ public final class CometLayer extends AbstractLayer {
         setEnabled(true);
     }
 
+    /** Whether {@code comet} has a layer that is switched on. */
+    public static boolean isShown(Comets.Comet comet) {
+        for (Layer l : Layers.getLayers())
+            if (l instanceof CometLayer cl && cl.designation().equals(comet.designation()))
+                return cl.isEnabled();
+        return false;
+    }
+
+    /** On: as {@link #show}. Off: switch its layer off and keep it, with its settings, in the scene list. */
+    public static void setShown(Comets.Comet comet, boolean on) {
+        if (on) {
+            show(comet);
+            return;
+        }
+        for (Layer l : Layers.getLayers())
+            if (l instanceof CometLayer cl && cl.designation().equals(comet.designation())) {
+                cl.setEnabled(false);
+                Layers.fireLayerUpdated(cl);
+                DisplayController.display();
+            }
+    }
+
     /** Show {@code comet} in the scene: enable its layer if there is one, else add one in the next free colour. */
     public static void show(Comets.Comet comet) {
         List<int[]> inUse = new ArrayList<>();

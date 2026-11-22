@@ -187,6 +187,30 @@ public final class FOVCatalog {
         platforms.add(platform);
     }
 
+    /** The ground-based platform draws from Earth's centre, so an Earth model does not own it. */
+    private FOVPlatform platformFor(String target) {
+        for (FOVPlatform p : platforms)
+            if (!p.atEarth() && p.target().equals(target))
+                return p;
+        return null;
+    }
+
+    /** Whether some platform here is the object a model layer is placed at (SOHO, Solar Orbiter, ...). */
+    public boolean hasPlatformFor(String target) {
+        return platformFor(target) != null;
+    }
+
+    public boolean isPlatformShown(String target) {
+        FOVPlatform p = platformFor(target);
+        return p != null && p.isShown();
+    }
+
+    public void setPlatformShown(String target, boolean v) {
+        FOVPlatform p = platformFor(target);
+        if (p != null)
+            p.setShown(v);
+    }
+
     public void init() {
         platforms.forEach(FOVPlatform::init);
         bodyPoints.init();

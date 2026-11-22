@@ -65,7 +65,16 @@ public final class GridLayerOptions extends JPanel {
         add(new CollapsiblePane("Thomson sphere", thomsonSection(layer), false, true, Buttons.projection));
         add(new CollapsiblePane("Celestial sphere", celestialSection(layer), false, true, Buttons.rotate));
         add(new CollapsiblePane("Ecliptic plane", eclipticSection(layer), false, true));
-        add(new CollapsiblePane("Planets", planetSection(layer), false, true, Buttons.track));
+        // The planets moved to the 3D Scene pane (planetControls), beside the other things placed in space.
+    }
+
+    private GridLayerOptions() {
+        setLayout(new BoxLayout(this, BoxLayout.PAGE_AXIS));
+    }
+
+    /** The planet controls on their own, for the 3D Scene pane: same widgets, bound to the same layer. */
+    public static JPanel planetControls(GridLayer layer) {
+        return new GridLayerOptions().planetSection(layer);
     }
 
     private JPanel gridSection(GridLayer layer) {

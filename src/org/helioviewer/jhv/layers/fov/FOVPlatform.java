@@ -33,6 +33,7 @@ import org.json.JSONObject;
 
 class FOVPlatform {
 
+    private static final String KEY_SHOWN = "shown";
     static final double MIN_CENTER_ARCMIN = -60;
     static final double MAX_CENTER_ARCMIN = 60;
     private static final double LINEWIDTH_FOV = GLSLLine.LINEWIDTH_BASIC;
@@ -58,6 +59,9 @@ class FOVPlatform {
     private final String observer;
     private final byte[] color;
     private final boolean isSOLO;
+    private final String target;
+    /** The platform-level switch (a model layer's FOV toggle): off hides every field without touching which instruments are on. */
+    private boolean shown;
 
     private double centerX;
     private double centerY;
@@ -67,12 +71,14 @@ class FOVPlatform {
      * object it is placed at (a SpaceObject name, as ModelEphemeris takes), used when there is no
      * SPICE observer and for the direction of travel.
      */
-    FOVPlatform(String _name, @Nullable String _observer, String target, byte[] _color, JSONObject jo) {
+    FOVPlatform(String _name, @Nullable String _observer, String _target, byte[] _color, JSONObject jo) {
         name = _name;
         observer = _observer;
         color = _color;
         isSOLO = "SOLO".equals(observer);
-        ephemeris.setTarget(target);
+        target = _target;
+        shown = jo.optBoolean(KEY_SHOWN, true);
+        ephemeris.setTarget(_target);
 
         centerX = Math.clamp(jo.optDouble("centerX", 0), MIN_CENTER_ARCMIN, MAX_CENTER_ARCMIN);
         centerY = Math.clamp(jo.optDouble("centerY", 0), MIN_CENTER_ARCMIN, MAX_CENTER_ARCMIN);
@@ -356,7 +362,21 @@ class FOVPlatform {
         return out;
     }
 
+    String target() {
+        return target;
+    }
+
+    boolean isShown() {
+        return shown;
+    }
+
+    void setShown(boolean v) {
+        shown = v;
+    }
+
     private boolean hasEnabled() {
+        if (!shown)
+            return false;
         for (FOVInstrument instrument : instruments) {
             if (instrument.isEnabled())
                 return true;
@@ -392,6 +412,7 @@ class FOVPlatform {
         JSONObject jo = new JSONObject();
         jo.put("centerX", centerX);
         jo.put("centerY", centerY);
+        jo.put(KEY_SHOWN, shown);
 
         for (FOVInstrument instrument : instruments)
             jo.put(instrument.toString(), instrument.isEnabled());
