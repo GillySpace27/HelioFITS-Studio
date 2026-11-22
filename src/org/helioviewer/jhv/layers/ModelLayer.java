@@ -13,6 +13,7 @@ import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.layers.grid.GridMath;
 import org.helioviewer.jhv.io.DataUri;
 import org.helioviewer.jhv.io.NetFileCache;
+import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.opengl.BufVertex;
 import org.helioviewer.jhv.opengl.GLSLLine;
@@ -130,12 +131,66 @@ public final class ModelLayer extends AbstractLayer {
         Transform.pushView();
         try {
             Transform.translateView(at.x, at.y, at.z);
+            if (placement.pointAtSun())
+                pointAtSun(at);
             Transform.scaleView(scale);
             Transform.translateView(-centerX, -centerY, -centerZ);
             model.render(mv, vp);
         } finally {
             Transform.popView();
         }
+    }
+
+    /**
+     * Turn the view so the model's Sun axis faces Sun centre from {@code at}, then roll it about
+     * that line. A model of a solar observatory does this; it is the pointing of a model, with no
+     * telemetry behind it.
+     */
+    private void pointAtSun(Vec3 at) {
+        double d = Math.sqrt(at.x * at.x + at.y * at.y + at.z * at.z);
+        if (!(d > 0))
+            return;
+        Vec3 toSun = new Vec3(-at.x / d, -at.y / d, -at.z / d);
+        ModelPlacement.Axis a = placement.sunAxis();
+        Vec3 axis = new Vec3(a.x, a.y, a.z);
+        double dot = Vec3.dot(axis, toSun);
+        Quat align;
+        if (dot < -1 + 1e-9) { // facing away: half a turn about any axis across it
+            Vec3 across = Math.abs(axis.x) < 0.9 ? new Vec3(1, 0, 0) : new Vec3(0, 1, 0);
+            align = Quat.axisAngle(Math.PI, Vec3.cross(axis, across));
+        } else {
+            align = Quat.calcRotation(axis, toSun);
+        }
+        if (placement.rollDegrees() != 0)
+            Transform.rotateView(Quat.axisAngle(Math.toRadians(placement.rollDegrees()), toSun));
+        Transform.rotateView(align);
+    }
+
+    public boolean pointAtSun() {
+        return placement.pointAtSun();
+    }
+
+    public void setPointAtSun(boolean v) {
+        placement.setPointAtSun(v);
+        DisplayController.display();
+    }
+
+    public ModelPlacement.Axis sunAxis() {
+        return placement.sunAxis();
+    }
+
+    public void setSunAxis(ModelPlacement.Axis a) {
+        placement.setSunAxis(a);
+        DisplayController.display();
+    }
+
+    public double rollDegrees() {
+        return placement.rollDegrees();
+    }
+
+    public void setRollDegrees(double v) {
+        placement.setRollDegrees(v);
+        DisplayController.display();
     }
 
     private static final int ORBIT_SAMPLES = 240;

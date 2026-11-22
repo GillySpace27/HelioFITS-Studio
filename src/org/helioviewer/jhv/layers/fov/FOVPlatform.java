@@ -62,6 +62,8 @@ class FOVPlatform {
     private final String target;
     /** The platform-level switch (a model layer's FOV toggle): off hides every field without touching which instruments are on. */
     private boolean shown;
+    /** Set by the catalog before each render: fill footprints in the flat views; draw 3D cone ends on the sphere. */
+    private boolean fillFlat = true, curved = true;
 
     private double centerX;
     private double centerY;
@@ -218,6 +220,8 @@ class FOVPlatform {
                 FOVCone cone = instrument.cone(o, north, sideVector(instrument.side(), obsPosition, o, north));
                 if (cone == null)
                     continue;
+                if (fillFlat)
+                    putSkyFill(mv, vp, viewer, cone, fade(color, SKY_FILL_ALPHA));
                 FOVFlat.putLine(mv, vp, viewer, FOVFlat.loop(cone.outer), line, coneLineBuf);
                 if (cone.inner != null)
                     FOVFlat.putLine(mv, vp, viewer, FOVFlat.loop(cone.inner), line, coneLineBuf);
@@ -234,8 +238,46 @@ class FOVPlatform {
             if (ring != null)
                 mv.emitMapLine(vp, ring, 1, line, coneLineBuf);
         }
+        if (fillFlat) {
+            coneFill.uploadAndClear(fillBuf);
+            GL.glDepthMask(false);
+            try {
+                coneFill.renderShape(GL.TRIANGLES);
+            } finally {
+                GL.glDepthMask(true);
+            }
+        }
         coneLines.uploadAndClear(coneLineBuf);
         coneLines.renderLine(vp, LINEWIDTH_FOV);
+    }
+
+    /**
+     * The field painted on the observer's plane of sky, each triangle of its far patch projected
+     * to the map; one with a corner the map cannot show is left out, so a field that runs off the
+     * hemisphere a map holds is filled as far as it goes.
+     */
+    private void putSkyFill(MapView mv, Viewport vp, double[] viewer, FOVCone cone, byte[] col) {
+        FOVCone.Patch patch = cone.patch(PATCH_STEPS);
+        double[][][] rows = patch.rows();
+        Vec2[][] v = new Vec2[rows.length][rows[0].length];
+        for (int k = 0; k < rows.length; k++)
+            for (int i = 0; i < rows[k].length; i++)
+                v[k][i] = FOVFlat.project(mv, vp, viewer, rows[k][i]);
+        int cols = rows[0].length, last = patch.wrap() ? cols : cols - 1;
+        for (int k = 0; k + 1 < rows.length; k++)
+            for (int i = 0; i < last; i++) {
+                int j = (i + 1) % cols;
+                flatTri(v[k][i], v[k + 1][i], v[k + 1][j], col);
+                flatTri(v[k][i], v[k + 1][j], v[k][j], col);
+            }
+    }
+
+    private void flatTri(@Nullable Vec2 a, @Nullable Vec2 b, @Nullable Vec2 c, byte[] col) {
+        if (a == null || b == null || c == null)
+            return;
+        fillBuf.putVertex((float) a.x, (float) a.y, 0, 1, col);
+        fillBuf.putVertex((float) b.x, (float) b.y, 0, 1, col);
+        fillBuf.putVertex((float) c.x, (float) c.y, 0, 1, col);
     }
 
     /** Where the platform is at {@code time}, or null. */
@@ -279,6 +321,10 @@ class FOVPlatform {
     }
 
     private void putCone(FOVCone cone, byte[] fill, byte[] side, byte[] line) {
+        if (curved) {
+            putCurvedCone(cone, fill, side, line);
+            return;
+        }
         double[][] out = cone.outer;
         int n = out.length;
         // the sides, from the spacecraft
@@ -308,6 +354,50 @@ class FOVPlatform {
         }
     }
 
+    /** The same solid with its far end on the sphere about the spacecraft, and its sides the planes through the spacecraft and each curved edge. */
+    private void putCurvedCone(FOVCone cone, byte[] fill, byte[] side, byte[] line) {
+        FOVCone.Patch patch = cone.patch(PATCH_STEPS);
+        double[][][] rows = patch.rows();
+        int cols = rows[0].length, last = patch.wrap() ? cols : cols - 1;
+        for (int k = 0; k + 1 < rows.length; k++)
+            for (int i = 0; i < last; i++) {
+                int j = (i + 1) % cols;
+                tri(rows[k][i], rows[k + 1][i], rows[k + 1][j], fill);
+                tri(rows[k][i], rows[k + 1][j], rows[k][j], fill);
+            }
+        // the boundary of the patch, in order
+        java.util.List<double[]> rim = new java.util.ArrayList<>();
+        int top = rows.length - 1;
+        if (patch.wrap()) {
+            for (double[] p : rows[top])
+                rim.add(p);
+            if (cone.inner != null)
+                loop(rows[0], line);
+        } else {
+            for (int i = 0; i < cols; i++)
+                rim.add(rows[0][i]);
+            for (int k = 1; k <= top; k++)
+                rim.add(rows[k][cols - 1]);
+            for (int i = cols - 2; i >= 0; i--)
+                rim.add(rows[top][i]);
+            for (int k = top - 1; k >= 1; k--)
+                rim.add(rows[k][0]);
+        }
+        double[][] ring = rim.toArray(double[][]::new);
+        for (int i = 0; i < ring.length; i++)
+            tri(cone.apex, ring[i], ring[(i + 1) % ring.length], side);
+        if (cone.inner != null)
+            for (int i = 0; i < cone.inner.length; i++)
+                tri(cone.apex, cone.inner[i], cone.inner[(i + 1) % cone.inner.length], side);
+        loop(ring, line);
+        int step = Math.max(1, cone.outer.length / 4);
+        for (int i = 0; i < cone.outer.length; i += step) {
+            coneLineBuf.startLine((float) cone.apex[0], (float) cone.apex[1], (float) cone.apex[2], 1, line);
+            coneLineBuf.putVertex((float) cone.outer[i][0], (float) cone.outer[i][1], (float) cone.outer[i][2], 1, line);
+            coneLineBuf.endLine();
+        }
+    }
+
     private void tri(double[] a, double[] b, double[] c, byte[] col) {
         fillBuf.putVertex((float) a[0], (float) a[1], (float) a[2], 1, col);
         fillBuf.putVertex((float) b[0], (float) b[1], (float) b[2], 1, col);
@@ -333,6 +423,9 @@ class FOVPlatform {
         return f;
     }
 
+    private static final double SKY_FILL_ALPHA = 0.35;
+    /** Rows (and columns of a four-cornered field) of the far patch. */
+    private static final int PATCH_STEPS = 12;
     private static final double FILL_ALPHA = 0.22;
     private static final double SIDE_ALPHA = 0.10;
     private static final double LINE_ALPHA = 0.9;
@@ -360,6 +453,11 @@ class FOVPlatform {
             if (instrument.flyingAt(time) && instrument.contains(p.x, p.y))
                 out.add(instrument + " (" + name + ")");
         return out;
+    }
+
+    void style(boolean _fillFlat, boolean _curved) {
+        fillFlat = _fillFlat;
+        curved = _curved;
     }
 
     String target() {

@@ -31,6 +31,8 @@ public final class FOVCatalog {
     private static final String KEY_LABELS = "labels";
     private static final String KEY_COVERAGE = "coverage";
     private static final String KEY_BODIES = "bodies";
+    private static final String KEY_FILL = "fill";
+    private static final String KEY_CURVED = "curved";
     /** The planets marked in 2D, by SpaceObject name: the inner ones and Jupiter. */
     private static final String[] PLANETS = {"Mercury", "Venus", "Earth", "Mars", "Jupiter"};
     private static final float BODY_POINT = 0.005f;
@@ -46,6 +48,8 @@ public final class FOVCatalog {
     private boolean showLabels;
     private boolean coverage;
     private boolean bodies;
+    private boolean fill;
+    private boolean curved;
 
     public FOVCatalog(JSONObject jo) {
         JSONObject empty = new JSONObject();
@@ -55,7 +59,27 @@ public final class FOVCatalog {
         showLabels = jo.optBoolean(KEY_LABELS, true);
         coverage = jo.optBoolean(KEY_COVERAGE, true);
         bodies = jo.optBoolean(KEY_BODIES, true);
+        fill = jo.optBoolean(KEY_FILL, true);
+        curved = jo.optBoolean(KEY_CURVED, true);
         buildCatalog(jo, empty);
+    }
+
+    /** In a flat projection, each field painted on the plane of sky. */
+    boolean fill() {
+        return fill;
+    }
+
+    void setFill(boolean v) {
+        fill = v;
+    }
+
+    /** In 3D, each cone's far end on the sphere about its spacecraft rather than flat chords. */
+    boolean curved() {
+        return curved;
+    }
+
+    void setCurved(boolean v) {
+        curved = v;
     }
 
     /** In a flat projection, the edge of the solar surface each spacecraft with a field on sees. */
@@ -227,7 +251,10 @@ public final class FOVCatalog {
     public void renderFlat(MapView mv, Viewport vp) {
         labels.clear();
         bodyLabels = 0;
-        platforms.forEach(platform -> platform.renderFlat(mv, vp, coverage, labels));
+        platforms.forEach(platform -> {
+            platform.style(fill, curved);
+            platform.renderFlat(mv, vp, coverage, labels);
+        });
         if (bodies)
             renderBodies(mv, vp);
         if (showLabels || bodies)
@@ -315,7 +342,10 @@ public final class FOVCatalog {
         boolean asCones = cones && mv.rendersIn3D();
         labels.clear();
         bodyLabels = 0;
-        platforms.forEach(platform -> platform.render(mv, vp, asCones, labels));
+        platforms.forEach(platform -> {
+            platform.style(fill, curved);
+            platform.render(mv, vp, asCones, labels);
+        });
         if (asCones && showLabels)
             FOVLabels.draw(vp, labels);
     }
@@ -325,6 +355,8 @@ public final class FOVCatalog {
         jo.put(KEY_LABELS, showLabels);
         jo.put(KEY_COVERAGE, coverage);
         jo.put(KEY_BODIES, bodies);
+        jo.put(KEY_FILL, fill);
+        jo.put(KEY_CURVED, curved);
         platforms.forEach(platform -> jo.put(platform.toString(), platform.toJson()));
     }
 
