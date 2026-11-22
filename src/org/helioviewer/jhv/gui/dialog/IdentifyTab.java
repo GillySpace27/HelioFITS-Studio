@@ -7,6 +7,7 @@ import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JSlider;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.Timer;
@@ -41,6 +42,12 @@ public final class IdentifyTab {
     /** The form in three groups: the Identify panel in the sidebar shows these same ones, so there is no second copy to drift. */
     public static Groups build() {
         JCheckBox tooltip = box("Show the name beside the pointer", IdentifySettings.tooltip(), IdentifySettings.TOOLTIP);
+        JCheckBox details = box("Second line (distance, from the Sun)", IdentifySettings.tooltipDetails(), IdentifySettings.TOOLTIP_DETAILS);
+        JCheckBox cometGlyph = box("Comet glyph on comets", IdentifySettings.cometGlyph(), IdentifySettings.COMET_GLYPH);
+        JSlider bWidth = slider(IdentifySettings.boldWidth(), 0.5, 4, IdentifySettings.BOLD_WIDTH);
+        JSlider bOpacity = slider(IdentifySettings.boldOpacity(), 0.25, 3, IdentifySettings.BOLD_OPACITY);
+        JSlider bSat = slider(IdentifySettings.boldSaturation(), 0, 2, IdentifySettings.BOLD_SATURATION);
+        JSlider bShadow = slider(IdentifySettings.boldShadow(), 0, 1, IdentifySettings.BOLD_SHADOW);
         JCheckBox glow = box("Glow around what is identified", IdentifySettings.glow(), IdentifySettings.GLOW);
         JCheckBox pulse = box("Pulse when it changes", IdentifySettings.pulse(), IdentifySettings.PULSE);
         JCheckBox tipKind = box("Colour the name like its icon", IdentifySettings.tooltipByKind(), IdentifySettings.TOOLTIP_BY_KIND);
@@ -98,6 +105,12 @@ public final class IdentifyTab {
             follow(deepMag, IdentifySettings.deepSkyMaxMagnitude());
             tooltip.setSelected(IdentifySettings.tooltip());
             glow.setSelected(IdentifySettings.glow());
+            details.setSelected(IdentifySettings.tooltipDetails());
+            cometGlyph.setSelected(IdentifySettings.cometGlyph());
+            follow(bWidth, IdentifySettings.boldWidth(), 0.5, 4);
+            follow(bOpacity, IdentifySettings.boldOpacity(), 0.25, 3);
+            follow(bSat, IdentifySettings.boldSaturation(), 0, 2);
+            follow(bShadow, IdentifySettings.boldShadow(), 0, 1);
             pulse.setSelected(IdentifySettings.pulse());
             stars.setSelected(IdentifySettings.stars());
             iau.setSelected(IdentifySettings.starNamesIau());
@@ -131,10 +144,18 @@ public final class IdentifyTab {
         JPanel look = column();
         look.add(line(tooltip));
         look.add(line(tipKind));
+        look.add(line(details));
+        look.add(line(cometGlyph));
         look.add(line(glow));
         look.add(line(pulse));
         look.add(line(all));
         look.add(note("Highlight all draws thin, dim marks until the pointer reaches one or you click it."));
+        look.add(heading("Boldness of the highlights"));
+        look.add(line(new JLabel("Thickness"), bWidth));
+        look.add(line(new JLabel("Opacity"), bOpacity));
+        look.add(line(new JLabel("Colour saturation"), bSat));
+        look.add(line(new JLabel("Dark outline"), bShadow));
+        look.add(note("The colour itself is set below: by kind, or one colour with Icon colour. Comets keep their layer's colour."));
         look.add(heading("Icons"));
         look.add(line(byKind));
         look.add(line(colour));
@@ -214,6 +235,30 @@ public final class IdentifyTab {
             s.putClientProperty(FOLLOWING, Boolean.TRUE);
             try {
                 s.setValue(value);
+            } finally {
+                s.putClientProperty(FOLLOWING, null);
+            }
+        }
+    }
+
+    /** A slider over [min, max] kept in hundredths; it saves once it is released, not on every tick. */
+    private static JSlider slider(double value, double min, double max, String key) {
+        JSlider s = new JSlider((int) Math.round(min * 100), (int) Math.round(max * 100), (int) Math.round(value * 100));
+        s.putClientProperty(KEY, key);
+        s.setPreferredSize(new java.awt.Dimension(150, s.getPreferredSize().height));
+        s.addChangeListener(e -> {
+            if (s.getClientProperty(FOLLOWING) == null && !s.getValueIsAdjusting())
+                IdentifySettings.set(key, String.valueOf(s.getValue() / 100.0));
+        });
+        return s;
+    }
+
+    private static void follow(JSlider s, double value, double min, double max) {
+        int v = (int) Math.round(Math.clamp(value, min, max) * 100);
+        if (s.getValue() != v) {
+            s.putClientProperty(FOLLOWING, Boolean.TRUE);
+            try {
+                s.setValue(v);
             } finally {
                 s.putClientProperty(FOLLOWING, null);
             }
