@@ -45,7 +45,7 @@ public final class FOVPatchCheck {
     private static boolean onSphere(FOVCone.Patch p, double[] apex, double d) {
         for (double[][] row : p.rows())
             for (double[] q : row)
-                if (Math.abs(FOVCone.len(FOVCone.sub(q, apex)) - d) > 1e-6 * d)
+                if (!(Math.abs(FOVCone.len(FOVCone.sub(q, apex)) - d) <= 1e-6 * d)) // also false for NaN
                     return false;
         return true;
     }

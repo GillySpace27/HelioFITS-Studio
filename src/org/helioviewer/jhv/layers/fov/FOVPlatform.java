@@ -241,8 +241,11 @@ class FOVPlatform {
         if (fillFlat) {
             coneFill.uploadAndClear(fillBuf);
             GL.glDepthMask(false);
-            coneFill.renderShape(GL.TRIANGLES);
-            GL.glDepthMask(true);
+            try {
+                coneFill.renderShape(GL.TRIANGLES);
+            } finally {
+                GL.glDepthMask(true);
+            }
         }
         coneLines.uploadAndClear(coneLineBuf);
         coneLines.renderLine(vp, LINEWIDTH_FOV);
