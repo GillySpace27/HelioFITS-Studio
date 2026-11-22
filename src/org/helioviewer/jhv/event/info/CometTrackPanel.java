@@ -2,7 +2,7 @@ package org.helioviewer.jhv.event.info;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
+import java.awt.GridLayout;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
@@ -146,11 +146,7 @@ public final class CometTrackPanel extends JPanel implements TimeListener.Range 
         cancelButton.setEnabled(CMETracker.isTracking());
         CMETracker.addChangeListener(() -> cancelButton.setEnabled(CMETracker.isTracking())); // the panel lives for the app
 
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.TRAILING));
-        buttons.add(refreshButton);
-        buttons.add(trackWarpButton);
-        buttons.add(trackCropButton);
-        buttons.add(showButton);
+        JPanel buttons = buttonRow(showButton, refreshButton, trackWarpButton, trackCropButton);
         // Beside the status, as in the CME panel: the button row already fills a narrow sidebar.
         JPanel top = new JPanel(new BorderLayout());
         top.add(status, BorderLayout.CENTER);
@@ -240,6 +236,19 @@ public final class CometTrackPanel extends JPanel implements TimeListener.Range 
                 ? "No catalogued comet crossed this field. JPL carries the SOHO comets thickly for 1996-2008 and barely at all after, so an uncatalogued sungrazer will not appear here."
                 : rows.size() + (rows.size() == 1 ? " comet in the field. Double-click it to track." : " comets in the field. Double-click one to track."));
         fitRows();
+    }
+
+    /**
+     * The buttons two to a row. A FlowLayout row in BorderLayout.PAGE_END is given one row's
+     * height, so in a sidebar narrower than the buttons the ones that wrap got no height at all:
+     * Show in scene, added fourth, was never on screen (2026-11-21).
+     */
+    static JPanel buttonRow(JButton... buttons) {
+        JPanel row = new JPanel(new GridLayout(0, 2, 4, 4));
+        row.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
+        for (JButton b : buttons)
+            row.add(b);
+        return row;
     }
 
     private static double round(double value) {
