@@ -120,6 +120,9 @@ public final class ModelPlacementCheck {
         m.setMinPixels(40);
         m.setShowOrbit(true);
         m.setOrbitSpanDays(90);
+        m.setPointAtSun(false);
+        m.setSunAxis(ModelPlacement.Axis.MINUS_Y);
+        m.setRollDegrees(400);
         JSONObject jo = new JSONObject();
         m.serialize(jo);
 
@@ -129,12 +132,14 @@ public final class ModelPlacementCheck {
                 && r.metersPerUnit() == 0.01 && r.exaggeration() == 3e8 && r.minPixels() == 40, "placement survives a JSON round trip");
 
         expect(r.showOrbit() && r.orbitSpanDays() == 90, "the track switch and its span survive a JSON round trip");
+        expect(!r.pointAtSun() && r.sunAxis() == ModelPlacement.Axis.MINUS_Y && r.rollDegrees() == 40, "the pointing survives a JSON round trip, the roll wrapped to a turn");
         r.setOrbitSpanDays(100000);
         expect(r.orbitSpanDays() == ModelPlacement.MAX_ORBIT_DAYS, "the track span is capped");
 
         ModelPlacement old = new ModelPlacement();
         old.deserialize(new JSONObject().put("uri", "file:///x.glb"));
-        expect(old.mode() == ModelPlacement.Mode.ORIGIN && !old.showOrbit(), "a session saved before placement opens at Sun centre, with no track");
+        expect(old.mode() == ModelPlacement.Mode.ORIGIN && !old.showOrbit() && old.pointAtSun(),
+                "a session saved before placement opens at Sun centre, with no track and the model facing the Sun");
 
         ModelPlacement bad = new ModelPlacement();
         bad.deserialize(new JSONObject().put("placement", new JSONObject().put("mode", "SIDEWAYS").put("target", "Vulcan")));

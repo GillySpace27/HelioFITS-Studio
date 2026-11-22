@@ -10,6 +10,8 @@ Each new entry ends with a `[docs: ...]` pointer to where it is documented (`rel
 
 - The 3D Scene pane gains a switch for all 3D layers at once, an Add layer menu (comet, 3D model, point cloud), and the planet controls, moved there from the grid layer. Each spacecraft model has its own Track (orbit line, span in days) and Field of view toggles, like the comets. [docs: docs/comets.md]
 
+- Fields of view in the flat projections are now painted on the plane of sky (the FOV layer's Fill switch), and in 3D each cone's far end follows the sphere about its spacecraft instead of flat chords (the Curved switch). Spacecraft models face the Sun by default, with a choice of which file axis does and a roll; this is a model of the pointing, not telemetry. [docs: docs/ddf3.md]
+
 ### Changes
 - The comet list's Show in scene button is now a Show in 3D scene toggle: switching it off turns the comet layer off and keeps it, with its settings. [docs: docs/comets.md]
 - HelioFITS Core moves to pyHelioFITS 10892f0 (from 864b2362): looking files up by hash (`record.locate`), a verdict for every frame of a movie, the Windows socket fix, and a golden set of four records. A release now runs that golden set against the pinned Core (`release/replay.sh`) and stops if a pixel digest drifts. [docs: release/RELEASING.md]
