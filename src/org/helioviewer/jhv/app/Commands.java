@@ -384,6 +384,39 @@ public final class Commands {
         return grid.isEnabled();
     }
 
+    /** The projections the palette lists, in its order (the sky is a checkbox there, not one of them). */
+    public static List<org.helioviewer.jhv.display.MapMode> listedProjections() {
+        return java.util.Arrays.stream(org.helioviewer.jhv.display.MapMode.values())
+                .filter(m -> m != org.helioviewer.jhv.display.MapMode.ObserverSky).toList();
+    }
+
+    /**
+     * Pick a projection as the palette's radio does: with the sky on, a base that can host it changes what the
+     * sky is drawn on and the view stays in the sky; any other change is a projection switch.
+     */
+    public static void selectProjection(org.helioviewer.jhv.display.MapMode el) {
+        selectProjection(el, () -> {});
+    }
+
+    /** As {@link #selectProjection(org.helioviewer.jhv.display.MapMode)}; {@code afterSkyBase} runs once a sky base change is applied. */
+    public static void selectProjection(org.helioviewer.jhv.display.MapMode el, Runnable afterSkyBase) {
+        if (ViewState.getProjection() == org.helioviewer.jhv.display.MapMode.ObserverSky && el.hostsSky()) {
+            org.helioviewer.jhv.display.ProjectionTransition.requestChange(() -> {
+                org.helioviewer.jhv.display.Display.setSkyBase(el);
+                afterSkyBase.run();
+            });
+        } else
+            ViewState.setProjection(el);
+    }
+
+    /** Turn "Render in 3D" on or off; the new state. It only shows in Helioradial. */
+    public static boolean toggleRender3D() {
+        boolean on = !org.helioviewer.jhv.display.Display.isHelioradial3D();
+        org.helioviewer.jhv.display.Display.setHelioradial3D(on);
+        DisplayController.render(1);
+        return on;
+    }
+
     public static void rotateView90(@Nullable String axis) {
         DisplayController.rotateView90(axis);
     }
