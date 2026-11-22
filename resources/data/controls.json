@@ -323,7 +323,7 @@
     },
     {
       "id": "cometShowInScene",
-      "title": "Show in scene",
+      "title": "Show in 3D scene",
       "where": "Track comet",
       "words": "comet orbit position rings add scene",
       "doc": "docs/comets.md"
