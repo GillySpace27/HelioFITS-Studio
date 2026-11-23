@@ -458,7 +458,7 @@ public final class CometLayer extends AbstractLayer {
             double[] c = SkyScreen.place(mv, vp, t.observer(), look.sight().dir());
             if (c == null)
                 continue;
-            putRing(buf, c[0] - vp.x, vp.height - (c[1] - vp.yAWT), radius, col);
+            putMarker(buf, c, vp, radius, Display.pixelScale[1], org.helioviewer.jhv.identify.IdentifySettings.cometGlyph(), col);
             rings++;
         }
         if (vp.idx == 0)
@@ -575,6 +575,35 @@ public final class CometLayer extends AbstractLayer {
     }
 
     /** A closed ring of {@link #RING_POINTS} around (x, y), viewport GL pixels. */
+    /**
+     * One image's marker: the ring, and inside it the comet glyph when Identify's "Comet glyph on
+     * comets" is on. {@code c} is the page point (y down) SkyScreen.place gives. Identify draws the
+     * glyph only with its own rings, and a comet shown in the 3D scene is drawn here instead, so
+     * turning on "Show in 3D scene" used to take the glyph away (Gilly, 2026-11-22).
+     *
+     * @return the strokes put: 1, or 5 with the glyph
+     */
+    static int putMarker(BufVertex b, double[] c, Viewport vp, double radius, double scale, boolean glyph, byte[] col) {
+        putRing(b, c[0] - vp.x, vp.height - (c[1] - vp.yAWT), radius, col);
+        if (!glyph)
+            return 1;
+        int strokes = 1;
+        for (List<double[]> stroke : org.helioviewer.jhv.identify.IdentifyGlow.cometGlyphStrokes(c, scale)) {
+            boolean closed = stroke.size() > 2; // the head is a loop, a tail a single stroke
+            for (int i = 0; i < stroke.size() + (closed ? 1 : 0); i++) {
+                double[] p = stroke.get(i % stroke.size());
+                float px = (float) (p[0] - vp.x), py = (float) (vp.height - (p[1] - vp.yAWT));
+                if (i == 0)
+                    b.startLine(px, py, 0, 1, col);
+                else
+                    b.putVertex(px, py, 0, 1, col);
+            }
+            b.endLine();
+            strokes++;
+        }
+        return strokes;
+    }
+
     static void putRing(BufVertex b, double x, double y, double radius, byte[] col) {
         for (int i = 0; i <= RING_POINTS; i++) {
             double a = 2 * Math.PI * i / RING_POINTS;

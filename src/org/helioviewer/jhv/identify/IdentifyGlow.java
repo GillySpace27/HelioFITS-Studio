@@ -528,18 +528,30 @@ public final class IdentifyGlow {
      */
     static List<Ring> cometGlyph(int[] rgb, double[] c, Tier tier, double scale) {
         List<Ring> out = new ArrayList<>();
+        for (List<double[]> stroke : cometGlyphStrokes(c, scale))
+            out.add(new Ring(rgb, stroke, c, tier));
+        return out;
+    }
+
+    /**
+     * The glyph's strokes in page coordinates (y down): the head first, twelve points that the
+     * drawer closes, then the three tails, two points each. Public because a comet layer draws the
+     * same glyph beside its own rings, which this glow does not draw.
+     */
+    public static List<List<double[]>> cometGlyphStrokes(double[] c, double scale) {
+        List<List<double[]>> out = new ArrayList<>();
         double r = 3 * scale;
         List<double[]> head = new ArrayList<>();
         for (int i = 0; i < 12; i++)
             head.add(new double[]{c[0] + r * Math.cos(Math.PI / 6 * i), c[1] + r * Math.sin(Math.PI / 6 * i)});
-        out.add(new Ring(rgb, head, c, tier));
+        out.add(head);
         double[][] tails = {{0, 15}, {-3.5, 10}, {3.5, 10}}; // {sideways offset, length} in points
         double ux = -Math.sqrt(0.5), uy = Math.sqrt(0.5); // toward the lower left on the page (y down)
         for (double[] t : tails) {
             double ox = c[0] - uy * t[0] * scale, oy = c[1] + ux * t[0] * scale; // offset along the perpendicular
             double[] a = {ox + ux * r * 1.4, oy + uy * r * 1.4};
             double[] b = {ox + ux * t[1] * scale, oy + uy * t[1] * scale};
-            out.add(new Ring(rgb, List.of(a, b), c, tier));
+            out.add(List.of(a, b));
         }
         return out;
     }
