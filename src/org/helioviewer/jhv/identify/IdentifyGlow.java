@@ -454,9 +454,18 @@ public final class IdentifyGlow {
                 marks.putIfAbsent(m.key(), m);
                 hovered.add(m.key());
             }
-        if (f.all() || f.always())
-            for (Mark m : frame.marks(vp, mv, targets))
+        if (f.all() || f.always()) {
+            double crop = mv.isHelioradial() && IdentifySettings.highlightInsideCrop() ? Display.getWarpOuterRadius() : 0;
+            for (Mark m : frame.marks(vp, mv, targets)) {
+                if (crop > 0 && !hovered.contains(m.key())) { // what the pointer reaches is always answered
+                    Identifier.Target t = m.layer() == null ? targets.getFirst() : byName(targets, m.layer());
+                    Vec3 dir = t == null ? null : frame.direction(m, t);
+                    if (dir != null && !insideCrop(dir, t.observer().distance, crop, Display.getSurfaceModel()))
+                        continue;
+                }
                 marks.putIfAbsent(m.key(), m);
+            }
+        }
         List<Ring> rings = new ArrayList<>();
         List<Glyph> glyphs = new ArrayList<>();
         Map<Kind, int[]> colours = new java.util.EnumMap<>(Kind.class);
@@ -495,6 +504,20 @@ public final class IdentifyGlow {
                 glyphs.add(new Glyph(sym, rgb, c, false, tier == Tier.AMBIENT));
         }
         return new Scene(rings, glyphs);
+    }
+
+    /**
+     * Whether a sight line from an observer {@code observerDistance} from the Sun meets the
+     * imagery's surface within the Crop. {@code dir} is in the observer's frame, which looks down
+     * -z at the Sun. The surface radius is the heliocentric distance the warp mesh uses, so this
+     * cuts where the picture is cut. Pure, for IdentifyCropCheck.
+     */
+    static boolean insideCrop(Vec3 dir, double observerDistance, double crop, org.helioviewer.jhv.display.SurfaceModel surface) {
+        double len = Math.sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z);
+        if (len == 0 || crop <= 0)
+            return true;
+        double elongation = Math.acos(Math.clamp(-dir.z / len, -1, 1));
+        return surface.heliocentricRadius(elongation, observerDistance) <= crop;
     }
 
     /**
