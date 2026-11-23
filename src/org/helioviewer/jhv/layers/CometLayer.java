@@ -382,6 +382,21 @@ public final class CometLayer extends AbstractLayer {
         return new byte[]{(byte) c[0], (byte) c[1], (byte) c[2], (byte) Math.clamp(Math.round(255 * opacity), 0, 255)};
     }
 
+    /** How this frame draws the rings: colours, line widths in pixels, the glyph's scale and whether it is drawn. */
+    record RingStyle(byte[] colour, byte[] shadow, double widthPx, double shadowWidthPx, double glyphScale, boolean glyph) {}
+
+    /**
+     * The rings' style from the settings: Identify's Boldness of the highlights, as its own rings
+     * take it, and its comet glyph. Everything scales with the display and an export's capture scale.
+     */
+    static RingStyle ringStyle(int[] rgb, double pixelScale, double captureScale) {
+        double opacity = IdentifySettings.boldOpacity(), wm = IdentifySettings.boldWidth();
+        double scale = pixelScale * captureScale;
+        double width = ringWidthPx(pixelScale, captureScale) * wm;
+        return new RingStyle(ringColour(rgb, opacity, IdentifySettings.boldSaturation()), ringShadow(IdentifySettings.boldShadow(), opacity),
+                width, width + 3 * wm * scale, scale, IdentifySettings.cometGlyph());
+    }
+
     /** The dark outline under the rings for Boldness's shadow, as Identify draws it; alpha 0 = none. */
     static byte[] ringShadow(double shadow, double opacity) {
         return new byte[]{0, 0, 0, (byte) (int) Math.min(255, 200 * shadow * Math.min(1, opacity))};
@@ -479,12 +494,7 @@ public final class CometLayer extends AbstractLayer {
         if (centres.isEmpty() || vp.height <= 0)
             return;
 
-        // Identify's Boldness of the highlights applies to these rings as to its own
-        double opacity = IdentifySettings.boldOpacity(), wm = IdentifySettings.boldWidth();
-        double width = ringWidthPx(Display.pixelScale[1], Display.captureScale) * wm;
-        byte[] col = ringColour(rgb, opacity, IdentifySettings.boldSaturation());
-        byte[] shadow = ringShadow(IdentifySettings.boldShadow(), opacity);
-        boolean glyph = IdentifySettings.cometGlyph();
+        RingStyle style = ringStyle(rgb, Display.pixelScale[1], Display.captureScale);
 
         Transform.pushProjection();
         Transform.setOrtho2DProjection(0, vp.width, 0, vp.height);
@@ -492,18 +502,18 @@ public final class CometLayer extends AbstractLayer {
         Transform.setIdentityView();
         GL.glDisable(GL.DEPTH_TEST);
         try {
-            if (shadow[3] != 0) { // under the colour, wider, so a ring stands out on a bright corona
+            if (style.shadow()[3] != 0) { // under the colour, wider, so a ring stands out on a bright corona
                 buf.clear();
                 for (double[] c : centres)
-                    putMarker(buf, c, vp, radius, Display.pixelScale[1], glyph, shadow);
+                    putMarker(buf, c, vp, radius, style.glyphScale(), style.glyph(), style.shadow());
                 line.upload(buf);
-                line.renderLine(vp, (width + 3 * wm * Display.pixelScale[1] * Display.captureScale) / vp.height);
+                line.renderLine(vp, style.shadowWidthPx() / vp.height);
             }
             buf.clear();
             for (double[] c : centres)
-                putMarker(buf, c, vp, radius, Display.pixelScale[1], glyph, col);
+                putMarker(buf, c, vp, radius, style.glyphScale(), style.glyph(), style.colour());
             line.upload(buf);
-            line.renderLine(vp, width / vp.height);
+            line.renderLine(vp, style.widthPx() / vp.height);
         } finally {
             GL.glEnable(GL.DEPTH_TEST);
             Transform.popView();
