@@ -79,6 +79,11 @@ public final class ScenePlanetsRestoreCheck {
         check(show2 != null && after.isShowPlanets() != was2, "after a session load, Show toggles the new grid layer's planets");
         check(show2 != null && show2.isSelected() == after.isShowPlanets(), "and the box shows that layer's state");
 
+        // A reorder says layersCleared too, with the same grid layer: rebuilding then closed a Planets
+        // section the user had opened (Sourcery on #331), so the controls stay as they are
+        Layers.fireLayersRearranged();
+        check(showBox(pane) == show2, "a layer reorder keeps the same planet controls (an open section stays open)");
+
         System.out.println(failures == 0 ? "ScenePlanetsRestoreCheck: PASS" : "ScenePlanetsRestoreCheck: " + failures + " FAILURE(S)");
         System.exit(failures == 0 ? 0 : 1);
     }
