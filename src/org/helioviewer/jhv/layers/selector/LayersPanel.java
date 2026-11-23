@@ -32,6 +32,7 @@ import org.helioviewer.jhv.gui.TransferAccess;
 import org.helioviewer.jhv.gui.UIGlobals;
 import org.helioviewer.jhv.gui.UITimer;
 import org.helioviewer.jhv.gui.component.MoviePanel;
+import org.helioviewer.jhv.gui.component.PassWheelScrollPane;
 import org.helioviewer.jhv.gui.component.TableValue;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layer;
@@ -187,10 +188,9 @@ public final class LayersPanel extends JPanel {
 
         grid = new LayersTable(model);
 
-        jsp = new JScrollPane(grid, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         // The list is sized to every row, so it never has anything of its own to scroll; a pane that handles the
         // wheel anyway keeps the events and the sidebar around it will not move while the pointer is over the list.
-        jsp.setWheelScrollingEnabled(false);
+        jsp = new PassWheelScrollPane(grid, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         UIGlobals.themed(jsp, c -> c.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UIGlobals.separator())));
         // Plain, so updateComponentTreeUI leaves it behind: the strip below the last row would
         // otherwise stay in the previous theme's colour after a switch.
