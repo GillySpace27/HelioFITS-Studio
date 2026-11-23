@@ -19,6 +19,8 @@ import org.helioviewer.jhv.display.ViewportMath;
 import org.helioviewer.jhv.identify.CometSight;
 import org.helioviewer.jhv.identify.CometStyle;
 import org.helioviewer.jhv.identify.Identifier;
+import org.helioviewer.jhv.identify.IdentifyGlow;
+import org.helioviewer.jhv.identify.IdentifySettings;
 import org.helioviewer.jhv.identify.SkyScreen;
 import org.helioviewer.jhv.layers.grid.GridMath;
 import org.helioviewer.jhv.layers.selector.CometLayerOptions;
@@ -371,6 +373,20 @@ public final class CometLayer extends AbstractLayer {
         return RING_WIDTH_PX * pixelScale * captureScale;
     }
 
+    /**
+     * The rings' colour under Identify's Boldness of the highlights, as Identify's own rings take
+     * it: saturation scaled, opacity scaled (already opaque, so only less than 1 shows).
+     */
+    static byte[] ringColour(int[] rgb, double opacity, double saturation) {
+        int[] c = IdentifyGlow.saturate(rgb, saturation);
+        return new byte[]{(byte) c[0], (byte) c[1], (byte) c[2], (byte) Math.clamp(Math.round(255 * opacity), 0, 255)};
+    }
+
+    /** The dark outline under the rings for Boldness's shadow, as Identify draws it; alpha 0 = none. */
+    static byte[] ringShadow(double shadow, double opacity) {
+        return new byte[]{0, 0, 0, (byte) (int) Math.min(255, 200 * shadow * Math.min(1, opacity))};
+    }
+
     private record Row(Identifier.Target target, String observatory) {}
 
     /** The observatory of the image layer named {@code name}, or "" (no such layer, or not FITS). */
@@ -445,10 +461,8 @@ public final class CometLayer extends AbstractLayer {
         CometEphemeris.WorldPath sohoPath = s == null ? null : s::world;
         DisplaySettings.TimeMode mode = DisplaySettings.getTimeMode();
         double radius = ringRadiusPx(Display.pixelScale[1], Display.captureScale);
-        byte[] col = {(byte) rgb[0], (byte) rgb[1], (byte) rgb[2], (byte) 255};
         List<String> lines = new ArrayList<>();
-        buf.clear();
-        int rings = 0;
+        List<double[]> centres = new ArrayList<>();
         for (Row row : targets(vp)) {
             Identifier.Target t = row.target();
             CometSight.Look look = CometSight.look(p::world, t, row.observatory(), sohoPath, lightTime, mode);
@@ -458,13 +472,19 @@ public final class CometLayer extends AbstractLayer {
             double[] c = SkyScreen.place(mv, vp, t.observer(), look.sight().dir());
             if (c == null)
                 continue;
-            putRing(buf, c[0] - vp.x, vp.height - (c[1] - vp.yAWT), radius, col);
-            rings++;
+            centres.add(c);
         }
         if (vp.idx == 0)
             observerLines = List.copyOf(lines);
-        if (rings == 0 || vp.height <= 0)
+        if (centres.isEmpty() || vp.height <= 0)
             return;
+
+        // Identify's Boldness of the highlights applies to these rings as to its own
+        double opacity = IdentifySettings.boldOpacity(), wm = IdentifySettings.boldWidth();
+        double width = ringWidthPx(Display.pixelScale[1], Display.captureScale) * wm;
+        byte[] col = ringColour(rgb, opacity, IdentifySettings.boldSaturation());
+        byte[] shadow = ringShadow(IdentifySettings.boldShadow(), opacity);
+        boolean glyph = IdentifySettings.cometGlyph();
 
         Transform.pushProjection();
         Transform.setOrtho2DProjection(0, vp.width, 0, vp.height);
@@ -472,8 +492,18 @@ public final class CometLayer extends AbstractLayer {
         Transform.setIdentityView();
         GL.glDisable(GL.DEPTH_TEST);
         try {
+            if (shadow[3] != 0) { // under the colour, wider, so a ring stands out on a bright corona
+                buf.clear();
+                for (double[] c : centres)
+                    putMarker(buf, c, vp, radius, Display.pixelScale[1], glyph, shadow);
+                line.upload(buf);
+                line.renderLine(vp, (width + 3 * wm * Display.pixelScale[1] * Display.captureScale) / vp.height);
+            }
+            buf.clear();
+            for (double[] c : centres)
+                putMarker(buf, c, vp, radius, Display.pixelScale[1], glyph, col);
             line.upload(buf);
-            line.renderLine(vp, ringWidthPx(Display.pixelScale[1], Display.captureScale) / vp.height);
+            line.renderLine(vp, width / vp.height);
         } finally {
             GL.glEnable(GL.DEPTH_TEST);
             Transform.popView();
@@ -575,6 +605,35 @@ public final class CometLayer extends AbstractLayer {
     }
 
     /** A closed ring of {@link #RING_POINTS} around (x, y), viewport GL pixels. */
+    /**
+     * One image's marker: the ring, and inside it the comet glyph when Identify's "Comet glyph on
+     * comets" is on. {@code c} is the page point (y down) SkyScreen.place gives. Identify draws the
+     * glyph only with its own rings, and a comet shown in the 3D scene is drawn here instead, so
+     * turning on "Show in 3D scene" used to take the glyph away (Gilly, 2026-11-22).
+     *
+     * @return the strokes put: 1, or 5 with the glyph
+     */
+    static int putMarker(BufVertex b, double[] c, Viewport vp, double radius, double scale, boolean glyph, byte[] col) {
+        putRing(b, c[0] - vp.x, vp.height - (c[1] - vp.yAWT), radius, col);
+        if (!glyph)
+            return 1;
+        int strokes = 1;
+        for (List<double[]> stroke : IdentifyGlow.cometGlyphStrokes(c, scale)) {
+            boolean closed = stroke.size() > 2; // the head is a loop, a tail a single stroke
+            for (int i = 0; i < stroke.size() + (closed ? 1 : 0); i++) {
+                double[] p = stroke.get(i % stroke.size());
+                float px = (float) (p[0] - vp.x), py = (float) (vp.height - (p[1] - vp.yAWT));
+                if (i == 0)
+                    b.startLine(px, py, 0, 1, col);
+                else
+                    b.putVertex(px, py, 0, 1, col);
+            }
+            b.endLine();
+            strokes++;
+        }
+        return strokes;
+    }
+
     static void putRing(BufVertex b, double x, double y, double radius, byte[] col) {
         for (int i = 0; i <= RING_POINTS; i++) {
             double a = 2 * Math.PI * i / RING_POINTS;

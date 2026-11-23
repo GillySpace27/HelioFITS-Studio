@@ -1,6 +1,8 @@
 package org.helioviewer.jhv.identify;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.helioviewer.jhv.app.Settings;
@@ -73,6 +75,8 @@ public final class IdentifySettings {
     public static final double DEFAULT_DEEP_SKY_MAX_MAG = 9;
 
     private static final List<Runnable> listeners = new CopyOnWriteArrayList<>();
+    /** Numbers shown while a slider is held, not yet saved: read before the settings file. */
+    private static final Map<String, String> previews = new ConcurrentHashMap<>();
 
     public static void addListener(Runnable r) {
         listeners.add(r);
@@ -89,7 +93,9 @@ public final class IdentifySettings {
     }
 
     private static double number(String key, double def, double min, double max) {
-        String v = Settings.getProperty(key);
+        String v = previews.get(key);
+        if (v == null)
+            v = Settings.getProperty(key);
         if (v == null)
             return def;
         try {
@@ -101,7 +107,14 @@ public final class IdentifySettings {
     }
 
     public static void set(String key, String value) {
+        previews.remove(key);
         Settings.setProperty(key, value);
+        fire();
+    }
+
+    /** Show {@code value} for {@code key} now without saving it: a slider being dragged. {@link #set} saves it. */
+    public static void preview(String key, String value) {
+        previews.put(key, value);
         fire();
     }
 
@@ -278,6 +291,7 @@ public final class IdentifySettings {
      * switching the feature off as a side effect would hide the evidence.
      */
     public static void resetToDefaults() {
+        previews.clear();
         java.util.Map<String, String> values = new java.util.LinkedHashMap<>();
         values.put(TOLERANCE_PX, String.valueOf(DEFAULT_TOLERANCE_PX));
         values.put(DWELL_MS, String.valueOf((double) DEFAULT_DWELL_MS));
