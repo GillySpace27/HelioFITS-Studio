@@ -12,7 +12,8 @@ import javax.swing.JScrollPane;
  * only makes that listener ignore the event, so the event still stopped there and the sidebar
  * stuck wherever the list passed under the pointer (seen with Robot under Xvfb, 2026-11-23). With
  * no listener the event goes on up to the sidebar's own scroll pane. updateUI runs again on every
- * theme switch, which installs the listener again, so it is removed there.
+ * theme switch, which installs the listener again, so it is removed there; listeners a caller
+ * added are kept.
  */
 @SuppressWarnings("serial")
 public final class PassWheelScrollPane extends JScrollPane {
@@ -24,9 +25,12 @@ public final class PassWheelScrollPane extends JScrollPane {
 
     @Override
     public void updateUI() {
+        // Only what the look and feel installs goes: a listener a caller added stays
+        java.util.List<MouseWheelListener> callers = java.util.List.of(getMouseWheelListeners());
         super.updateUI();
         for (MouseWheelListener l : getMouseWheelListeners())
-            removeMouseWheelListener(l);
+            if (!callers.contains(l))
+                removeMouseWheelListener(l);
     }
 
 }

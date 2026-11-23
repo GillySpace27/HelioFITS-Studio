@@ -37,6 +37,14 @@ public final class ScenePlanetsRestoreCheck {
         return found.isEmpty() ? null : found.getLast();
     }
 
+    /** The collapsible section that holds the planets' Show box. */
+    private static org.helioviewer.jhv.gui.component.CollapsiblePane planetsPane(Container root, JCheckBox show) {
+        for (Container c = show == null ? null : show.getParent(); c != null && c != root; c = c.getParent())
+            if (c instanceof org.helioviewer.jhv.gui.component.CollapsiblePane p)
+                return p;
+        return null;
+    }
+
     private static void collect(Container c, List<JCheckBox> out) {
         for (Component k : c.getComponents()) {
             if (k instanceof JCheckBox b && "Show".equals(b.getText()))
@@ -81,8 +89,13 @@ public final class ScenePlanetsRestoreCheck {
 
         // A reorder says layersCleared too, with the same grid layer: rebuilding then closed a Planets
         // section the user had opened (Sourcery on #331), so the controls stay as they are
+        org.helioviewer.jhv.gui.component.CollapsiblePane planets = planetsPane(pane, show2);
+        if (planets != null)
+            planets.setExpanded(true);
         Layers.fireLayersRearranged();
-        check(showBox(pane) == show2, "a layer reorder keeps the same planet controls (an open section stays open)");
+        check(showBox(pane) == show2, "a layer reorder keeps the same planet controls");
+        org.helioviewer.jhv.gui.component.CollapsiblePane after2 = planetsPane(pane, showBox(pane));
+        check(planets != null && after2 == planets && planets.isExpanded(), "and the Planets section the user opened stays open");
 
         System.out.println(failures == 0 ? "ScenePlanetsRestoreCheck: PASS" : "ScenePlanetsRestoreCheck: " + failures + " FAILURE(S)");
         System.exit(failures == 0 ? 0 : 1);

@@ -38,6 +38,12 @@ public final class LayerListWheelCheck {
         UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
         SwingUtilities.updateComponentTreeUI(pane);
         check(pane.getMouseWheelListeners().length == 0, "still none after a theme switch reinstalls its UI");
+        java.awt.event.MouseWheelListener own = e -> { };
+        pane.addMouseWheelListener(own);
+        SwingUtilities.updateComponentTreeUI(pane);
+        check(pane.getMouseWheelListeners().length == 1 && pane.getMouseWheelListeners()[0] == own,
+                "a theme switch keeps a listener a caller added, and only that one");
+        pane.removeMouseWheelListener(own);
         check(pane.getViewport().getMouseWheelListeners().length == 0 && pane.getViewport().getView().getMouseWheelListeners().length == 0,
                 "nor in its viewport or the table");
 
