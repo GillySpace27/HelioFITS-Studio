@@ -179,7 +179,9 @@ public final class SceneSizePanel extends JPanel {
         Layers.addListener(new Layers.Listener() {
             public void layerAdded(int index, Layer layer) { if (layer instanceof GridLayer) build.run(); }
             public void layerRemoved(int index, Layer layer) { }
-            public void layersCleared() { }
+            // Opening a session (Layers.restore) swaps in a new grid layer and says only this: without
+            // the rebuild the planet controls stayed bound to the discarded one and did nothing (2026-11-22)
+            public void layersCleared() { build.run(); }
             public void nameUpdated(Layer layer) { }
             public void layerUpdated(Layer layer) { }
             public void timeUpdated(Layer layer) { }
