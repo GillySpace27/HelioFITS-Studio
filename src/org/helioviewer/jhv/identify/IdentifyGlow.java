@@ -557,7 +557,7 @@ public final class IdentifyGlow {
     }
 
     /** {@code rgb} with its saturation multiplied by {@code factor} (1 keeps it). */
-    static int[] saturate(int[] rgb, double factor) {
+    public static int[] saturate(int[] rgb, double factor) {
         if (factor == 1)
             return rgb;
         float[] hsb = java.awt.Color.RGBtoHSB(rgb[0], rgb[1], rgb[2], null);

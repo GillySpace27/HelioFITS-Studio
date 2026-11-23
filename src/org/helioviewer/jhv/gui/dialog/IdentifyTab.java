@@ -12,6 +12,7 @@ import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.Timer;
 
+import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.identify.IdentifySettings;
 
 /**
@@ -245,14 +246,23 @@ public final class IdentifyTab {
         }
     }
 
-    /** A slider over [min, max] kept in hundredths; it saves once it is released, not on every tick. */
+    /**
+     * A slider over [min, max] kept in hundredths. The scene follows it while it is dragged; it
+     * saves once it is released, not on every tick.
+     */
     private static JSlider slider(double value, double min, double max, String key) {
         JSlider s = new JSlider((int) Math.round(min * 100), (int) Math.round(max * 100), (int) Math.round(value * 100));
         s.putClientProperty(KEY, key);
         s.setPreferredSize(new java.awt.Dimension(150, s.getPreferredSize().height));
         s.addChangeListener(e -> {
-            if (s.getClientProperty(FOLLOWING) == null && !s.getValueIsAdjusting())
-                IdentifySettings.set(key, String.valueOf(s.getValue() / 100.0));
+            if (s.getClientProperty(FOLLOWING) != null)
+                return;
+            String v = String.valueOf(s.getValue() / 100.0);
+            if (s.getValueIsAdjusting())
+                IdentifySettings.preview(key, v);
+            else
+                IdentifySettings.set(key, v);
+            DisplayController.display(); // nothing else asks for a frame when only a highlight changes
         });
         return s;
     }
