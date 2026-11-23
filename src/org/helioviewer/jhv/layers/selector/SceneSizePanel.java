@@ -165,13 +165,20 @@ public final class SceneSizePanel extends JPanel {
     /** The planets, which the grid layer draws, controlled from here: rebuilt when that layer comes (back). */
     private void addPlanets() {
         JPanel holder = new JPanel(new BorderLayout());
+        GridLayer[] bound = {null}; // the layer the controls drive; a reorder keeps it, so the section stays as the user left it
         Runnable build = () -> {
-            holder.removeAll();
+            GridLayer grid = null;
             for (Layer l : Layers.getLayers())
                 if (l instanceof GridLayer g) {
-                    holder.add(new CollapsiblePane("Planets", GridLayerOptions.planetControls(g), false, true, Buttons.track));
+                    grid = g;
                     break;
                 }
+            if (grid == bound[0])
+                return;
+            bound[0] = grid;
+            holder.removeAll();
+            if (grid != null)
+                holder.add(new CollapsiblePane("Planets", GridLayerOptions.planetControls(grid), false, true, Buttons.track));
             holder.revalidate();
             holder.repaint();
         };

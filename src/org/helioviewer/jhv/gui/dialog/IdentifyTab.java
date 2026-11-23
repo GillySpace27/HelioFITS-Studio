@@ -54,6 +54,8 @@ public final class IdentifyTab {
         JCheckBox symInstead = box("Planet symbols instead of rings", IdentifySettings.symbolsInstead(), IdentifySettings.SYMBOLS_INSTEAD);
         JCheckBox symAlways = box("Always show planet symbols", IdentifySettings.symbolsAlways(), IdentifySettings.SYMBOLS_ALWAYS);
         JCheckBox all = box("Highlight all named objects in view", IdentifySettings.highlightAll(), IdentifySettings.HIGHLIGHT_ALL);
+        JCheckBox insideCrop = box("Only inside the Crop", IdentifySettings.highlightInsideCrop(), IdentifySettings.HIGHLIGHT_INSIDE_CROP);
+        insideCrop.setToolTipText("Leave out objects past the Helioradial Crop circle, where no imagery is drawn");
         JCheckBox byKind = box("Colour the icon by kind of object", IdentifySettings.iconByKind(), IdentifySettings.ICON_BY_KIND);
         JButton colour = new JButton("Icon colour…");
         colour.putClientProperty(KEY, IdentifySettings.ICON_COLOR);
@@ -92,6 +94,7 @@ public final class IdentifyTab {
         // command and the panel's Reset to defaults all change them from outside this form.
         IdentifySettings.addListener(() -> {
             all.setSelected(IdentifySettings.highlightAll());
+            insideCrop.setSelected(IdentifySettings.highlightInsideCrop());
             tipKind.setSelected(IdentifySettings.tooltipByKind());
             symInstead.setSelected(IdentifySettings.symbolsInstead());
             symAlways.setSelected(IdentifySettings.symbolsAlways());
@@ -149,6 +152,7 @@ public final class IdentifyTab {
         look.add(line(glow));
         look.add(line(pulse));
         look.add(line(all));
+        look.add(line(insideCrop));
         look.add(note("Highlight all draws thin, dim marks until the pointer reaches one or you click it."));
         look.add(heading("Boldness of the highlights"));
         look.add(line(new JLabel("Thickness"), bWidth));

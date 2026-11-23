@@ -39,6 +39,7 @@ public final class IdentifySettings {
     public static final String SYMBOLS_INSTEAD = "identify.symbols.instead";
     public static final String SYMBOLS_ALWAYS = "identify.symbols.always";
     public static final String HIGHLIGHT_ALL = "identify.highlightAll";
+    public static final String HIGHLIGHT_INSIDE_CROP = "identify.highlightAll.insideCrop";
     public static final String DATA_COMETS = "identify.data.comets";
     public static final String DATA_CMES = "identify.data.cmes";
     public static final String DATA_CLUSTERS = "identify.data.clusters";
@@ -230,6 +231,11 @@ public final class IdentifySettings {
         return bool(HIGHLIGHT_ALL, false);
     }
 
+    /** Highlight all leaves out what lies past the Crop, where no imagery is drawn (Gilly, 2026-11-22). */
+    public static boolean highlightInsideCrop() {
+        return bool(HIGHLIGHT_INSIDE_CROP, true);
+    }
+
     public static boolean dataComets() {
         return bool(DATA_COMETS, false);
     }
@@ -294,6 +300,7 @@ public final class IdentifySettings {
         values.put(TOOLTIP_BY_KIND, "true");
         values.put(SYMBOLS_INSTEAD, "false");
         values.put(SYMBOLS_ALWAYS, "false");
+        values.put(HIGHLIGHT_INSIDE_CROP, "true");
         values.put(DEEP_SKY_MAX_MAG, String.valueOf(DEFAULT_DEEP_SKY_MAX_MAG));
         Settings.setProperties(values); // one write, not one per key
         fire();

@@ -27,6 +27,7 @@ enum MaterialDesign {
     FLASH("mdi-flash", '\uf241'), // a bolt, for space weather events; rasterized from the shipped font before use
     CROP_LANDSCAPE("mdi-crop-landscape", '\uf1a0'),
     CROSSHAIRS_GPS("mdi-crosshairs-gps", '\uf1a4'),
+    EARTH("mdi-earth", '\uf1e7'), // a globe; codepoint read from the shipped font's cmap, then rasterized (2026-11-23)
     CUBE_OUTLINE("mdi-cube-outline", '\uf1a7'),
     CURSOR_MOVE("mdi-cursor-move", '\uf1b6'),
     DEBUG_STEP_OUT("mdi-debug-step-out", '\uf1bc'),
