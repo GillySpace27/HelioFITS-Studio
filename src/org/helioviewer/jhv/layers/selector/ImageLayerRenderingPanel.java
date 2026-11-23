@@ -13,6 +13,7 @@ import javax.swing.JPanel;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.ComponentUtils;
 import org.helioviewer.jhv.gui.component.Buttons;
+import org.helioviewer.jhv.gui.component.CollapsiblePane;
 import org.helioviewer.jhv.image.ImageDisplaySettings;
 import org.helioviewer.jhv.image.ImageFilter;
 import org.helioviewer.jhv.image.ImageProcessingSettings;
@@ -77,6 +78,7 @@ final class ImageLayerRenderingPanel extends JPanel {
     private final LayerSection displaySection;
     private final LayerSection backgroundSection;
     private final LayerSection intensitySection;
+    private final CollapsiblePane fitsSection;
 
     /** @param rebuild rebuild this layer's options from current state; a revert moves rows this panel does not own */
     ImageLayerRenderingPanel(ImageLayer layer, Runnable rebuild) {
@@ -102,9 +104,10 @@ final class ImageLayerRenderingPanel extends JPanel {
         JPanel intensityContent = FilterRowLayout.rows(intensityRows);
         // The FITS rows are the bottom of Intensity rather than a section of their own: they are
         // the same question as Levels asked one step earlier, on the data rather than on the
-        // display, and only a layer with FITS behind it has them at all. Not behind a disclosure:
-        // the clip and the stretch are what a FITS layer is adjusted with, and hiding them one
-        // click deep meant every layer opened needing that click first.
+        // display, and only a layer with FITS behind it has them at all. They are a nested fold
+        // (Gilly, 2026-11-23: sub-collapsibles in Image Layers) that starts open and stays the way
+        // it was last left for every layer, so nobody has to open it per layer; it used to be no
+        // disclosure at all because a per-layer one meant a click on every layer opened.
         GridBagConstraints c = new GridBagConstraints();
         c.gridx = 0;
         c.gridwidth = 3;
@@ -113,7 +116,8 @@ final class ImageLayerRenderingPanel extends JPanel {
         c.anchor = GridBagConstraints.LINE_START;
         c.fill = GridBagConstraints.HORIZONTAL;
         c.gridy = intensityRows.length;
-        intensityContent.add(fitsSettings, c);
+        fitsSection = new CollapsiblePane("FITS clipping and scaling", fitsSettings, true, true, null, "layer_fits");
+        intensityContent.add(fitsSection, c);
 
         // Straight after the colour table: both answer "what am I looking at", one by choosing
         // the image and one by choosing how it is painted.
@@ -140,12 +144,19 @@ final class ImageLayerRenderingPanel extends JPanel {
             rebuild.run();
         });
 
-        // Held open, like the Layer options section around them: these are the controls for the
-        // layer that is selected, not asides to be tidied away, and folding one hid why the
-        // picture looks as it does with nothing on screen saying so.
-        displaySection.pinOpen();
-        backgroundSection.pinOpen();
-        intensitySection.pinOpen();
+        // Foldable (Gilly, 2026-11-23), where they had been held open: a folded section's header
+        // still states what in it is off its default (LayerSection), so folding hides the widgets
+        // and never the reason the picture looks as it does. The fold is remembered per section,
+        // not per layer (LayerOptionSections calls CollapsiblePane.followRemembered). Opening one
+        // re-shows every row in it, so each open re-runs refresh, which hides what does not apply.
+        Runnable reapply = () -> {
+            refresh(layer);
+            planePanel.fitsParametersChanged(); // the plane row decides its own visibility
+        };
+        displaySection.setOnExpand(reapply);
+        backgroundSection.setOnExpand(reapply);
+        intensitySection.setOnExpand(reapply);
+        fitsSection.setOnExpand(reapply);
 
         setLayout(new BoxLayout(this, BoxLayout.PAGE_AXIS));
         setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
@@ -174,7 +185,7 @@ final class ImageLayerRenderingPanel extends JPanel {
         imageFilterPanel.syncFromLayer(imageLayer); // a computed sequence takes the per-frame filter on top, like a raw frame
 
         boolean hasFITS = imageLayer.getView().hasFITS();
-        fitsSettings.setVisible(hasFITS);
+        fitsSection.setVisible(hasFITS);
         // planePanel decides its own visibility: what the file holds is not known until the load
         // says so, which is after this runs.
         updateBadges();

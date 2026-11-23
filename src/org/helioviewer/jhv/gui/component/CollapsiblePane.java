@@ -305,6 +305,23 @@ public class CollapsiblePane extends JComponent implements ActionListener {
             restoreNested(managed);
         toggleButton.setSelected(expanded);
         setTitle(title);
+        if (expanded && onExpand != null)
+            onExpand.run();
+    }
+
+    @Nullable
+    private Runnable onExpand;
+
+    /**
+     * Run after this section opens, to hide again what its content had hidden on purpose.
+     *
+     * <p>Opening is a recursive setVisible (ComponentUtils.setVisible), so a row that hides itself
+     * when it does not apply (a FITS-only row on a JPEG2000 layer, a plane picker for a one-image
+     * file) comes back on every open. A section whose content decides its own rows passes the
+     * code that decides them here.
+     */
+    public void setOnExpand(@Nullable Runnable r) {
+        onExpand = r;
     }
 
     /**
@@ -372,6 +389,28 @@ public class CollapsiblePane extends JComponent implements ActionListener {
 
     public boolean isExpanded() {
         return toggleButton.isSelected();
+    }
+
+    /**
+     * Put every foldable section under root back the way a click last left it.
+     *
+     * <p>For panels built once per layer and cached: each holds its own copy of a section shared by
+     * name (Intensity, Geometry), so folding Intensity on one layer left it open on every layer
+     * built before the click. Called when a cached panel is shown again, this makes the fold a
+     * preference of the section rather than of whichever layer happened to be selected.
+     */
+    public static void followRemembered(java.awt.Component root) {
+        if (root instanceof CollapsiblePane pane) {
+            if (!pane.pinned && pane.prefKey != null) {
+                boolean want = pane.remembered(pane.isExpanded());
+                if (want != pane.isExpanded())
+                    pane.setExpanded(want);
+            }
+            followRemembered(pane.managed);
+        } else if (root instanceof java.awt.Container cont) {
+            for (java.awt.Component child : cont.getComponents())
+                followRemembered(child);
+        }
     }
 
     /** How this section was last left by a click, or the fallback when it never was. */
