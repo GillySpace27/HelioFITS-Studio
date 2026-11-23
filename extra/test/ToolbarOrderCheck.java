@@ -179,7 +179,7 @@ public final class ToolbarOrderCheck {
     // exists and that place on the bar silently disappears.
     private static final Set<String> DEFAULT_IDS = Set.of(
             "present", "undo", "redo", "zoomIn", "zoomOut", "zoomFit", "zoomOne",
-            "resetCamera", "resetAxis", "rotate90",
+            "resetCamera", "resetAxis", "rotate90", "viewFromEarth",
             "pan", "rotate", "axis",
             "track", "diffRotation", "corona", "multiview", "sidebarLeft", "timelines", "sidebarRight", "annotate",
             "projection", "trackCme", "colour", "sequence", "grid", "camera", "compare", "pizza", "identify",
