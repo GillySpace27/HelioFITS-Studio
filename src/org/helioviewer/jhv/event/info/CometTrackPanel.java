@@ -26,6 +26,7 @@ import org.helioviewer.jhv.identify.CometMarks;
 import org.helioviewer.jhv.identify.Drawn;
 import org.helioviewer.jhv.display.MapMode;
 import org.helioviewer.jhv.gui.component.Buttons;
+import org.helioviewer.jhv.gui.component.PassWheelScrollPane;
 import org.helioviewer.jhv.gui.component.Palette;
 import org.helioviewer.jhv.gui.component.RightSidebar;
 import org.helioviewer.jhv.layers.CometLayer;
@@ -171,7 +172,7 @@ public final class CometTrackPanel extends JPanel implements TimeListener.Range 
         top.add(cancelButton, BorderLayout.LINE_END);
 
         add(top, BorderLayout.PAGE_START);
-        add(new JScrollPane(table), BorderLayout.CENTER);
+        add(new PassWheelScrollPane(table, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED), BorderLayout.CENTER);
         add(buttons, BorderLayout.PAGE_END);
         fitRows();
 

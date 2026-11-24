@@ -499,7 +499,7 @@ public final class IdentifyGlow {
             double[] c = o.getFirst();
             rings.add(new Ring(rgb, o.subList(1, o.size()), c, tier));
             if (m.kind() == Kind.COMET && IdentifySettings.cometGlyph())
-                rings.addAll(cometGlyph(rgb, c, tier, scale));
+                rings.addAll(cometGlyph(rgb, c, tier, scale, meanRadius(o.subList(1, o.size()), c)));
             if (wantSym)
                 glyphs.add(new Glyph(sym, rgb, c, false, tier == Tier.AMBIENT));
         }
@@ -521,39 +521,49 @@ public final class IdentifyGlow {
     }
 
     /**
-     * A comet as a small glyph at {@code c}: a round head and three tail strokes trailing to the
-     * lower left, like the meteor icon of the Track Comet panel. Strokes are two-point rings (out
-     * and back), so they take the tier's glow and pulse like any outline. The tail direction is
-     * fixed on the page, a symbol and not the comet's real tail.
+     * A comet's tail at {@code c}: three strokes trailing to the lower left from the selection
+     * circle of radius {@code radius} (the ring itself is the head), like the meteor icon of the
+     * Track Comet panel, so the ring reads as the same circle with a tail. Strokes are two-point
+     * rings (out and back), so they take the tier's glow and pulse like any outline. The tail
+     * direction is fixed on the page, a symbol and not the comet's real tail.
      */
-    static List<Ring> cometGlyph(int[] rgb, double[] c, Tier tier, double scale) {
+    static List<Ring> cometGlyph(int[] rgb, double[] c, Tier tier, double scale, double radius) {
         List<Ring> out = new ArrayList<>();
-        for (List<double[]> stroke : cometGlyphStrokes(c, scale))
+        for (List<double[]> stroke : cometGlyphStrokes(c, scale, radius))
             out.add(new Ring(rgb, stroke, c, tier));
         return out;
     }
 
     /**
-     * The glyph's strokes in page coordinates (y down): the head first, twelve points that the
-     * drawer closes, then the three tails, two points each. Public because a comet layer draws the
-     * same glyph beside its own rings, which this glow does not draw.
+     * The tail strokes in page coordinates (y down), two points each: from the circle of
+     * {@code radius} around {@code c} outward. Public because a comet layer draws the same tail
+     * on its own rings, which this glow does not draw.
      */
-    public static List<List<double[]>> cometGlyphStrokes(double[] c, double scale) {
+    public static List<List<double[]>> cometGlyphStrokes(double[] c, double scale, double radius) {
         List<List<double[]>> out = new ArrayList<>();
-        double r = 3 * scale;
-        List<double[]> head = new ArrayList<>();
-        for (int i = 0; i < 12; i++)
-            head.add(new double[]{c[0] + r * Math.cos(Math.PI / 6 * i), c[1] + r * Math.sin(Math.PI / 6 * i)});
-        out.add(head);
-        double[][] tails = {{0, 15}, {-3.5, 10}, {3.5, 10}}; // {sideways offset, length} in points
+        double[][] tails = {{0, 10}, {-3.5, 6.5}, {3.5, 6.5}}; // {sideways offset, length beyond the circle} in points
         double ux = -Math.sqrt(0.5), uy = Math.sqrt(0.5); // toward the lower left on the page (y down)
         for (double[] t : tails) {
-            double ox = c[0] - uy * t[0] * scale, oy = c[1] + ux * t[0] * scale; // offset along the perpendicular
-            double[] a = {ox + ux * r * 1.4, oy + uy * r * 1.4};
-            double[] b = {ox + ux * t[1] * scale, oy + uy * t[1] * scale};
+            double side = Math.copySign(Math.min(Math.abs(t[0]) * scale, radius * 0.9), t[0]); // a tail line stays inside the circle
+            double ox = c[0] - uy * side, oy = c[1] + ux * side; // on the line parallel to the axis
+            double start = Math.sqrt(Math.max(0, radius * radius - side * side)); // where that line meets the circle
+            double[] a = {ox + ux * start, oy + uy * start};
+            double[] b = {ox + ux * (start + t[1] * scale), oy + uy * (start + t[1] * scale)};
             out.add(List.of(a, b));
         }
         return out;
+    }
+
+    /** The mean distance of a ring's points from {@code c}, ignoring points off the page. */
+    static double meanRadius(List<double[]> ring, double[] c) {
+        double sum = 0;
+        int n = 0;
+        for (double[] p : ring)
+            if (p != null) {
+                sum += Math.hypot(p[0] - c[0], p[1] - c[1]);
+                n++;
+            }
+        return n == 0 ? 0 : sum / n;
     }
 
     /** {@code rgb} with its saturation multiplied by {@code factor} (1 keeps it). */

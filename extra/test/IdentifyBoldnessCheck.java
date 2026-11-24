@@ -33,9 +33,9 @@ public final class IdentifyBoldnessCheck {
         IdentifySettings.resetToDefaults();
         expect("reset restores thickness", IdentifySettings.boldWidth() == 1);
 
-        List<IdentifyGlow.Ring> g = IdentifyGlow.cometGlyph(new int[]{255, 0, 0}, new double[]{100, 100}, IdentifyGlow.Tier.HOVER, 1);
-        expect("glyph is a head and three tail strokes", g.size() == 4 && g.getFirst().points().size() == 12);
-        double[] tip = g.get(1).points().get(1);
+        List<IdentifyGlow.Ring> g = IdentifyGlow.cometGlyph(new int[]{255, 0, 0}, new double[]{100, 100}, IdentifyGlow.Tier.HOVER, 1, 7);
+        expect("glyph is three tail strokes (the ring is the head)", g.size() == 3 && g.getFirst().points().size() == 2);
+        double[] tip = g.getFirst().points().get(1);
         expect("main tail runs to the lower left of the centre (page y down)", tip[0] < 100 && tip[1] > 100);
 
         int[] same = IdentifyGlow.saturate(new int[]{255, 100, 50}, 1);

@@ -621,17 +621,16 @@ public final class CometLayer extends AbstractLayer {
      * glyph only with its own rings, and a comet shown in the 3D scene is drawn here instead, so
      * turning on "Show in 3D scene" used to take the glyph away (Gilly, 2026-11-22).
      *
-     * @return the strokes put: 1, or 5 with the glyph
+     * @return the strokes put: 1, or 4 with the glyph (the ring is the head; three tails leave it)
      */
     static int putMarker(BufVertex b, double[] c, Viewport vp, double radius, double scale, boolean glyph, byte[] col) {
         putRing(b, c[0] - vp.x, vp.height - (c[1] - vp.yAWT), radius, col);
         if (!glyph)
             return 1;
         int strokes = 1;
-        for (List<double[]> stroke : IdentifyGlow.cometGlyphStrokes(c, scale)) {
-            boolean closed = stroke.size() > 2; // the head is a loop, a tail a single stroke
-            for (int i = 0; i < stroke.size() + (closed ? 1 : 0); i++) {
-                double[] p = stroke.get(i % stroke.size());
+        for (List<double[]> stroke : IdentifyGlow.cometGlyphStrokes(c, scale, radius)) {
+            for (int i = 0; i < stroke.size(); i++) {
+                double[] p = stroke.get(i);
                 float px = (float) (p[0] - vp.x), py = (float) (vp.height - (p[1] - vp.yAWT));
                 if (i == 0)
                     b.startLine(px, py, 0, 1, col);
