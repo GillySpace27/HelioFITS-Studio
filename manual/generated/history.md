@@ -10,10 +10,28 @@
 - The 3D Scene pane gains a switch for all 3D layers at once, an Add layer menu (comet, 3D model, point cloud), and the planet controls, moved there from the grid layer. Each spacecraft model has its own Track (orbit line, span in days) and Field of view toggles, like the comets.
 
 - Fields of view in the flat projections are now painted on the plane of sky (the FOV layer's Fill switch), and in 3D each cone's far end follows the sphere about its spacecraft instead of flat chords (the Curved switch). Spacecraft models face the Sun by default, with a choice of which file axis does and a roll; this is a model of the pointing, not telemetry.
+- Comets in 3D: each comet gets a heliocentric ephemeris, rings drawn where each image's spacecraft saw it, and its orbit and now-dot in every 3D mode; Identify names a comet's rings and dot, linked per comet.
+- Footer readout: shows zoom, warp and crop always, and what a held canvas key edits; the name sits at the end in a fixed slot, the readout blanks after 3 s idle, and / resets zoom, warp and crop.
+- Canvas keys: T turns Render in 3D on or off and 1 to 5 pick the projections in the palette's order; Option+W A S D pan the view with no mouse; a toast says why warp and crop keys do nothing in a view that does not use them.
+- Image Layers: a layer's options have foldable sub-sections.
+- Identify: a second-line toggle, Boldness sliders (they work live), and a comet glyph (the ring plus a tail) that scales with exports.
+- The PUNCH dialog offers version v0m in the version picker.
+- Install with Homebrew: `brew tap GillySpace27/tap`, then `brew install hfstudio`. A Homebrew install shows no update dialog; brew owns updates. Builds before 0.9.3 look for the old cask name (heliofits-studio) when they check for updates.
 
 ### Changes
 - The comet list's Show in scene button is now a Show in 3D scene toggle: switching it off turns the comet layer off and keeps it, with its settings.
 - HelioFITS Core moves to pyHelioFITS 10892f0 (from 864b2362): looking files up by hash (`record.locate`), a verdict for every frame of a movie, the Windows socket fix, and a golden set of four records. A release now runs that golden set against the pinned Core (`release/replay.sh`) and stops if a pixel digest drifts.
+- Session open: a session opens at its own framing, and the PUNCH and MLSO dialogs adopt the master time.
+- Send Feedback needs a name, an email or a GitHub handle, so a report can be answered.
+- The activity sampler runs at 1 Hz when idle (10 Hz while busy).
+- Studio polish: the filter row, planet style, sidebar glyphs and layer selection.
+
+### Fixes
+- Annotations drawn off the solar disk now appear in the plane of the sky; a one-time hint explains Shift.
+- CCOR2 images: null pixels (NO_DITHER float images) decode as NaN instead of a value.
+- Regression fixes: the scroll wheel, 3D image stacking, frame rate, the Identify crop and the Earth button. Track lists pass the wheel up to the sidebar.
+- The planet controls in the 3D Scene pane follow the grid layer that a session load swaps in; comet Position Angle is measured at the Sun, not at the comet.
+- Linux package: the bundled Core console scripts (hfcore, heliofits-mcp) run from any folder.
 
 ## HelioFITS Studio 0.9.2 (unreleased)
 
