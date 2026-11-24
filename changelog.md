@@ -23,7 +23,7 @@ Each new entry ends with a `[docs: ...]` pointer to where it is documented (`rel
 - The comet list's Show in scene button is now a Show in 3D scene toggle: switching it off turns the comet layer off and keeps it, with its settings. [docs: docs/comets.md]
 - HelioFITS Core moves to pyHelioFITS 10892f0 (from 864b2362): looking files up by hash (`record.locate`), a verdict for every frame of a movie, the Windows socket fix, and a golden set of four records. A release now runs that golden set against the pinned Core (`release/replay.sh`) and stops if a pixel digest drifts. [docs: release/RELEASING.md]
 - Session open: a session opens at its own framing, and the PUNCH and MLSO dialogs adopt the master time. [docs: none]
-- Send Feedback needs a name, an email or a GitHub handle, so a report can be answered. [docs: none]
+- Send Feedback needs a name, an email or a GitHub handle, so a report can be answered; a report sent from an error dialog may leave it empty. [docs: none]
 - The activity sampler runs at 1 Hz when idle (10 Hz while busy). [docs: none]
 - Studio polish: the filter row, planet style, sidebar glyphs and layer selection. [docs: none]
 

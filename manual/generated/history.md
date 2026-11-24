@@ -22,7 +22,7 @@
 - The comet list's Show in scene button is now a Show in 3D scene toggle: switching it off turns the comet layer off and keeps it, with its settings.
 - HelioFITS Core moves to pyHelioFITS 10892f0 (from 864b2362): looking files up by hash (`record.locate`), a verdict for every frame of a movie, the Windows socket fix, and a golden set of four records. A release now runs that golden set against the pinned Core (`release/replay.sh`) and stops if a pixel digest drifts.
 - Session open: a session opens at its own framing, and the PUNCH and MLSO dialogs adopt the master time.
-- Send Feedback needs a name, an email or a GitHub handle, so a report can be answered.
+- Send Feedback needs a name, an email or a GitHub handle, so a report can be answered; a report sent from an error dialog may leave it empty.
 - The activity sampler runs at 1 Hz when idle (10 Hz while busy).
 - Studio polish: the filter row, planet style, sidebar glyphs and layer selection.
 
