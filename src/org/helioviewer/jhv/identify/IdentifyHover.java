@@ -76,6 +76,7 @@ public final class IdentifyHover {
         dwell.setRepeats(false);
         Drawn.register(DeepSky.source());
         Drawn.register(CometSky.source());
+        Drawn.register(CometMarks.source()); // a comet a layer draws: its rings and dot (CometSky leaves those to it)
         IdentifySettings.addListener(() -> {
             if (!IdentifySettings.enabled() || !IdentifySettings.tooltip())
                 INSTANCE.clear();
@@ -185,11 +186,12 @@ public final class IdentifyHover {
         return out;
     }
 
+    /** The drawn objects' keys, a comet's rings in different images counting as one (its family), so the chosen image may change. */
     private static Set<String> drawnKeys(List<Drawn.Hit> drawn) {
         Set<String> out = new HashSet<>();
         for (Drawn.Hit h : drawn)
             if (h.mark() != null)
-                out.add(h.mark().key());
+                out.add(CometMarks.family(h.mark()));
         return out;
     }
 
@@ -244,7 +246,7 @@ public final class IdentifyHover {
                 matches.add(m);
         List<Drawn.Hit> drawn = new ArrayList<>();
         for (Drawn.Hit h : Drawn.at(vp, mv, x, y, options.tolerancePixels()))
-            if (h.mark() != null && selDrawn.contains(h.mark().key()))
+            if (h.mark() != null && selDrawn.contains(CometMarks.family(h.mark())))
                 drawn.add(h);
         if (matches.isEmpty() && drawn.isEmpty())
             return;
@@ -387,10 +389,12 @@ public final class IdentifyHover {
                 sb.append(", ");
             sb.append(m.label());
             label.add(m.label());
-            label.add(details(m));
             float[] c = tint(Kind.of(m.body()));
             labelColours.add(c);
-            labelColours.add(c);
+            if (IdentifySettings.tooltipDetails()) {
+                label.add(details(m));
+                labelColours.add(c);
+            }
         }
         for (Drawn.Hit h : drawn) {
             if (!sb.isEmpty())
@@ -399,10 +403,12 @@ public final class IdentifyHover {
             if (Drawn.labelledElsewhere(h))
                 continue; // the orbit plot and the event popup label their own
             label.add(h.name());
-            label.add(h.details());
             float[] c = h.mark() == null ? null : tint(h.mark().kind());
             labelColours.add(c);
-            labelColours.add(c);
+            if (IdentifySettings.tooltipDetails()) {
+                label.add(h.details());
+                labelColours.add(c);
+            }
         }
         return sb.toString();
     }

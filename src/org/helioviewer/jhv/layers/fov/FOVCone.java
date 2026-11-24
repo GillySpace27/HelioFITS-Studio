@@ -37,6 +37,57 @@ final class FOVCone {
         inner = _inner;
     }
 
+    /**
+     * The far end as a patch on the sphere of rays' length about the apex, in rows: for a ring
+     * (annulus or disk) {@code rows[k][i]} runs from the inner edge (or Sun centre) at k = 0 out to
+     * the outer edge at k = steps, i around, wrapping; for a four-cornered field it is a grid
+     * {@code rows[k][i]} of {@code steps + 1} by {@code steps + 1} points. Chords between the
+     * corners would cut across the sphere; this follows it, which is what the field really covers.
+     */
+    record Patch(double[][][] rows, boolean wrap) {}
+
+    Patch patch(int steps) {
+        double d = len(apex);
+        int n = outer.length;
+        if (n == RING) {
+            double[][][] rows = new double[steps + 1][n][];
+            for (int i = 0; i < n; i++) {
+                double[] base = inner != null ? inner[i] : new double[]{0, 0, 0}; // the Sun line's far end is Sun centre
+                for (int k = 0; k <= steps; k++)
+                    rows[k][i] = slerp(apex, d, base, outer[i], k / (double) steps);
+            }
+            return new Patch(rows, true);
+        }
+        double[][][] rows = new double[steps + 1][steps + 1][];
+        for (int k = 0; k <= steps; k++) {
+            double v = k / (double) steps;
+            for (int i = 0; i <= steps; i++) {
+                double u = i / (double) steps;
+                double[] a = lerp(outer[0], outer[1], u), b = lerp(outer[3], outer[2], u);
+                double[] q = lerp(a, b, v);
+                double[] dir = sub(q, apex);
+                rows[k][i] = add(apex, scale(dir, d / len(dir)));
+            }
+        }
+        return new Patch(rows, false);
+    }
+
+    /** The point {@code t} of the way from p to q along the great circle about {@code apex}, at distance {@code d} from it. */
+    static double[] slerp(double[] apex, double d, double[] p, double[] q, double t) {
+        double[] up = sub(p, apex), uq = sub(q, apex);
+        up = scale(up, 1 / len(up));
+        uq = scale(uq, 1 / len(uq));
+        double theta = Math.acos(Math.clamp(dot(up, uq), -1, 1));
+        if (theta < 1e-9)
+            return add(apex, scale(up, d));
+        double s = Math.sin(theta);
+        return add(apex, scale(add(scale(up, Math.sin((1 - t) * theta) / s), scale(uq, Math.sin(t * theta) / s)), d));
+    }
+
+    static double[] lerp(double[] a, double[] b, double t) {
+        return new double[]{a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]), a[2] + t * (b[2] - a[2])};
+    }
+
     /** Where the label goes: the middle of the far end. */
     double[] labelAnchor() {
         double[][] pts = outer;

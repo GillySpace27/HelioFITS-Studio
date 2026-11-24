@@ -258,6 +258,7 @@ public class Buttons {
     /** A box with an arrow leaving it: the AIA cut-out hands the view off to a service in a browser. */
     public static final GlyphIcon sdoCutout = icon(MaterialDesign.OPEN_IN_NEW, TOOLBAR);
     public static final GlyphIcon resetCamera = icon(MaterialDesign.IMAGE_FILTER_CENTER_FOCUS, TOOLBAR);
+    public static final GlyphIcon viewFromEarth = icon(MaterialDesign.EARTH, TOOLBAR);
     public static final GlyphIcon resetCameraAxis = icon(MaterialDesign.DEBUG_STEP_OUT, TOOLBAR);
     public static final GlyphIcon rotate = icon(MaterialDesign.ROTATE_3D, TOOLBAR);
     public static final GlyphIcon rotate90 = icon(MaterialDesign.ROTATE_90, TOOLBAR);

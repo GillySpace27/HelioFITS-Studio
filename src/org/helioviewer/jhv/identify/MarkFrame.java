@@ -69,7 +69,7 @@ final class MarkFrame {
         return IdentifySettings.lightTime() + "," + IdentifySettings.pluto() + "," + IdentifySettings.earthUncertaintyKm() + ","
                 + IdentifySettings.stars() + "," + IdentifySettings.starMaxMagnitude() + "," + IdentifySettings.dataComets() + ","
                 + IdentifySettings.dataCmes() + "," + IdentifySettings.dataClusters() + "," + IdentifySettings.dataGalaxies() + ","
-                + IdentifySettings.dataNebulae() + "," + IdentifySettings.deepSkyMaxMagnitude();
+                + IdentifySettings.dataNebulae() + "," + IdentifySettings.deepSkyMaxMagnitude() + "," + CometMarks.signature();
     }
 
     /** Every named thing the view holds, built once for this frame. */

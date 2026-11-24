@@ -197,6 +197,11 @@ public final class LayerOptionSections implements Layers.Listener, Interfaces.La
                     new ImageLayerGeometryPanel(il, () -> rebuild(il)),
                     new ImageLayerManagePanel(il),
                     extent(il)));
+            // A cached panel kept the folds it had when it was last shown; give it the ones the
+            // last click left, so folding Intensity on one layer folds it on all of them.
+            CollapsiblePane.followRemembered(p.rendering());
+            CollapsiblePane.followRemembered(p.geometry());
+            CollapsiblePane.followRemembered(p.manage());
             ComponentUtils.setEnabled(p.rendering(), il.isEnabled());
             ComponentUtils.setEnabled(p.geometry(), il.isEnabled());
             ComponentUtils.setEnabled(p.manage(), il.isEnabled());

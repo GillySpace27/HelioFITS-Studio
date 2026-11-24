@@ -5,6 +5,7 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.event.HierarchyEvent;
 
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
@@ -98,9 +99,62 @@ final class ModelLayerOptions extends JPanel {
         addRow("Enlarge (x scene)", enlarge, enlargeValue, 3);
         addRow("Min size (x scene)", pixels, null, 4);
 
+        // The comets' orbit and the FOV layer's fields, per spacecraft, from here.
+        JCheckBox track = new JCheckBox("Track", layer.showOrbit());
+        track.setToolTipText("Draw this object's path through the scene, brighter where it has been and fainter where it is going. A network source holds only the movie's span, so its track stops there.");
+        track.addActionListener(e -> layer.setShowOrbit(track.isSelected()));
+        JSpinner days = new JSpinner(new SpinnerNumberModel(layer.orbitSpanDays(), 1, ModelPlacement.MAX_ORBIT_DAYS, 1));
+        days.setToolTipText("Days of track drawn each side of the display time");
+        days.addChangeListener(e -> layer.setOrbitSpanDays((Integer) days.getValue()));
+        JCheckBox fov = new JCheckBox("Field of view", layer.showFov());
+        fov.setToolTipText("Show this spacecraft's instrument fields (the FOV layer's, with its own Cones, Labels and per-instrument switches). Needs the FOV layer in the Overlays list.");
+        fov.addActionListener(e -> layer.setShowFov(fov.isSelected()));
+        JCheckBox point = new JCheckBox("Face Sun", layer.pointAtSun());
+        point.setToolTipText("Turn the model so the chosen axis faces the Sun, as a solar observatory's does. This is a model of the pointing, not telemetry, and the axis a file calls its front differs from file to file: pick the one that works.");
+        JComboBox<ModelPlacement.Axis> axis = new JComboBox<>(ModelPlacement.Axis.values());
+        axis.setSelectedItem(layer.sunAxis());
+        axis.setToolTipText("Which of the file's axes faces the Sun");
+        JSpinner roll = new JSpinner(new SpinnerNumberModel(layer.rollDegrees(), 0., 359., 5.));
+        roll.setToolTipText("Turn about the Sun line, degrees");
+        point.addActionListener(e -> layer.setPointAtSun(point.isSelected()));
+        axis.addActionListener(e -> layer.setSunAxis((ModelPlacement.Axis) axis.getSelectedItem()));
+        roll.addChangeListener(e -> layer.setRollDegrees(((Number) roll.getValue()).doubleValue()));
+        JPanel pointRow = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEADING, 4, 0));
+        pointRow.add(point);
+        pointRow.add(axis);
+        pointRow.add(new JLabel("roll"));
+        pointRow.add(roll);
+        JPanel trackRow = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEADING, 4, 0));
+        trackRow.add(track);
+        trackRow.add(days);
+        trackRow.add(new JLabel("days"));
+        trackRow.add(fov);
+        Runnable follow3d = () -> {
+            boolean placed = !layer.isHeliocentric() && mode.getSelectedItem() == AT_OBJECT;
+            track.setEnabled(placed);
+            days.setEnabled(placed);
+            fov.setEnabled(placed && layer.hasFov());
+            for (JComponent c : new JComponent[]{point, axis, roll})
+                c.setEnabled(placed);
+            fov.setSelected(layer.showFov());
+        };
+        mode.addActionListener(e -> follow3d.run());
+        target.addActionListener(e -> follow3d.run());
+        follow3d.run();
+        GridBagConstraints tc = new GridBagConstraints();
+        tc.gridx = 0;
+        tc.gridy = 5;
+        tc.gridwidth = 3;
+        tc.weightx = 1;
+        tc.fill = GridBagConstraints.HORIZONTAL;
+        tc.insets = new Insets(2, 4, 2, 4);
+        add(trackRow, tc);
+        tc.gridy = 6;
+        add(pointRow, tc);
+
         GridBagConstraints c = new GridBagConstraints();
         c.gridx = 0;
-        c.gridy = 5;
+        c.gridy = 7;
         c.gridwidth = 3;
         c.weightx = 1;
         c.fill = GridBagConstraints.HORIZONTAL;

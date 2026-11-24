@@ -395,7 +395,7 @@ public final class IdentifyGlow {
         Transform.setIdentityView();
         try {
             for (List<Ring> group : byColour.values()) {
-                int[] rgb = group.getFirst().rgb();
+                int[] rgb = saturate(group.getFirst().rgb(), IdentifySettings.boldSaturation());
                 for (Tier tier : Tier.values()) {
                     Style style = styleFor(tier, f);
                     List<Ring> same = new ArrayList<>();
@@ -404,9 +404,14 @@ public final class IdentifyGlow {
                             same.add(r);
                     if (!style.visible() || same.isEmpty())
                         continue;
-                    double b = tier == Tier.HOVER ? boost : 1;
+                    double b = (tier == Tier.HOVER ? boost : 1) * IdentifySettings.boldOpacity();
+                    double wm = IdentifySettings.boldWidth();
+                    double shadow = IdentifySettings.boldShadow();
+                    if (shadow > 0) // a dark outline under the colour so a mark stands out on a bright corona
+                        draw(LINES[3], full, same, 0, new int[]{0, 0, 0}, (int) Math.min(255, 200 * shadow * Math.min(1, b)),
+                                (style.widths()[0] + 3) * wm * scale);
                     for (int pass = 0; pass < style.widths().length; pass++)
-                        draw(LINES[pass], full, same, 0, rgb, (int) Math.min(255, style.alphas()[pass] * b), style.widths()[pass] * scale);
+                        draw(LINES[pass], full, same, 0, rgb, (int) Math.min(255, style.alphas()[pass] * b), style.widths()[pass] * wm * scale);
                 }
                 if (pulse) {
                     List<Ring> hovered = new ArrayList<>();
@@ -437,13 +442,30 @@ public final class IdentifyGlow {
         Map<String, Mark> marks = new LinkedHashMap<>();
         Set<String> hovered = new LinkedHashSet<>();
         Tier lit = IdentifyHover.selected() ? Tier.SELECTED : Tier.HOVER; // the marks the pointer answers are the selection when one is held
+        Set<String> comets = new LinkedHashSet<>();
         for (Mark m : hoverMarks()) {
             marks.put(m.key(), m);
             hovered.add(m.key());
+            if (m.kind() == Kind.COMET)
+                comets.add(CometMarks.family(m));
         }
-        if (f.all() || f.always())
-            for (Mark m : frame.marks(vp, mv, targets))
+        for (String family : comets) // every ring of a hovered comet, asked of the source directly (no whole mark list)
+            for (Mark m : CometMarks.familyMarks(family, vp, mv, targets)) {
                 marks.putIfAbsent(m.key(), m);
+                hovered.add(m.key());
+            }
+        if (f.all() || f.always()) {
+            double crop = mv.isHelioradial() && IdentifySettings.highlightInsideCrop() ? Display.getWarpOuterRadius() : 0;
+            for (Mark m : frame.marks(vp, mv, targets)) {
+                if (crop > 0 && !hovered.contains(m.key())) { // what the pointer reaches is always answered
+                    Identifier.Target t = m.layer() == null ? targets.getFirst() : byName(targets, m.layer());
+                    Vec3 dir = t == null ? null : frame.direction(m, t);
+                    if (dir != null && !insideCrop(dir, t.observer().distance, crop, Display.getSurfaceModel()))
+                        continue;
+                }
+                marks.putIfAbsent(m.key(), m);
+            }
+        }
         List<Ring> rings = new ArrayList<>();
         List<Glyph> glyphs = new ArrayList<>();
         Map<Kind, int[]> colours = new java.util.EnumMap<>(Kind.class);
@@ -462,7 +484,8 @@ public final class IdentifyGlow {
             Vec3 dir = frame.direction(m, target);
             if (dir == null)
                 continue;
-            int[] rgb = colours.computeIfAbsent(m.kind(), IdentifySettings::iconRgb);
+            int[] own = CometStyle.rgbFor(m);
+            int[] rgb = own != null ? own : colours.computeIfAbsent(m.kind(), IdentifySettings::iconRgb);
             boolean replaces = wantSym && f.instead() && wantRing;
             if (!wantRing || replaces) { // only the centre is needed: a symbol stands where the ring would
                 double[] c = IdentifyPins.locate(vp, mv, target, dir);
@@ -475,10 +498,81 @@ public final class IdentifyGlow {
                 continue;
             double[] c = o.getFirst();
             rings.add(new Ring(rgb, o.subList(1, o.size()), c, tier));
+            if (m.kind() == Kind.COMET && IdentifySettings.cometGlyph())
+                rings.addAll(cometGlyph(rgb, c, tier, scale, meanRadius(o.subList(1, o.size()), c)));
             if (wantSym)
                 glyphs.add(new Glyph(sym, rgb, c, false, tier == Tier.AMBIENT));
         }
         return new Scene(rings, glyphs);
+    }
+
+    /**
+     * Whether a sight line from an observer {@code observerDistance} from the Sun meets the
+     * imagery's surface within the Crop. {@code dir} is in the observer's frame, which looks down
+     * -z at the Sun. The surface radius is the heliocentric distance the warp mesh uses, so this
+     * cuts where the picture is cut. Pure, for IdentifyCropCheck.
+     */
+    static boolean insideCrop(Vec3 dir, double observerDistance, double crop, org.helioviewer.jhv.display.SurfaceModel surface) {
+        double len = Math.sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z);
+        if (len == 0 || crop <= 0)
+            return true;
+        double elongation = Math.acos(Math.clamp(-dir.z / len, -1, 1));
+        return surface.heliocentricRadius(elongation, observerDistance) <= crop;
+    }
+
+    /**
+     * A comet's tail at {@code c}: three strokes trailing to the lower left from the selection
+     * circle of radius {@code radius} (the ring itself is the head), like the meteor icon of the
+     * Track Comet panel, so the ring reads as the same circle with a tail. Strokes are two-point
+     * rings (out and back), so they take the tier's glow and pulse like any outline. The tail
+     * direction is fixed on the page, a symbol and not the comet's real tail.
+     */
+    static List<Ring> cometGlyph(int[] rgb, double[] c, Tier tier, double scale, double radius) {
+        List<Ring> out = new ArrayList<>();
+        for (List<double[]> stroke : cometGlyphStrokes(c, scale, radius))
+            out.add(new Ring(rgb, stroke, c, tier));
+        return out;
+    }
+
+    /**
+     * The tail strokes in page coordinates (y down), two points each: from the circle of
+     * {@code radius} around {@code c} outward. Public because a comet layer draws the same tail
+     * on its own rings, which this glow does not draw.
+     */
+    public static List<List<double[]>> cometGlyphStrokes(double[] c, double scale, double radius) {
+        List<List<double[]>> out = new ArrayList<>();
+        double[][] tails = {{0, 10}, {-3.5, 6.5}, {3.5, 6.5}}; // {sideways offset, length beyond the circle} in points
+        double ux = -Math.sqrt(0.5), uy = Math.sqrt(0.5); // toward the lower left on the page (y down)
+        for (double[] t : tails) {
+            double side = Math.copySign(Math.min(Math.abs(t[0]) * scale, radius * 0.9), t[0]); // a tail line stays inside the circle
+            double ox = c[0] - uy * side, oy = c[1] + ux * side; // on the line parallel to the axis
+            double start = Math.sqrt(Math.max(0, radius * radius - side * side)); // where that line meets the circle
+            double[] a = {ox + ux * start, oy + uy * start};
+            double[] b = {ox + ux * (start + t[1] * scale), oy + uy * (start + t[1] * scale)};
+            out.add(List.of(a, b));
+        }
+        return out;
+    }
+
+    /** The mean distance of a ring's points from {@code c}, ignoring points off the page. */
+    static double meanRadius(List<double[]> ring, double[] c) {
+        double sum = 0;
+        int n = 0;
+        for (double[] p : ring)
+            if (p != null) {
+                sum += Math.hypot(p[0] - c[0], p[1] - c[1]);
+                n++;
+            }
+        return n == 0 ? 0 : sum / n;
+    }
+
+    /** {@code rgb} with its saturation multiplied by {@code factor} (1 keeps it). */
+    public static int[] saturate(int[] rgb, double factor) {
+        if (factor == 1)
+            return rgb;
+        float[] hsb = java.awt.Color.RGBtoHSB(rgb[0], rgb[1], rgb[2], null);
+        int v = java.awt.Color.HSBtoRGB(hsb[0], (float) Math.min(1, hsb[1] * factor), hsb[2]);
+        return new int[]{v >> 16 & 255, v >> 8 & 255, v & 255};
     }
 
     /** The symbols, in the label's text pass: centred on the body when they stand in for the ring, else just beside it. */

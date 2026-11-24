@@ -100,6 +100,9 @@ final class ImageLayerManagePanel extends JPanel {
             return size;
         }
     };
+    private final org.helioviewer.jhv.gui.component.CollapsiblePane readoutSection =
+            new org.helioviewer.jhv.gui.component.CollapsiblePane(READOUT_TITLE, readout, true, true, null, "layer_observation");
+    private static final String READOUT_TITLE = "Observation";
     private long lastReadoutSig = Long.MIN_VALUE; // memoize: skip rebuild when nothing shown changed
     private final JToggleButton downloadButton = Buttons.flatToggle(Buttons.download, false);
     private final JButton cacheButton = Buttons.flat(Buttons.cache);
@@ -180,8 +183,10 @@ final class ImageLayerManagePanel extends JPanel {
         readout.setVerticalAlignment(javax.swing.SwingConstants.TOP); // any held height goes below the text, not around it
         // The icons take the top line, right-aligned, and the readout the full width under them. Beside them
         // they got the width they asked for and left the readout a narrow column that wrapped every few words.
+        // The readout folds on its own (Gilly, 2026-11-23: sub-collapsibles in Image Layers); the
+        // icons stay above it, and a folded header keeps the first line, what the layer shows.
         buttonRow.add(icons, BorderLayout.PAGE_START);
-        buttonRow.add(readout, BorderLayout.CENTER);
+        buttonRow.add(readoutSection, BorderLayout.CENTER);
 
         add(buttonRow);
 
@@ -431,6 +436,11 @@ final class ImageLayerManagePanel extends JPanel {
     }
 
     void updateReadout() {
+        updateReadoutText();
+        updateReadoutTitle();
+    }
+
+    private void updateReadoutText() {
         updateRefreshVisible(); // failures land after the panel is built, and they decide the button
         String loadStatus = layer.getLoadStatus();
         View view = layer.getView();
@@ -481,6 +491,20 @@ final class ImageLayerManagePanel extends JPanel {
             lastReadoutText = text;
             readout.setText(text);
         }
+    }
+
+    /** Folded, the header carries the readout's first line; open, the readout says it itself. */
+    private void updateReadoutTitle() {
+        String title = READOUT_TITLE;
+        String text = readout.getText();
+        if (!readoutSection.isExpanded() && text != null) {
+            String first = text.replaceFirst("(?i)^<html>", "").split("(?i)<br>", 2)[0]
+                    .replaceAll("<[^>]*>", "").strip();
+            if (!first.isEmpty())
+                title = READOUT_TITLE + ": " + first;
+        }
+        if (!title.equals(readoutSection.getTitle()))
+            readoutSection.setTitle(title);
     }
 
     private String cadenceText = "n/a";

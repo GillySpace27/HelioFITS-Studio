@@ -18,6 +18,7 @@ import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.image.ImageBuffer;
 import org.helioviewer.jhv.image.ImageBufferCache;
 import org.helioviewer.jhv.movie.Player;
+import org.helioviewer.jhv.opengl.GL;
 import org.helioviewer.jhv.opengl.RenderGuard;
 import javax.annotation.Nullable;
 import org.helioviewer.jhv.time.JHVTime;
@@ -314,7 +315,44 @@ public final class Layers {
     }
 
     public static void render(MapView mv, Viewport vp) {
-        inDrawOrder(layer -> RenderGuard.run(layer.getName(), () -> layer.render(mv, vp)));
+        if (!mv.mode().usesWarpSurface()) {
+            inDrawOrder(layer -> RenderGuard.run(layer.getName(), () -> layer.render(mv, vp)));
+            return;
+        }
+        // Helioradial in 3D: each image is a surface mesh, and with "Each image at its observer"
+        // a SOHO surface and a PUNCH surface stand at different places and cross. Left to the
+        // depth test, whichever was nearer won pixel by pixel, and as the surfaces moved with
+        // time the winner flipped back and forth (LASCO and PUNCH flickering, 2026-11-22). So
+        // the images stack in list order, as they do in every flat projection: their colour
+        // goes down without writing depth, and then one depth-only pass over all of them lets
+        // the Sun and the corona still hide what is behind them from the layers drawn after
+        // (the grid, models, the comet). Images come first in the list (Layers.add), so that
+        // pass goes in before the first layer that is not an image or the background stars.
+        boolean[] depthWritten = {false};
+        inDrawOrder(layer -> {
+            if (layer instanceof ImageLayer) {
+                GL.glDepthMask(false);
+                RenderGuard.run(layer.getName(), () -> layer.render(mv, vp));
+                GL.glDepthMask(true);
+                return;
+            }
+            if (!depthWritten[0] && !(layer instanceof StarLayer s && !s.isOnTop())) {
+                depthWritten[0] = true;
+                imageDepth(mv, vp);
+            }
+            RenderGuard.run(layer.getName(), () -> layer.render(mv, vp));
+        });
+        if (!depthWritten[0])
+            imageDepth(mv, vp);
+    }
+
+    /** The images' depth, and nothing else: their colour is already down. */
+    private static void imageDepth(MapView mv, Viewport vp) {
+        GL.glColorMask(false, false, false, false);
+        for (Layer layer : layers)
+            if (layer instanceof ImageLayer && shown(layer))
+                RenderGuard.run(layer.getName() + " (depth)", () -> layer.render(mv, vp));
+        GL.glColorMask(true, true, true, true);
     }
 
     public static void renderScale(MapView mv, Viewport vp) {

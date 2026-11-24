@@ -7,7 +7,12 @@
 ### New
 - Opening an export record (.hfrec) on a computer where its local files are not at the recorded paths now finds them in the FITS library by their SHA-256 and replays from the library's copies; the notes in the replay window say how many were found.
 
+- The 3D Scene pane gains a switch for all 3D layers at once, an Add layer menu (comet, 3D model, point cloud), and the planet controls, moved there from the grid layer. Each spacecraft model has its own Track (orbit line, span in days) and Field of view toggles, like the comets.
+
+- Fields of view in the flat projections are now painted on the plane of sky (the FOV layer's Fill switch), and in 3D each cone's far end follows the sphere about its spacecraft instead of flat chords (the Curved switch). Spacecraft models face the Sun by default, with a choice of which file axis does and a roll; this is a model of the pointing, not telemetry.
+
 ### Changes
+- The comet list's Show in scene button is now a Show in 3D scene toggle: switching it off turns the comet layer off and keeps it, with its settings.
 - HelioFITS Core moves to pyHelioFITS 10892f0 (from 864b2362): looking files up by hash (`record.locate`), a verdict for every frame of a movie, the Windows socket fix, and a golden set of four records. A release now runs that golden set against the pinned Core (`release/replay.sh`) and stops if a pixel digest drifts.
 
 ## HelioFITS Studio 0.9.2 (unreleased)

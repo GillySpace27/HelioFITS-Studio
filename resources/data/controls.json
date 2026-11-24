@@ -320,6 +320,13 @@
       "where": "The date picker's calendar, below the days",
       "words": "moon free date without moon skip hide grey days",
       "doc": "docs/identify.md"
+    },
+    {
+      "id": "cometShowInScene",
+      "title": "Show in 3D scene",
+      "where": "Track comet",
+      "words": "comet orbit position rings add scene",
+      "doc": "docs/comets.md"
     }
   ]
 }

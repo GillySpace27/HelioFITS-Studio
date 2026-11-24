@@ -68,6 +68,16 @@ public final class ModelEphemeris { // public for the FOV layer's spacecraft not
         status = "";
     }
 
+    /** True when any time can be asked of this target at once (the bundled kernels); the network sources hold only the movie's span. */
+    public boolean anyTime() {
+        return target != null && target.isInternal();
+    }
+
+    /** The span the network sources cover, padded as {@link #interval}: what a track may sample. */
+    public static long[] movieSpan() {
+        return new long[]{Player.getStartTime() - PAD, Player.getEndTime() + PAD};
+    }
+
     public String status() {
         return status;
     }

@@ -104,13 +104,7 @@ final class ProjectionPaletteContent {
     // deferred through the transition like a projection switch, so the outgoing picture is still
     // there to fade from, and the palette follows once it has been applied.
     private void selectProjection(MapMode el) {
-        if (ViewState.getProjection() == MapMode.ObserverSky && el.hostsSky()) {
-            org.helioviewer.jhv.display.ProjectionTransition.requestChange(() -> {
-                Display.setSkyBase(el);
-                toolBar.modeStateChanged(); // the Warp, Crop, Disk and Surface controls follow the base
-            });
-        } else
-            ViewState.setProjection(el);
+        org.helioviewer.jhv.app.Commands.selectProjection(el, toolBar::modeStateChanged); // the Warp, Crop, Disk and Surface controls follow the base
     }
 
     // Mirror the knob CME tracking is animating back into its slider, so the readout matches what
@@ -390,13 +384,10 @@ final class ProjectionPaletteContent {
     // directly rather than by moving the sliders, because a slider already sitting at its
     // default fires no change event and would silently skip its half of the reset.
     private void resetProjectionControls() {
-        CMETracker.stop();
-        ViewState.setWarpLambda(1); // the identity member: no warp at all
-        Display.setWarpOuterRadius(0); // auto: the full loaded field
+        org.helioviewer.jhv.app.Commands.resetScaling(); // warp off, crop auto, 1x: the defaults the / canvas key falls back to
         Display.setDiskScale(Display.DEFAULT_DISK_SCALE); // the shipped default, not the raw anchor
         if (diskSlider != null)
             diskSlider.setValue(diskScaleToSlider(Display.DEFAULT_DISK_SCALE));
-        Display.resetViewportZoom();
 
         syncingFromTracker = true; // the widgets are following state here, not driving it
         try {

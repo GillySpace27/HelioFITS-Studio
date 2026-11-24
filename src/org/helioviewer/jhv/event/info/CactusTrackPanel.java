@@ -28,6 +28,7 @@ import org.helioviewer.jhv.event.SWEKSupplier;
 import org.helioviewer.jhv.event.SolarEvent;
 import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.RightSidebar;
+import org.helioviewer.jhv.gui.component.PassWheelScrollPane;
 import org.helioviewer.jhv.gui.component.Palette;
 import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.time.JHVTime;
@@ -151,7 +152,7 @@ public final class CactusTrackPanel extends JPanel implements EventListener.Hand
         top.add(cancelButton, BorderLayout.LINE_END);
 
         add(top, BorderLayout.PAGE_START);
-        add(new JScrollPane(table), BorderLayout.CENTER);
+        add(new PassWheelScrollPane(table, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED), BorderLayout.CENTER);
         add(buttons, BorderLayout.PAGE_END);
         // No fixed size: that was the dialog's, 540 x 360, and in a sidebar it hid every row past the
         // fourteenth behind a scrollbar. The height is the rows'; see fitRows.

@@ -56,7 +56,7 @@ public final class IdentifyPaletteCheck {
                 IdentifySettings.tolerancePixels() == IdentifySettings.DEFAULT_TOLERANCE_PX && IdentifySettings.pluto());
         expect("reset leaves the main switches as they were", IdentifySettings.enabled());
 
-        // The panel: the same 25 settings, under subheadings, none renamed and none lost
+        // The panel: the same 32 settings (Only inside the Crop joined 2026-11-22), under subheadings, none renamed and none lost
         java.util.Set<String> want = new java.util.TreeSet<>();
         for (java.lang.reflect.Field f : IdentifySettings.class.getFields())
             if (f.getType() == String.class && java.lang.reflect.Modifier.isStatic(f.getModifiers()) && ((String) f.get(null)).startsWith("identify."))
@@ -65,7 +65,7 @@ public final class IdentifyPaletteCheck {
         java.util.Set<String> have = new java.util.TreeSet<>();
         java.util.List<String> titles = new java.util.ArrayList<>();
         walk(root, have, titles);
-        expect("the settings file names 25 identify keys (" + want.size() + ")", want.size() == 25);
+        expect("the settings file names 32 identify keys (" + want.size() + ")", want.size() == 32);
         java.util.Set<String> lost = new java.util.TreeSet<>(want);
         lost.removeAll(have);
         expect("every one of them has a control in the panel" + (lost.isEmpty() ? "" : "; missing " + lost), lost.isEmpty());

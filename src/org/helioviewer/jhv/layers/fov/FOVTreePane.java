@@ -81,6 +81,17 @@ public final class FOVTreePane extends JScrollPane {
         labels.setToolTipText("Name each field on screen, at its far end.");
         JCheckBox coverage = new JCheckBox("Coverage", catalog.coverage());
         JCheckBox bodies = new JCheckBox("Bodies", catalog.bodies());
+        JCheckBox fill = new JCheckBox("Fill", catalog.fill());
+        JCheckBox curved = new JCheckBox("Curved", catalog.curved());
+        curved.setToolTipText("Draw each cone's far end on the sphere about its spacecraft, as it really covers the sky, rather than as flat chords. Applies in Orthographic and 3D Helioradial.");
+        fill.addActionListener(e -> {
+            catalog.setFill(fill.isSelected());
+            DisplayController.display();
+        });
+        curved.addActionListener(e -> {
+            catalog.setCurved(curved.isSelected());
+            DisplayController.display();
+        });
         cones.addActionListener(e -> {
             catalog.setCones(cones.isSelected());
             DisplayController.display();
@@ -102,6 +113,10 @@ public final class FOVTreePane extends JScrollPane {
             cones.setEnabled(in3D);
             cones.setToolTipText("Draw each field as a solid from its spacecraft, as HelioFleet does; off, outlines on the plane of the sky."
                     + (in3D ? "" : " Applies in Orthographic and 3D Helioradial."));
+            curved.setEnabled(in3D);
+            fill.setEnabled(!in3D);
+            fill.setToolTipText("Paint each field on the plane of sky, as the HelioFleet site does."
+                    + (in3D ? " Applies in the flat projections." : ""));
             coverage.setEnabled(!in3D);
             coverage.setToolTipText("Draw the edge of the solar surface each spacecraft with a field on can see."
                     + (in3D ? " Applies in the flat projections (HPC, Latitudinal, Observer Sky, flat Helioradial)." : ""));
@@ -114,7 +129,9 @@ public final class FOVTreePane extends JScrollPane {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
         panel.add(cones);
         panel.add(labels);
+        panel.add(curved);
         panel.add(coverage);
+        panel.add(fill);
         panel.add(bodies);
         return panel;
     }

@@ -27,8 +27,29 @@ public final class ModelPlacement {
 
     public enum Mode {ORIGIN, EPHEMERIS}
 
+    /** The file axis that is turned to face the Sun when a model points at it. */
+    public enum Axis {
+        PLUS_X("+X", 1, 0, 0), MINUS_X("-X", -1, 0, 0), PLUS_Y("+Y", 0, 1, 0), MINUS_Y("-Y", 0, -1, 0), PLUS_Z("+Z", 0, 0, 1), MINUS_Z("-Z", 0, 0, -1);
+
+        public final String label;
+        public final double x, y, z;
+
+        Axis(String label, double x, double y, double z) {
+            this.label = label;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
     public static final String DEFAULT_TARGET = "Earth";
     public static final double DEFAULT_MIN_PIXELS = 24;
+    public static final int DEFAULT_ORBIT_DAYS = 30, MAX_ORBIT_DAYS = 365;
     /** The exaggeration slider runs over this many decades, 1x to 1e10x. */
     public static final int MAX_EXAGGERATION_DECADES = 10;
 
@@ -37,6 +58,11 @@ public final class ModelPlacement {
     private double metersPerUnit = 1;
     private double exaggeration = 1;
     private double minPixels = DEFAULT_MIN_PIXELS;
+    private boolean showOrbit;
+    private boolean pointAtSun = true;
+    private Axis sunAxis = Axis.PLUS_Z;
+    private double rollDegrees;
+    private int orbitSpanDays = DEFAULT_ORBIT_DAYS;
 
     public Mode mode() {
         return mode;
@@ -84,6 +110,49 @@ public final class ModelPlacement {
 
     public void setExaggeration(double v) {
         exaggeration = Double.isFinite(v) ? Math.clamp(v, 1, Math.pow(10, MAX_EXAGGERATION_DECADES)) : 1;
+    }
+
+    /** Whether the model is turned so its {@link #sunAxis()} faces the Sun: what a solar observatory does, modelled, not read from telemetry. */
+    public boolean pointAtSun() {
+        return pointAtSun;
+    }
+
+    public void setPointAtSun(boolean v) {
+        pointAtSun = v;
+    }
+
+    public Axis sunAxis() {
+        return sunAxis;
+    }
+
+    public void setSunAxis(Axis a) {
+        sunAxis = a == null ? Axis.PLUS_Z : a;
+    }
+
+    /** Turn about the Sun line, degrees, after the axis is on it. */
+    public double rollDegrees() {
+        return rollDegrees;
+    }
+
+    public void setRollDegrees(double v) {
+        rollDegrees = Double.isFinite(v) ? ((v % 360) + 360) % 360 : 0;
+    }
+
+    public boolean showOrbit() {
+        return showOrbit;
+    }
+
+    public void setShowOrbit(boolean v) {
+        showOrbit = v;
+    }
+
+    /** Days of track drawn each side of the display time. */
+    public int orbitSpanDays() {
+        return orbitSpanDays;
+    }
+
+    public void setOrbitSpanDays(int v) {
+        orbitSpanDays = Math.clamp(v, 1, MAX_ORBIT_DAYS);
     }
 
     public double minPixels() {
@@ -164,6 +233,11 @@ public final class ModelPlacement {
         p.put("metersPerUnit", metersPerUnit);
         p.put("exaggeration", exaggeration);
         p.put("minPixels", minPixels);
+        p.put("showOrbit", showOrbit);
+        p.put("pointAtSun", pointAtSun);
+        p.put("sunAxis", sunAxis.name());
+        p.put("rollDegrees", rollDegrees);
+        p.put("orbitSpanDays", orbitSpanDays);
         jo.put("placement", p);
     }
 
@@ -181,6 +255,15 @@ public final class ModelPlacement {
         setMetersPerUnit(p.optDouble("metersPerUnit", 1));
         setExaggeration(p.optDouble("exaggeration", 1));
         setMinPixels(p.optDouble("minPixels", DEFAULT_MIN_PIXELS));
+        setShowOrbit(p.optBoolean("showOrbit", false));
+        setPointAtSun(p.optBoolean("pointAtSun", true));
+        try {
+            setSunAxis(Axis.valueOf(p.optString("sunAxis", Axis.PLUS_Z.name())));
+        } catch (IllegalArgumentException e) {
+            setSunAxis(Axis.PLUS_Z);
+        }
+        setRollDegrees(p.optDouble("rollDegrees", 0));
+        setOrbitSpanDays(p.optInt("orbitSpanDays", DEFAULT_ORBIT_DAYS));
     }
 
 }
