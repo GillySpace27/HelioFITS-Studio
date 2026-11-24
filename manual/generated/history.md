@@ -12,7 +12,7 @@
 - Fields of view in the flat projections are now painted on the plane of sky (the FOV layer's Fill switch), and in 3D each cone's far end follows the sphere about its spacecraft instead of flat chords (the Curved switch). Spacecraft models face the Sun by default, with a choice of which file axis does and a roll; this is a model of the pointing, not telemetry.
 - Comets in 3D: each comet gets a heliocentric ephemeris, rings drawn where each image's spacecraft saw it, and its orbit and now-dot in every 3D mode; Identify names a comet's rings and dot, linked per comet.
 - Footer readout: shows zoom, warp and crop always, and what a held canvas key edits; the name sits at the end in a fixed slot, the readout blanks after 3 s idle, and / resets zoom, warp and crop.
-- Canvas keys: T turns Render in 3D on or off and 1 to 5 pick the projections in the palette's order; Option+W A S D pan the view with no mouse; a toast says why warp and crop keys do nothing in a view that does not use them.
+- Canvas keys: T turns Render in 3D on or off and 1 to 5 pick the projections in the palette's order; Option+W A S D pan the view with no mouse; M switches the toolbar tool between Rotate and Pan, and W A S D then follow the tool (in Pan they pan and Option flips them to rotation); a toast says why warp and crop keys do nothing in a view that does not use them.
 - Image Layers: a layer's options have foldable sub-sections.
 - Identify: a second-line toggle, Boldness sliders (they work live), and a comet glyph (the ring plus a tail) that scales with exports.
 - The PUNCH dialog offers version v0m in the version picker.
