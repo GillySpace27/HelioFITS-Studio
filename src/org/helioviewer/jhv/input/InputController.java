@@ -14,6 +14,10 @@ public final class InputController {
         return interaction.getMode();
     }
 
+    public static Interaction.Mode chosenMode() {
+        return interaction.chosenMode();
+    }
+
     public static void setMode(Interaction.Mode mode) {
         interaction.setMode(mode);
     }

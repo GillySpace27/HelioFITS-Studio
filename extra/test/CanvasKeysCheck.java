@@ -54,7 +54,7 @@ public final class CanvasKeysCheck {
                         && CanvasKeys.key("canvasProjection5") == KeyEvent.VK_5
                         && org.helioviewer.jhv.app.Commands.listedProjections().size() == 5
                         && org.helioviewer.jhv.app.Commands.listedProjections().get(2) == org.helioviewer.jhv.display.MapMode.Helioradial);
-        expect("every canvas key starts on its own key", distinct && CanvasKeys.ALL.size() == 27);
+        expect("every canvas key starts on its own key", distinct && CanvasKeys.ALL.size() == 28 && CanvasKeys.key("canvasToggleTool") == KeyEvent.VK_M);
         expect("W S A D Q E turn; [ and ] zoom; G the grid; R resets; Cmd+Right and Cmd+Left set the rate",
                 CanvasKeys.key("canvasPitchUp") == KeyEvent.VK_W && CanvasKeys.key("canvasYawRight") == KeyEvent.VK_D
                         && CanvasKeys.key("canvasRollLeft") == KeyEvent.VK_Q && CanvasKeys.key("canvasZoomIn") == KeyEvent.VK_OPEN_BRACKET && CanvasKeys.key("canvasZoomOut") == KeyEvent.VK_CLOSE_BRACKET

@@ -164,6 +164,9 @@ public final class KeybindingsPanel extends JPanel {
         panFine.setToolTipText("Pan rate factor with Ctrl held");
         JSpinner panRamp = new JSpinner(new SpinnerNumberModel(CanvasKeys.panRampSeconds(), 0, 10, 0.25));
         panRamp.setToolTipText("Seconds a held pan takes to reach full rate; 0 is no ramp");
+        JCheckBox toolHold = new JCheckBox("Tool key: a tap keeps the tool, a hold only borrows it",
+                "true".equals(org.helioviewer.jhv.app.Settings.getProperty(CanvasKeys.TOOL_MOMENTARY)));
+        toolHold.setToolTipText("Off: each press of the Switch Tool key swaps Rotate and Pan. On: hold it to borrow the other tool until you let go");
         JPanel panRow = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
         panRow.add(new JLabel(opt + "+W A S D pan, pixels per second"));
         panRow.add(pan);
@@ -183,6 +186,7 @@ public final class KeybindingsPanel extends JPanel {
         JPanel below = new JPanel(new GridLayout(0, 1));
         below.add(extra);
         below.add(panRow);
+        below.add(toolHold);
         p.add(below, BorderLayout.PAGE_END);
         if (JOptionPane.showConfirmDialog(this, p, "Canvas keys", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION)
             return;
@@ -202,6 +206,7 @@ public final class KeybindingsPanel extends JPanel {
         }
         org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.INVERT, Boolean.toString(invert.isSelected()));
         org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.RATE, String.valueOf(((Number) rate.getValue()).doubleValue()));
+        org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.TOOL_MOMENTARY, Boolean.toString(toolHold.isSelected()));
         org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.PAN_RATE, String.valueOf(((Number) pan.getValue()).doubleValue()));
         org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.PAN_FAST, String.valueOf(((Number) panFast.getValue()).doubleValue()));
         org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.PAN_FINE, String.valueOf(((Number) panFine.getValue()).doubleValue()));

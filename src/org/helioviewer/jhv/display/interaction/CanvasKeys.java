@@ -80,6 +80,7 @@ public final class CanvasKeys {
             new Cmd("canvasWarpStronger", "Warp Stronger", KeyEvent.VK_PERIOD, false, "Strengthen the warp while held, as the Warp slider moved right"),
             new Cmd("canvasCropTighter", "Crop Tighter", KeyEvent.VK_QUOTE, false, "Tighten the crop while held, as the Crop slider moved right"),
             new Cmd("canvasCropLooser", "Crop Looser", KeyEvent.VK_SEMICOLON, false, "Loosen the crop while held, back to none, as the Crop slider moved left"),
+            new Cmd("canvasToggleTool", "Switch Tool (Rotate or Pan)", KeyEvent.VK_M, false, "Switch the toolbar tool between Rotate and Pan; W A S D follow it, and Option flips them while held"),
             new Cmd("canvasResetView", "Reset View", KeyEvent.VK_R, false, "Put the view back to its default"),
             new Cmd("canvasResetScaling", "Restore Zoom, Warp and Crop", KeyEvent.VK_SLASH, false, "Put zoom, warp and crop back as the session was last loaded or saved, or to their defaults before any"),
             new Cmd("canvasToggleGrid", "Show or Hide Grid", KeyEvent.VK_G, false, "Turn the grid on or off: the master switch of the Grid row"),
@@ -104,6 +105,9 @@ public final class CanvasKeys {
     public static final String PAN_FAST = PREFIX + "panFastFactor";
     public static final String PAN_FINE = PREFIX + "panFineFactor";
     public static final String PAN_RAMP = PREFIX + "panRampSeconds";
+    /** Off by default: when on, a tap of the tool key latches the tool and a hold only borrows it. */
+    public static final String TOOL_MOMENTARY = PREFIX + "toolMomentary";
+    private static final long TAP_MS = 300;
     /** The Record panel's switch: keep the attitude keys live while recording. */
     public static final String LIVE_WHILE_RECORDING = "record.liveChanges";
 
@@ -129,7 +133,9 @@ public final class CanvasKeys {
         boolean fast;
         boolean fine; // Ctrl (Meta off a Mac) held: slow pan
         long lastNanos;
-        long panSince; // nanoTime the current pan began, 0 when not panning
+        long panSince;
+        Interaction.Mode toolBefore; // the tool a held tool key switched from, while it is down
+        long toolDownAt; // nanoTime the current pan began, 0 when not panning
         boolean sky; // a look-around was steered: commit it when the keys are let go
         String toast = "";
         long toastUntil;
@@ -331,7 +337,7 @@ public final class CanvasKeys {
         STATE.slow = e.altDown(); // first, so Option or Shift pressed during a hold changes its speed at once
         STATE.fast = e.shiftDown();
         STATE.fine = otherMod(e);
-        if (otherMod(e) && !(e.altDown() && panId(e.code()) != null))
+        if (otherMod(e) && !(panning(e.altDown()) && panId(e.code()) != null))
             return false; // Ctrl is the axis modes', except as fine pan with Option+W A S D
         boolean withCmd = cmd(e);
         if (withCmd && e.shiftDown())
@@ -349,6 +355,16 @@ public final class CanvasKeys {
             case "canvasSlowerPlayback" -> {
                 if (STATE.shot.add(c.id()))
                     stepPlayback(-1);
+            }
+            case "canvasToggleTool" -> {
+                if (STATE.shot.add(c.id())) {
+                    var now = org.helioviewer.jhv.input.InputController.chosenMode();
+                    STATE.toolBefore = now;
+                    STATE.toolDownAt = System.currentTimeMillis();
+                    var next = now == Interaction.Mode.PAN ? Interaction.Mode.ROTATE : Interaction.Mode.PAN;
+                    org.helioviewer.jhv.input.InputController.setMode(next);
+                    toast("Tool: " + (next == Interaction.Mode.PAN ? "Pan" : "Rotate"));
+                }
             }
             case "canvasResetView" -> {
                 if (STATE.shot.add(c.id()) && !recordingLocked()) {
@@ -420,6 +436,11 @@ public final class CanvasKeys {
         return c != null && isPanId(c.id()) ? c.id() : null;
     }
 
+    /** Whether W A S D pan now: the Pan tool does it plain and Option turns it off; the other tools do it only with Option. */
+    static boolean panning(boolean option) {
+        return (org.helioviewer.jhv.input.InputController.chosenMode() == Interaction.Mode.PAN) != option;
+    }
+
     private static boolean isPanId(String id) {
         return id.equals("canvasPitchUp") || id.equals("canvasPitchDown") || id.equals("canvasYawLeft") || id.equals("canvasYawRight");
     }
@@ -480,6 +501,12 @@ public final class CanvasKeys {
         STATE.fine = otherMod(e);
         for (Cmd c : ALL)
             if (key(c.id()) == e.code()) {
+                if (c.id().equals("canvasToggleTool") && STATE.toolBefore != null) {
+                    // with the setting on, a hold borrows the other tool and gives it back; a tap keeps it
+                    if ("true".equals(Settings.getProperty(TOOL_MOMENTARY)) && System.currentTimeMillis() - STATE.toolDownAt >= TAP_MS)
+                        org.helioviewer.jhv.input.InputController.setMode(STATE.toolBefore);
+                    STATE.toolBefore = null;
+                }
                 STATE.down.remove(c.id());
                 STATE.shot.remove(c.id());
             }
@@ -512,11 +539,13 @@ public final class CanvasKeys {
         STATE.lastNanos = now;
         if (STATE.down.isEmpty() || recordingLocked())
             return;
-        double step = Math.toRadians(degreesPerSecond()) * dt * speed(STATE.slow, STATE.fast);
+        // In the Pan tool Option flips W A S D to rotation, so it is not also the slow key
+        boolean panTool = org.helioviewer.jhv.input.InputController.chosenMode() == Interaction.Mode.PAN;
+        double step = Math.toRadians(degreesPerSecond()) * dt * speed(STATE.slow && !panTool, STATE.fast);
         boolean changed = false;
         // Option with W A S D pans the view instead of turning it, in every view (the sky pans as Option+Cmd drag does)
         Set<String> turning = STATE.down;
-        if (STATE.slow) {
+        if (panning(STATE.slow)) {
             turning = new LinkedHashSet<>(STATE.down);
             turning.removeIf(CanvasKeys::isPanId);
         }
@@ -712,7 +741,7 @@ public final class CanvasKeys {
         List<String> names = new ArrayList<>();
         for (String id : STATE.down) {
             Cmd c = byId(id);
-            String t = STATE.slow && isPanId(id) ? "Pan" : c == null ? id : c.title();
+            String t = panning(STATE.slow) && isPanId(id) ? "Pan" : c == null ? id : c.title();
             if (!names.contains(t))
                 names.add(t);
         }
