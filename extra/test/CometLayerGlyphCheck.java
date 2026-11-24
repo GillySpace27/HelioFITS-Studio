@@ -41,17 +41,20 @@ public final class CometLayerGlyphCheck {
         BufVertex withGlyph = new BufVertex();
         int marked = CometLayer.putMarker(withGlyph, c, vp, 12, 1, true, col);
         check(ringOnly == 1, "glyph off: the ring alone (" + ringOnly + " stroke)");
-        check(marked == 5, "glyph on: the ring, the head and three tails (" + marked + " strokes)");
+        check(marked == 4, "glyph on: the ring and three tails leaving it (" + marked + " strokes)");
         check(withGlyph.getCount() > plain.getCount(), "and the glyph's vertices are in the buffer (" + plain.getCount() + " -> " + withGlyph.getCount() + ')');
 
         // The glyph sits on its ring: the ring's centre in GL pixels is (200, 300 - 100)
         java.nio.ByteBuffer bytes = withGlyph.toBuffer().duplicate().order(java.nio.ByteOrder.nativeOrder());
-        double far = 0;
+        double far = 0, near = Double.MAX_VALUE;
         for (int i = plain.getCount(); i < withGlyph.getCount(); i++) {
             int at = i * 20; // four floats of position, four bytes of colour
-            far = Math.max(far, Math.hypot(bytes.getFloat(at) - 200, bytes.getFloat(at + 4) - 200));
+            double d = Math.hypot(bytes.getFloat(at) - 200, bytes.getFloat(at + 4) - 200);
+            far = Math.max(far, d);
+            near = Math.min(near, d);
         }
-        check(far > 0 && far <= 3 * 12, "the glyph is drawn on its ring, within 3 ring radii (" + Math.round(far) + " px)");
+        check(Math.abs(near - 12) < 0.01, "the tails leave the circle itself, the ring's radius 12 (" + near + " px)");
+        check(far > 12 && far <= 3 * 12, "the glyph is drawn on its ring, within 3 ring radii (" + Math.round(far) + " px)");
 
         // What renderFloat draws with, from the settings
         int[] rgb = {255, 200, 0};

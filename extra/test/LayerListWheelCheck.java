@@ -47,6 +47,12 @@ public final class LayerListWheelCheck {
         check(pane.getViewport().getMouseWheelListeners().length == 0 && pane.getViewport().getView().getMouseWheelListeners().length == 0,
                 "nor in its viewport or the table");
 
+        // The Track comet and Track CME lists sit in the sidebar too (Gilly, 2026-11-24: they still caught the wheel)
+        for (String panel : new String[]{"CometTrackPanel", "CactusTrackPanel"}) {
+            String src = java.nio.file.Files.readString(java.nio.file.Path.of("src/org/helioviewer/jhv/event/info/" + panel + ".java"));
+            check(src.contains("new PassWheelScrollPane(") && !src.contains("new JScrollPane("), panel + " lists in a PassWheelScrollPane, not a plain JScrollPane");
+        }
+
         System.out.println(failures == 0 ? "LayerListWheelCheck: PASS" : "LayerListWheelCheck: " + failures + " FAILURE(S)");
         System.exit(failures == 0 ? 0 : 1);
     }
