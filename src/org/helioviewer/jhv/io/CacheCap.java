@@ -21,7 +21,7 @@ import org.helioviewer.jhv.app.Settings;
  * sessions restore offline because {@link NetFileCache} keeps what it downloaded.
  *
  * <p>Over the cap, the oldest files go first, except any file a saved session names (every session
- * in the states folder and in Open Recent). If a session cannot be read, nothing is deleted: losing
+ * in the states folder, its Recovery snapshots and Open Recent). If a session cannot be read, nothing is deleted: losing
  * a session's data is worse than a cache over its cap.
  */
 public final class CacheCap {
@@ -29,7 +29,7 @@ public final class CacheCap {
     /** Setting: cap in GB; absent, blank or not a positive number means no cap. */
     public static final String KEY = "cache.maxGB";
 
-    private static final Pattern URL = Pattern.compile("\"((?:https?|ftp)://[^\"]+)\"");
+    private static final Pattern URL = Pattern.compile("(?i)\"((?:https?|ftp)://[^\"]+)\"");
 
     private CacheCap() {}
 
@@ -44,16 +44,20 @@ public final class CacheCap {
     }
 
     /** Apply the cap now, off the calling thread's critical path: cheap when there is no cap. */
-    public static void enforce() {
+    public static synchronized void enforce() { // one pass at a time, or two would each delete to a stale total
         long cap = capBytes();
         if (cap <= 0)
             return;
         try {
             Set<String> keep = new HashSet<>();
             List<File> sessions = new ArrayList<>();
-            File[] states = Directories.STATES.getFile().listFiles(File::isFile);
-            if (states != null)
-                sessions.addAll(List.of(states));
+            for (File dir : List.of(Directories.STATES.getFile(), org.helioviewer.jhv.app.Recovery.recoveryDir())) {
+                File[] states = dir.listFiles(File::isFile);
+                if (states == null && dir.isDirectory())
+                    throw new IOException("cannot list " + dir); // unreadable is not empty
+                if (states != null)
+                    sessions.addAll(List.of(states));
+            }
             for (String p : Session.recentSessions())
                 sessions.add(new File(p));
             for (File s : sessions)
@@ -80,9 +84,10 @@ public final class CacheCap {
         return out;
     }
 
-    /** Delete oldest-first from dir until its files total at most cap bytes, skipping keep and temp downloads; returns how many. */
+    /** Delete oldest-first from dir until its files total at most cap bytes, skipping keep, temp downloads and the library's moves list; returns how many. */
     static int evict(File dir, long cap, Set<String> keep) {
-        File[] all = dir.listFiles(f -> f.isFile() && !(f.getName().startsWith("dl") && f.getName().endsWith(".tmp")));
+        File[] all = dir.listFiles(f -> f.isFile() && !f.getName().equals(LibraryStore.MOVES)
+                && !(f.getName().startsWith("dl") && f.getName().endsWith(".tmp")));
         if (all == null)
             return 0;
         long total = 0;

@@ -96,7 +96,15 @@ final class StorageTab extends JPanel {
         javax.swing.JTextField gb = new javax.swing.JTextField(now == null ? "" : now, 5);
         JButton apply = new JButton("Apply");
         apply.addActionListener(e -> {
-            org.helioviewer.jhv.app.Settings.setProperty(org.helioviewer.jhv.io.CacheCap.KEY, gb.getText().trim());
+            String v = gb.getText().trim();
+            try {
+                if (!v.isEmpty() && !(Double.parseDouble(v) > 0))
+                    throw new NumberFormatException();
+            } catch (NumberFormatException bad) {
+                org.helioviewer.jhv.app.Message.err("Download cache limit", "The limit must be a number of GB above zero, or blank for no limit.");
+                return;
+            }
+            org.helioviewer.jhv.app.Settings.setProperty(org.helioviewer.jhv.io.CacheCap.KEY, v);
             Task.submitBackground("cache-cap", () -> { org.helioviewer.jhv.io.CacheCap.enforce(); return null; }, r -> {}, (ctx, t) -> {});
         });
         p.add(new JLabel("Keep at most"));
