@@ -92,6 +92,8 @@ public final class GridLayer extends AbstractLayer {
     // Planets, drawn here beside the Earth marker rather than by ViewpointLayer, which only
     // renders them in its Heliosphere camera mode and so charges a camera for the privilege.
     private boolean showPlanets = false;
+    // Earth is its own switch, independent of the planets and of the grid: one dot at Earth's true place.
+    private boolean showEarth = true;
     private boolean showPlanetOrbits = true;
     private boolean showPlanetNames = true;
     private double planetOrbitAlpha = 0.5;
@@ -157,7 +159,8 @@ public final class GridLayer extends AbstractLayer {
      */
     private final GLSLShape observerPoint = new GLSLShape(false);
     private final BufVertex observerBuf = new BufVertex(1); // one vertex
-    private static final byte[] OBSERVER_COLOR = Colors.Blue.bytes();
+    private static final byte[] OBSERVER_COLOR = Colors.Blue.bytes(); // the Earth dot
+    private static final byte[] OBSERVER_SPACECRAFT_COLOR = Colors.Yellow.bytes(); // an observer that is not Earth
     // As a fraction of the camera width, so the dot keeps a constant size on screen: the point
     // shader multiplies by pixels-per-scene-unit, and this view's camera spans hundreds of solar
     // radii, where earthPoint's fixed 0.02 scene units would be a small fraction of one pixel.
@@ -236,6 +239,7 @@ public final class GridLayer extends AbstractLayer {
         jo.put("limbLineScale", limbLineScale);
         jo.put("celestialLineScale", celestialLineScale);
         jo.put("showPlanets", showPlanets);
+        jo.put("showEarth", showEarth);
         jo.put("showPlanetOrbits", showPlanetOrbits);
         jo.put("showPlanetNames", showPlanetNames);
         jo.put("planetOrbitAlpha", planetOrbitAlpha);
@@ -286,6 +290,7 @@ public final class GridLayer extends AbstractLayer {
         limbLineScale = Math.clamp(jo.optDouble("limbLineScale", limbLineScale), 0.25, 4);
         celestialLineScale = Math.clamp(jo.optDouble("celestialLineScale", celestialLineScale), 0.25, 4);
         showPlanets = jo.optBoolean("showPlanets", showPlanets);
+        showEarth = jo.optBoolean("showEarth", showEarth);
         showPlanetOrbits = jo.optBoolean("showPlanetOrbits", showPlanetOrbits);
         showPlanetNames = jo.optBoolean("showPlanetNames", showPlanetNames);
         planetOrbitAlpha = Math.clamp(jo.optDouble("planetOrbitAlpha", planetOrbitAlpha), 0, 1);
@@ -333,9 +338,10 @@ public final class GridLayer extends AbstractLayer {
             Transform.popView();
         }
 
-        drawEarthCircles(vp, pixFactor, Sun.getEarth(viewpoint.time), mv.rendersIn3D(), mv.cameraWidth(vp));
+        if (showEarth)
+            drawEarthCircles(vp, pixFactor, Sun.getEarth(viewpoint.time), mv.rendersIn3D(), mv.cameraWidth(vp), viewpoint.time);
         if (mv.isHelioradial() && mv.rendersIn3D())
-            drawObserverPoint(vp, pixFactor, viewpoint, mv.cameraWidth(vp));
+            drawObserverPoint(vp, pixFactor, viewpoint, Sun.getEarth(viewpoint.time), mv.cameraWidth(vp));
 
         if (showPlanets)
             drawPlanets(vp, pixFactor, viewpoint, mv.cameraWidth(vp));
@@ -443,7 +449,9 @@ public final class GridLayer extends AbstractLayer {
     private void drawPlanets(Viewport vp, double factor, Position viewpoint, double cameraWidth) {
         if (cameraWidth <= 0)
             return;
-        planetMarkers = org.helioviewer.jhv.layers.grid.PlanetMarkers.positions(viewpoint.time, planetsFollowRotation);
+        // Earth is the Earth dot's job (showEarth), not a planet marker: drawn twice it was a second dot beside the first.
+        planetMarkers = org.helioviewer.jhv.layers.grid.PlanetMarkers.positions(viewpoint.time, planetsFollowRotation).stream()
+                .filter(m -> !org.helioviewer.jhv.layers.grid.PlanetMarkers.isEarth(m)).toList();
         if (planetMarkers.isEmpty())
             return;
 
@@ -581,11 +589,17 @@ public final class GridLayer extends AbstractLayer {
 
     // The observer sits at (0, 0, distance) in its own frame, so rotating into that frame is all
     // it takes to place it -- the same trick drawEarthCircles uses for the sub-observer point.
-    private void drawObserverPoint(Viewport vp, double factor, Position viewpoint, double cameraWidth) {
+    //
+    // It is the observer, not Earth: for SOHO at L1 or STEREO it sits well away from Earth, and in the
+    // same blue as the Earth dot it read as a second Earth beside the first. So it has its own colour,
+    // and it is not drawn at all when it falls inside the Earth dot (any observer at Earth).
+    private void drawObserverPoint(Viewport vp, double factor, Position viewpoint, Position earth, double cameraWidth) {
         if (viewpoint.distance <= 1 || cameraWidth <= 0)
             return;
-        observerBuf.putVertex(0, 0, (float) viewpoint.distance,
-                (float) (OBSERVER_POINT_FRACTION * cameraWidth), OBSERVER_COLOR);
+        double radius = OBSERVER_POINT_FRACTION * cameraWidth;
+        if (separation(viewpoint, earth) < radius)
+            return;
+        observerBuf.putVertex(0, 0, (float) viewpoint.distance, (float) radius, OBSERVER_SPACECRAFT_COLOR);
         observerPoint.uploadAndClear(observerBuf);
 
         Transform.pushView();
@@ -598,23 +612,36 @@ public final class GridLayer extends AbstractLayer {
         Transform.popView();
     }
 
+    /** Distance between two positions, in solar radii (each is longitude, latitude, distance in one frame). */
+    private static double separation(Position a, Position b) {
+        double ax = a.distance * Math.cos(a.lat) * Math.cos(a.lon), ay = a.distance * Math.cos(a.lat) * Math.sin(a.lon), az = a.distance * Math.sin(a.lat);
+        double bx = b.distance * Math.cos(b.lat) * Math.cos(b.lon), by = b.distance * Math.cos(b.lat) * Math.sin(b.lon), bz = b.distance * Math.sin(b.lat);
+        return Math.sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by) + (az - bz) * (az - bz));
+    }
+
     // The dot is the Earth itself, so it exists only where the scene has depth: at its true
     // heliocentric distance in 3D. In the flat views any sphere-surface placement would be a
     // marker on the photosphere that reads as Earth at 1 R_sun, so it is left out there.
-    private void drawEarthCircles(Viewport vp, double factor, Position p, boolean in3D, double cameraWidth) {
+    // Placed from the same ephemeris as the planets (so it agrees with their layout when "follow
+    // solar rotation" is off) and drawn once: the planet loop no longer carries an Earth of its own.
+    private void drawEarthCircles(Viewport vp, double factor, Position p, boolean in3D, double cameraWidth,
+                                  org.helioviewer.jhv.time.JHVTime time) {
         Transform.pushView();
         Transform.rotateViewInverse(p.toQuat());
-
         earthCircleLine.renderLine(vp, LINEWIDTH_EARTH);
-        if (in3D && cameraWidth > 0) {
-            earthBuf.putVertex(0, 0, (float) p.distance, (float) (OBSERVER_POINT_FRACTION * cameraWidth), OBSERVER_COLOR);
-            earthPoint.uploadAndClear(earthBuf);
-            GL.glDisable(GL.DEPTH_TEST);
-            earthPoint.renderPoints(factor);
-            GL.glEnable(GL.DEPTH_TEST);
-        }
-
         Transform.popView();
+
+        if (!in3D || cameraWidth <= 0)
+            return;
+        org.helioviewer.jhv.layers.grid.PlanetMarkers.Marker m = org.helioviewer.jhv.layers.grid.PlanetMarkers.earth(time, planetsFollowRotation);
+        if (m == null)
+            return;
+        earthBuf.putVertex((float) m.position().x, (float) m.position().y, (float) m.position().z,
+                (float) (OBSERVER_POINT_FRACTION * cameraWidth), OBSERVER_COLOR);
+        earthPoint.uploadAndClear(earthBuf);
+        GL.glDisable(GL.DEPTH_TEST);
+        earthPoint.renderPoints(factor);
+        GL.glEnable(GL.DEPTH_TEST);
     }
 
     private void drawRadialGridText(List<GridLabel> labels, float z, float[] labelPos, float[] color) {
@@ -959,6 +986,15 @@ public final class GridLayer extends AbstractLayer {
 
     public void setShowPlanets(boolean v) {
         showPlanets = v;
+        DisplayController.display();
+    }
+
+    public boolean isShowEarth() {
+        return showEarth;
+    }
+
+    public void setShowEarth(boolean v) {
+        showEarth = v;
         DisplayController.display();
     }
 

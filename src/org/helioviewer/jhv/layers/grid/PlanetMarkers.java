@@ -45,6 +45,19 @@ public final class PlanetMarkers {
         }
     }
 
+    /** Earth alone, placed as {@link #positions} places it, without paying for the other seven; null if unplaceable. */
+    @Nullable
+    public static Marker earth(JHVTime time, boolean followSolarRotation) {
+        SpaceObject body = SpaceObject.get("Earth");
+        double[] v = body == null ? null : hci(body, time);
+        return v == null ? null : new Marker(body, toDisplay(v, placementOffset(time, followSolarRotation)), body.getColor());
+    }
+
+    /** True for the marker the grid layer draws as the Earth dot, so the planet loop leaves it out. */
+    public static boolean isEarth(Marker m) {
+        return "Earth".equals(m.label());
+    }
+
     public static List<SpaceObject> bodies() {
         List<SpaceObject> list = new ArrayList<>(NAMES.length);
         for (String name : NAMES) {

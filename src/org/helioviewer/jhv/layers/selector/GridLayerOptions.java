@@ -250,9 +250,14 @@ public final class GridLayerOptions extends JPanel {
         c.gridy = 1;
         c.gridx = 0;
         c.anchor = GridBagConstraints.LINE_END;
+        JCheckBox earth = createToggle("Earth", layer.isShowEarth(), layer::setShowEarth);
+        earth.setToolTipText("The Earth dot (and its circles), on its own: independent of the other planets and of the grid. Drawn once, at Earth's place.");
+        panel.add(earth, c);
+        c.gridx = 1;
+        c.anchor = GridBagConstraints.LINE_START;
+        c.gridwidth = 2;
         JCheckBox follow = createToggle("Follow solar rotation", layer.isPlanetsFollowRotation(), layer::setPlanetsFollowRotation);
         follow.setToolTipText("On: Earth sits on the observer marker and the planets register with the imagery, so a planet bright in a coronagraph frame lands on its marker. Off: an inertial layout where each planet moves at its own orbital rate, good for watching Mercury lap Earth, but nothing lines up with the picture.");
-        c.gridwidth = 2;
         panel.add(follow, c);
         c.gridwidth = 1;
 
