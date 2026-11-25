@@ -56,14 +56,21 @@ class LoadRequest {
         @Override
         public Void call() throws Exception {
             List<String> failed = new java.util.concurrent.CopyOnWriteArrayList<>();
+            long[] union = {Long.MAX_VALUE, Long.MIN_VALUE};
             uriList.parallelStream().forEach(uri -> {
                 try {
-                    BandImporter.loadCdf(uri);
+                    long[] range = BandImporter.loadCdfRange(uri);
+                    synchronized (union) {
+                        union[0] = Math.min(union[0], range[0]);
+                        union[1] = Math.max(union[1], range[1]);
+                    }
                 } catch (Exception e) {
                     Log.warn(uri.toString(), e);
                     failed.add(e.getMessage() == null ? uri.getPath() : e.getMessage());
                 }
             });
+            if (union[0] <= union[1]) // one interval covering every file, not whichever finished last
+                java.awt.EventQueue.invokeLater(() -> org.helioviewer.jhv.timelines.draw.DrawController.setSelectedInterval(union[0], union[1]));
             if (!failed.isEmpty()) // onFailureCDF shows it; the files that did load stay loaded
                 throw new Exception(String.join("\n", failed));
             return null;
