@@ -55,6 +55,22 @@ public final class ViewpointGlyphCheck {
                 expect(style + ": centred on the observer's pixel", Math.abs(minX + maxX) < 0.2);
             }
         }
+        // Text faces the camera: stepping along the right axis moves right on screen and not up, the up axis the reverse
+        for (Quat q : views) {
+            Transform.ortho(w / (double) h, 600, 3, -2, q);
+            double[][] ax = ViewpointMarker.screenAxes(w, h);
+            expect("screen axes found under view " + q, ax != null);
+            if (ax == null)
+                continue;
+            Vector3f o = Transform.toNdc(10, -20, 30, new Vector3f());
+            Vector3f r = Transform.toNdc((float) (10 + ax[0][0]), (float) (-20 + ax[0][1]), (float) (30 + ax[0][2]), new Vector3f());
+            Vector3f u = Transform.toNdc((float) (10 + ax[1][0]), (float) (-20 + ax[1][1]), (float) (30 + ax[1][2]), new Vector3f());
+            expect("right runs right and only right (" + (r.x - o.x) + ", " + (r.y - o.y) + ")", r.x - o.x > 0 && Math.abs(r.y - o.y) < 1e-5);
+            expect("up runs up and only up (" + (u.x - o.x) + ", " + (u.y - o.y) + ")", u.y - o.y > 0 && Math.abs(u.x - o.x) < 1e-5);
+            expect("both are unit vectors", Math.abs(Math.hypot(ax[0][0], Math.hypot(ax[0][1], ax[0][2])) - 1) < 1e-9
+                    && Math.abs(Math.hypot(ax[1][0], Math.hypot(ax[1][1], ax[1][2])) - 1) < 1e-9);
+        }
+
         System.out.println(failures == 0 ? "ViewpointGlyphCheck: PASS" : "ViewpointGlyphCheck: " + failures + " FAILURE(S)");
         System.exit(failures == 0 ? 0 : 1);
     }

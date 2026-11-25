@@ -268,8 +268,6 @@ public final class GridLayerOptions extends JPanel {
         addAdjustmentRow(rows, "Marker size ", size, 1);
         addAdjustmentRow(rows, "Orbit opacity ",
                 createOpacitySlider(layer.getPlanetOrbitAlpha(), layer::setPlanetOrbitAlpha), 2);
-        addAdjustmentRow(rows, "Viewpoint marker ", createViewpointMarkerBox(layer), 3);
-        addAdjustmentRow(rows, "Marker colour ", createViewpointColorBox(layer), 4);
 
         c.gridy = 2;
         c.gridx = 0;
@@ -330,6 +328,15 @@ public final class GridLayerOptions extends JPanel {
         comboBox.setRenderer(new ColorRenderer());
         comboBox.addActionListener(e -> layer.setPlanetColor(comboBox.getSelectedItem() instanceof Colors c ? c : null));
         return comboBox;
+    }
+
+    /** The viewpoint marker's style and colour on their own, for the Viewpoint palette: same widgets, bound to the same layer. */
+    public static JPanel viewpointMarkerControls(GridLayer layer) {
+        JPanel rows = new JPanel(new GridBagLayout());
+        rows.setOpaque(false);
+        addAdjustmentRow(rows, "Viewpoint marker ", createViewpointMarkerBox(layer), 0);
+        addAdjustmentRow(rows, "Marker colour ", createViewpointColorBox(layer), 1);
+        return rows;
     }
 
     /** How the observer (the viewpoint, wherever "Drive the viewpoint" has put it) is marked in the 3D scene. */

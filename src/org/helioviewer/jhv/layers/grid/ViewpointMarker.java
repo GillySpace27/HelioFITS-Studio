@@ -106,6 +106,33 @@ public final class ViewpointMarker {
         return buf.getCount() > 0;
     }
 
+    /**
+     * Unit vectors, in the current view's local frame, that run along the screen's right and up:
+     * what text needs to face the camera whatever the scene is rotated to. Null when the view is degenerate.
+     */
+    public static double[][] screenAxes(int vpWidth, int vpHeight) {
+        if (vpWidth <= 0 || vpHeight <= 0)
+            return null;
+        Vector3f p0 = Transform.toNdc(0, 0, 0, new Vector3f());
+        double[][] j = new double[2][3];
+        for (int axis = 0; axis < 3; axis++) {
+            Vector3f p = Transform.toNdc(axis == 0 ? 1 : 0, axis == 1 ? 1 : 0, axis == 2 ? 1 : 0, new Vector3f());
+            j[0][axis] = p.x - p0.x;
+            j[1][axis] = p.y - p0.y;
+        }
+        double a = dot(j[0], j[0]), b = dot(j[0], j[1]), d = dot(j[1], j[1]);
+        double det = a * d - b * b;
+        if (!(Math.abs(det) > 1e-18))
+            return null;
+        double[] u = step(j, a, b, d, det, 2.0 / vpWidth, 0), v = step(j, a, b, d, det, 0, 2.0 / vpHeight);
+        double lu = Math.sqrt(dot(u, u)), lv = Math.sqrt(dot(v, v));
+        for (int k = 0; k < 3; k++) {
+            u[k] /= lu;
+            v[k] /= lv;
+        }
+        return new double[][]{u, v};
+    }
+
     private static double dot(double[] p, double[] q) {
         return p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
     }
