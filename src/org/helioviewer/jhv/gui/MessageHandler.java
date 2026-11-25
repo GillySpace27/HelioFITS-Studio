@@ -99,7 +99,34 @@ final class MessageHandler implements Message.Handler {
         if (Thread.currentThread().isInterrupted())
             return;
 
+        // The same report while that report is still on screen or waiting for its turn adds
+        // nothing, and each one is a modal the user must close by hand (issue 298).
+        String key = dedupeKey(title, msg);
+        if (!pending.add(key))
+            return;
+
         EventQueue.invokeLater(() -> {
+            try {
+                present(title, msg, type, cause);
+            } finally {
+                pending.remove(key);
+            }
+        });
+    }
+
+    private static final java.util.Set<String> pending = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    static String dedupeKey(String title, Object msg) {
+        return title + "\n" + Message.format(msg);
+    }
+
+    /** Whether a report with this title and text is on screen or queued. */
+    static boolean isPending(String title, Object msg) {
+        return pending.contains(dedupeKey(title, msg));
+    }
+
+    private static void present(String title, Object msg, int type, @Nullable Throwable cause) {
+        {
             String text = Message.format(msg);
             JTextArea textArea = new JTextArea();
             textArea.setText(text);
@@ -156,7 +183,7 @@ final class MessageHandler implements Message.Handler {
             optionPane.createDialog(MainFrame.get(), title).setVisible(true);
             if (FeedbackDialog.REPORT_THIS.equals(optionPane.getValue()))
                 FeedbackDialog.report(title, text, cause);
-        });
+        }
     }
 
 }
