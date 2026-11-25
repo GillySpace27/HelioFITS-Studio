@@ -20,6 +20,7 @@ import org.helioviewer.jhv.layers.grid.GridLabel;
 import org.helioviewer.jhv.layers.grid.ReferenceSurfaces;
 import org.helioviewer.jhv.layers.grid.GridMath;
 import org.helioviewer.jhv.layers.grid.HelioradialGrid;
+import org.helioviewer.jhv.layers.grid.ViewpointMarker;
 import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.opengl.BufVertex;
@@ -163,8 +164,12 @@ public final class GridLayer extends AbstractLayer {
      */
     private final GLSLShape observerPoint = new GLSLShape(false);
     private final BufVertex observerBuf = new BufVertex(1); // one vertex
+    private final GLSLShape observerGlyph = new GLSLShape(false);
+    private final BufVertex observerGlyphBuf = new BufVertex(ViewpointMarker.MAX_VERTICES);
+    private ViewpointMarker.Style observerStyle = ViewpointMarker.Style.DOT;
+    private Colors observerColor = Colors.Yellow;
     private static final byte[] OBSERVER_COLOR = Colors.Blue.bytes(); // the Earth dot
-    private static final byte[] OBSERVER_SPACECRAFT_COLOR = Colors.Yellow.bytes(); // an observer that is not Earth
+    private static final double OBSERVER_GLYPH_CELL_PX = 2; // one cell of the camera and eye glyphs
     // As a fraction of the camera width, so the dot keeps a constant size on screen: the point
     // shader multiplies by pixels-per-scene-unit, and this view's camera spans hundreds of solar
     // radii, where earthPoint's fixed 0.02 scene units would be a small fraction of one pixel.
@@ -244,6 +249,8 @@ public final class GridLayer extends AbstractLayer {
         jo.put("celestialLineScale", celestialLineScale);
         jo.put("showPlanets", showPlanets);
         jo.put("showEarth", showEarth);
+        jo.put("viewpointMarker", observerStyle.name());
+        jo.put("viewpointMarkerColor", observerColor.name());
         jo.put("showPlanetOrbits", showPlanetOrbits);
         jo.put("showPlanetNames", showPlanetNames);
         jo.put("planetOrbitAlpha", planetOrbitAlpha);
@@ -295,6 +302,8 @@ public final class GridLayer extends AbstractLayer {
         celestialLineScale = Math.clamp(jo.optDouble("celestialLineScale", celestialLineScale), 0.25, 4);
         showPlanets = jo.optBoolean("showPlanets", showPlanets);
         showEarth = jo.optBoolean("showEarth", showEarth);
+        observerStyle = ViewpointMarker.Style.parse(jo.optString("viewpointMarker", observerStyle.name()), observerStyle);
+        observerColor = Colors.parse(jo.optString("viewpointMarkerColor", observerColor.name()), observerColor);
         showPlanetOrbits = jo.optBoolean("showPlanetOrbits", showPlanetOrbits);
         showPlanetNames = jo.optBoolean("showPlanetNames", showPlanetNames);
         planetOrbitAlpha = Math.clamp(jo.optDouble("planetOrbitAlpha", planetOrbitAlpha), 0, 1);
@@ -345,7 +354,7 @@ public final class GridLayer extends AbstractLayer {
         if (showEarth)
             drawEarthCircles(vp, pixFactor, Sun.getEarth(viewpoint.time), mv.rendersIn3D(), mv.cameraWidth(vp), viewpoint.time);
         if (mv.isHelioradial() && mv.rendersIn3D())
-            drawObserverPoint(vp, pixFactor, viewpoint, Sun.getEarth(viewpoint.time), mv.cameraWidth(vp));
+            drawObserverPoint(vp, pixFactor, viewpoint, mv.cameraWidth(vp));
 
         if (showPlanets)
             drawPlanets(vp, pixFactor, viewpoint, mv.cameraWidth(vp));
@@ -594,33 +603,37 @@ public final class GridLayer extends AbstractLayer {
     // The observer sits at (0, 0, distance) in its own frame, so rotating into that frame is all
     // it takes to place it -- the same trick drawEarthCircles uses for the sub-observer point.
     //
-    // It is the observer, not Earth: for SOHO at L1 or STEREO it sits well away from Earth, and in the
-    // same blue as the Earth dot it read as a second Earth beside the first. So it has its own colour,
-    // and it is not drawn at all when it falls inside the Earth dot (any observer at Earth).
-    private void drawObserverPoint(Viewport vp, double factor, Position viewpoint, Position earth, double cameraWidth) {
-        if (viewpoint.distance <= 1 || cameraWidth <= 0)
+    // The viewpoint marker is the observer, not Earth: for SOHO at L1 or STEREO it sits well away
+    // from Earth, and with "Drive the viewpoint" on it is wherever the camera was sent. It has its own
+    // style (hidden, dot, camera, eye) and colour, so it never reads as a second Earth and can be
+    // dropped altogether.
+    private void drawObserverPoint(Viewport vp, double factor, Position viewpoint, double cameraWidth) {
+        if (observerStyle == ViewpointMarker.Style.HIDDEN || viewpoint.distance <= 1 || cameraWidth <= 0)
             return;
-        double radius = OBSERVER_POINT_FRACTION * cameraWidth;
-        if (separation(viewpoint, earth) < radius)
-            return;
-        observerBuf.putVertex(0, 0, (float) viewpoint.distance, (float) radius, OBSERVER_SPACECRAFT_COLOR);
-        observerPoint.uploadAndClear(observerBuf);
-
+        byte[] color = observerColor.bytes();
         Transform.pushView();
         Transform.rotateViewInverse(viewpoint.toQuat());
-        // The dot is a position, not a surface: depth-testing it against the modelled surface
+        // The marker is a position, not a surface: depth-testing it against the modelled surface
         // would hide it exactly when the surface curves past it, which is the case worth seeing.
         GL.glDisable(GL.DEPTH_TEST);
-        observerPoint.renderPoints(factor);
-        GL.glEnable(GL.DEPTH_TEST);
+        try {
+            if (observerStyle == ViewpointMarker.Style.DOT) {
+                observerBuf.putVertex(0, 0, (float) viewpoint.distance,
+                        (float) (OBSERVER_POINT_FRACTION * cameraWidth), color);
+                observerPoint.uploadAndClear(observerBuf);
+                observerPoint.renderPoints(factor);
+            } else {
+                observerGlyphBuf.clear();
+                double cell = OBSERVER_GLYPH_CELL_PX * Display.pixelScale[1] * Display.captureScale;
+                if (ViewpointMarker.build(observerGlyphBuf, observerStyle, viewpoint.distance, cell, vp.width, vp.height, color)) {
+                    observerGlyph.uploadAndClear(observerGlyphBuf);
+                    observerGlyph.renderShape(GL.TRIANGLES);
+                }
+            }
+        } finally {
+            GL.glEnable(GL.DEPTH_TEST);
+        }
         Transform.popView();
-    }
-
-    /** Distance between two positions, in solar radii (each is longitude, latitude, distance in one frame). */
-    private static double separation(Position a, Position b) {
-        double ax = a.distance * Math.cos(a.lat) * Math.cos(a.lon), ay = a.distance * Math.cos(a.lat) * Math.sin(a.lon), az = a.distance * Math.sin(a.lat);
-        double bx = b.distance * Math.cos(b.lat) * Math.cos(b.lon), by = b.distance * Math.cos(b.lat) * Math.sin(b.lon), bz = b.distance * Math.sin(b.lat);
-        return Math.sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by) + (az - bz) * (az - bz));
     }
 
     // The dot is the Earth itself, so it exists only where the scene has depth: at its true
@@ -707,6 +720,7 @@ public final class GridLayer extends AbstractLayer {
         GridMath.initEarthCircles(earthCircleLine);
         earthPoint.init();
         observerPoint.init();
+        observerGlyph.init();
         planetPoints.init();
         planetOrbitLine.init();
         thomsonLine.init();
@@ -733,6 +747,7 @@ public final class GridLayer extends AbstractLayer {
         earthCircleLine.dispose();
         earthPoint.dispose();
         observerPoint.dispose();
+        observerGlyph.dispose();
         planetPoints.dispose();
         planetOrbitLine.dispose();
         thomsonLine.dispose();
@@ -1001,6 +1016,24 @@ public final class GridLayer extends AbstractLayer {
 
     public void setShowPlanets(boolean v) {
         showPlanets = v;
+        DisplayController.display();
+    }
+
+    public ViewpointMarker.Style getViewpointMarker() {
+        return observerStyle;
+    }
+
+    public void setViewpointMarker(ViewpointMarker.Style style) {
+        observerStyle = style;
+        DisplayController.display();
+    }
+
+    public Colors getViewpointMarkerColor() {
+        return observerColor;
+    }
+
+    public void setViewpointMarkerColor(Colors c) {
+        observerColor = c;
         DisplayController.display();
     }
 

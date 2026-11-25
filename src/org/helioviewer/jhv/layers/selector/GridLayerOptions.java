@@ -268,6 +268,8 @@ public final class GridLayerOptions extends JPanel {
         addAdjustmentRow(rows, "Marker size ", size, 1);
         addAdjustmentRow(rows, "Orbit opacity ",
                 createOpacitySlider(layer.getPlanetOrbitAlpha(), layer::setPlanetOrbitAlpha), 2);
+        addAdjustmentRow(rows, "Viewpoint marker ", createViewpointMarkerBox(layer), 3);
+        addAdjustmentRow(rows, "Marker colour ", createViewpointColorBox(layer), 4);
 
         c.gridy = 2;
         c.gridx = 0;
@@ -328,6 +330,21 @@ public final class GridLayerOptions extends JPanel {
         comboBox.setRenderer(new ColorRenderer());
         comboBox.addActionListener(e -> layer.setPlanetColor(comboBox.getSelectedItem() instanceof Colors c ? c : null));
         return comboBox;
+    }
+
+    /** How the observer (the viewpoint, wherever "Drive the viewpoint" has put it) is marked in the 3D scene. */
+    private static JComboBox<org.helioviewer.jhv.layers.grid.ViewpointMarker.Style> createViewpointMarkerBox(GridLayer layer) {
+        JComboBox<org.helioviewer.jhv.layers.grid.ViewpointMarker.Style> comboBox =
+                new JComboBox<>(org.helioviewer.jhv.layers.grid.ViewpointMarker.Style.values());
+        comboBox.setSelectedItem(layer.getViewpointMarker());
+        comboBox.setToolTipText("The mark at the observer's place in the 3D Helioradial scene, which is where the viewpoint sits: hidden, a dot, a camera or an eye. Separate from the Earth dot.");
+        comboBox.addActionListener(e -> layer.setViewpointMarker(
+                (org.helioviewer.jhv.layers.grid.ViewpointMarker.Style) Objects.requireNonNull(comboBox.getSelectedItem())));
+        return comboBox;
+    }
+
+    private static JComboBox<Colors> createViewpointColorBox(GridLayer layer) {
+        return createSurfaceColorBox(layer.getViewpointMarkerColor(), layer::setViewpointMarkerColor);
     }
 
     /** A 0.25x to 4x multiplier, for line widths and mesh density alike. */

@@ -3,6 +3,7 @@ package org.helioviewer.jhv.layers;
 import java.util.List;
 
 import org.helioviewer.jhv.layers.grid.PlanetMarkers;
+import org.helioviewer.jhv.layers.grid.ViewpointMarker;
 import org.helioviewer.jhv.time.JHVTime;
 import org.json.JSONObject;
 
@@ -47,6 +48,31 @@ public final class EarthToggleCheck {
         fresh.serialize(jo);
         back = new GridLayer(jo);
         expect("and Earth on with the planets off does too", back.isShowEarth() && !back.isShowPlanets());
+
+        // The viewpoint marker: a dot in yellow by default, kept in the session, and read as that from an old one
+        expect("the viewpoint marker defaults to a dot", fresh.getViewpointMarker() == ViewpointMarker.Style.DOT
+                && fresh.getViewpointMarkerColor() == org.helioviewer.jhv.base.Colors.Yellow
+                && new GridLayer(new JSONObject()).getViewpointMarker() == ViewpointMarker.Style.DOT);
+        for (ViewpointMarker.Style s : ViewpointMarker.Style.values()) {
+            fresh.setViewpointMarker(s);
+            fresh.setViewpointMarkerColor(org.helioviewer.jhv.base.Colors.Cyan);
+            jo = new JSONObject();
+            fresh.serialize(jo);
+            back = new GridLayer(jo);
+            expect("the " + s + " marker and its colour survive a session", back.getViewpointMarker() == s
+                    && back.getViewpointMarkerColor() == org.helioviewer.jhv.base.Colors.Cyan);
+        }
+        expect("an unknown style name reads as the default",
+                new GridLayer(new JSONObject().put("viewpointMarker", "bogus")).getViewpointMarker() == ViewpointMarker.Style.DOT);
+        for (ViewpointMarker.Style s : ViewpointMarker.Style.values()) {
+            String[] rows = ViewpointMarker.glyph(s);
+            boolean glyph = s == ViewpointMarker.Style.CAMERA || s == ViewpointMarker.Style.EYE;
+            boolean rect = rows != null;
+            if (rows != null)
+                for (String r : rows)
+                    rect &= r.length() == rows[0].length();
+            expect(s + (glyph ? " has a rectangular pixel glyph" : " has no glyph"), glyph ? rect && rows.length * rows[0].length() * 6 <= ViewpointMarker.MAX_VERTICES : rows == null);
+        }
 
         JHVTime t = new JHVTime(System.currentTimeMillis() > 0 ? 1758499200000L : 0L); // 2025-09-22
         for (boolean follow : new boolean[]{true, false}) {
