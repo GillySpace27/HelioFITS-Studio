@@ -47,6 +47,17 @@ public abstract class TimelineLayer {
      */
     public void deleted() {}
 
+    private float stackWeight = 1; // share of the stacked plot's height, relative to the other panels
+
+    public float getStackWeight() {
+        return stackWeight;
+    }
+
+    public void setStackWeight(float weight) {
+        if (Float.isFinite(weight)) // NaN would collapse every panel
+            stackWeight = Math.clamp(weight, 0.05f, 100f);
+    }
+
     public void setEnabled(boolean _enabled) {
         enabled = _enabled;
     }

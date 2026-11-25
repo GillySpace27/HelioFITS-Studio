@@ -117,6 +117,19 @@ public class TimelineLayers extends AbstractTableModel {
         DrawController.layoutChanged();
     }
 
+    /** Move a layer up (negative) or down (positive) the list, which is also its order in the stacked plot. */
+    public boolean move(TimelineLayer tl, int delta) {
+        int row = layers.indexOf(tl);
+        int to = row + delta;
+        if (row < 0 || to < 0 || to >= layers.size())
+            return false;
+        layers.remove(row);
+        layers.add(to, tl);
+        fireTableRowsUpdated(Math.min(row, to), Math.max(row, to));
+        DrawController.layoutChanged();
+        return true;
+    }
+
     public void restore(List<TimelineLayer> newLayers) {
         ArrayList<TimelineLayer> restoredLayers = new ArrayList<>();
         for (TimelineLayer newLayer : newLayers) {
