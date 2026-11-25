@@ -56,6 +56,10 @@ public final class EarthToggleCheck {
             PlanetMarkers.Marker same = all.stream().filter(PlanetMarkers::isEarth).findFirst().orElse(null);
             expect("it is where the planet layout puts Earth (follow=" + follow + ")",
                     e != null && same != null && e.position().equals(same.position()));
+            // the filter drawPlanets applies: no Earth left to draw a second time
+            expect("the planet loop's list has no Earth (follow=" + follow + ")",
+                    all.stream().filter(m -> !PlanetMarkers.isEarth(m)).noneMatch(PlanetMarkers::isEarth)
+                            && all.stream().filter(m -> !PlanetMarkers.isEarth(m)).count() == all.size() - 1);
             expect("exactly one marker in the full list is Earth (follow=" + follow + ")",
                     all.stream().filter(PlanetMarkers::isEarth).count() == 1);
         }

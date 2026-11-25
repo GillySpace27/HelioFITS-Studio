@@ -49,8 +49,15 @@ public final class PlanetMarkers {
     @Nullable
     public static Marker earth(JHVTime time, boolean followSolarRotation) {
         SpaceObject body = SpaceObject.get("Earth");
-        double[] v = body == null ? null : hci(body, time);
-        return v == null ? null : new Marker(body, toDisplay(v, placementOffset(time, followSolarRotation)), body.getColor());
+        if (body == null)
+            return null;
+        double[] v = hci(body, time);
+        if (v != null)
+            return new Marker(body, toDisplay(v, placementOffset(time, followSolarRotation)), body.getColor());
+        // The ephemeris cannot place it: Sun.getEarth has a fallback orbit, in the display frame already.
+        Position p = org.helioviewer.jhv.astronomy.Sun.getEarth(time);
+        double c = p.distance * Math.cos(p.lat);
+        return new Marker(body, new Vec3(c * Math.sin(p.lon), p.distance * Math.sin(p.lat), c * Math.cos(p.lon)), body.getColor());
     }
 
     /** True for the marker the grid layer draws as the Earth dot, so the planet loop leaves it out. */

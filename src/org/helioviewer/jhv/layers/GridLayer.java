@@ -138,6 +138,10 @@ public final class GridLayer extends AbstractLayer {
     private double gridLabelSize = 16;
     private double gridLabelAngle = 148;
 
+    @Nullable
+    private org.helioviewer.jhv.layers.grid.PlanetMarkers.Marker earthMarker;
+    private long earthMarkerMilli;
+    private boolean earthMarkerFollow;
     private final GLSLShape earthPoint = new GLSLShape(false);
     private final BufVertex earthBuf = new BufVertex(1);
 
@@ -478,19 +482,19 @@ public final class GridLayer extends AbstractLayer {
         GL.glDisable(GL.DEPTH_TEST);
         planetPoints.renderPoints(factor);
         if (showPlanetNames)
-            drawPlanetNames();
+            drawPlanetNames(planetMarkers);
         GL.glEnable(GL.DEPTH_TEST);
     }
 
     /** Names offset outward along the radius, so the inner planets do not stack their labels. */
-    private void drawPlanetNames() {
+    private void drawPlanetNames(java.util.List<org.helioviewer.jhv.layers.grid.PlanetMarkers.Marker> markers) {
         SdfTextRenderer renderer = GLText.renderer();
         renderer.setColor(Colors.LightGrayFloat);
         float scale = (float) (textScale / renderer.getFontSize());
 
         GL.glDisable(GL.CULL_FACE);
         renderer.begin3DRendering();
-        for (org.helioviewer.jhv.layers.grid.PlanetMarkers.Marker m : planetMarkers) {
+        for (org.helioviewer.jhv.layers.grid.PlanetMarkers.Marker m : markers) {
             Vec3 p = m.position();
             double r = Math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
             if (r <= 0)
@@ -633,15 +637,26 @@ public final class GridLayer extends AbstractLayer {
 
         if (!in3D || cameraWidth <= 0)
             return;
-        org.helioviewer.jhv.layers.grid.PlanetMarkers.Marker m = org.helioviewer.jhv.layers.grid.PlanetMarkers.earth(time, planetsFollowRotation);
+        // One ephemeris query per time and layout, not per repaint.
+        if (earthMarker == null || earthMarkerMilli != time.milli || earthMarkerFollow != planetsFollowRotation) {
+            earthMarker = org.helioviewer.jhv.layers.grid.PlanetMarkers.earth(time, planetsFollowRotation);
+            earthMarkerMilli = time.milli;
+            earthMarkerFollow = planetsFollowRotation;
+        }
+        org.helioviewer.jhv.layers.grid.PlanetMarkers.Marker m = earthMarker;
         if (m == null)
             return;
         earthBuf.putVertex((float) m.position().x, (float) m.position().y, (float) m.position().z,
                 (float) (OBSERVER_POINT_FRACTION * cameraWidth), OBSERVER_COLOR);
         earthPoint.uploadAndClear(earthBuf);
         GL.glDisable(GL.DEPTH_TEST);
-        earthPoint.renderPoints(factor);
-        GL.glEnable(GL.DEPTH_TEST);
+        try {
+            earthPoint.renderPoints(factor);
+            if (showPlanetNames)
+                drawPlanetNames(java.util.List.of(m));
+        } finally {
+            GL.glEnable(GL.DEPTH_TEST);
+        }
     }
 
     private void drawRadialGridText(List<GridLabel> labels, float z, float[] labelPos, float[] color) {
