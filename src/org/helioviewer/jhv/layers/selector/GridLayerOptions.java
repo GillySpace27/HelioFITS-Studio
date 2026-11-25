@@ -251,7 +251,7 @@ public final class GridLayerOptions extends JPanel {
         c.gridx = 0;
         c.anchor = GridBagConstraints.LINE_END;
         JCheckBox earth = createToggle("Earth", layer.isShowEarth(), layer::setShowEarth);
-        earth.setToolTipText("The Earth dot (and its circles), on its own: independent of the other planets and of the grid. Drawn once, at Earth's place.");
+        earth.setToolTipText("The Earth dot and its name, on their own: independent of the other planets and of the grid. Drawn once, at Earth's place.");
         panel.add(earth, c);
         c.gridx = 1;
         c.anchor = GridBagConstraints.LINE_START;

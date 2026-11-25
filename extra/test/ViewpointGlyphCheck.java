@@ -71,6 +71,10 @@ public final class ViewpointGlyphCheck {
                     && Math.abs(Math.hypot(ax[1][0], Math.hypot(ax[1][1], ax[1][2])) - 1) < 1e-9);
         }
 
+        // A very wide camera (heliosphere scale) shrinks every NDC step; the axes must still be found
+        Transform.ortho(w / (double) h, 2e5, 0, 0, views[1]);
+        expect("screen axes found at a very wide camera", ViewpointMarker.screenAxes(w, h) != null);
+
         System.out.println(failures == 0 ? "ViewpointGlyphCheck: PASS" : "ViewpointGlyphCheck: " + failures + " FAILURE(S)");
         System.exit(failures == 0 ? 0 : 1);
     }

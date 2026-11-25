@@ -90,7 +90,7 @@ public final class ViewpointMarker {
         // Minimum-norm local vectors that move the NDC point by one cell right / up: J^T (J J^T)^-1 d
         double a = dot(j[0], j[0]), b = dot(j[0], j[1]), d = dot(j[1], j[1]);
         double det = a * d - b * b;
-        if (!(Math.abs(det) > 1e-18))
+        if (!(Math.abs(det) > 1e-12 * a * d)) // relative: a wide camera shrinks every term together
             return false;
         double[] u = step(j, a, b, d, det, cellPx * 2.0 / vpWidth, 0);
         double[] v = step(j, a, b, d, det, 0, cellPx * 2.0 / vpHeight);
@@ -122,7 +122,7 @@ public final class ViewpointMarker {
         }
         double a = dot(j[0], j[0]), b = dot(j[0], j[1]), d = dot(j[1], j[1]);
         double det = a * d - b * b;
-        if (!(Math.abs(det) > 1e-18))
+        if (!(Math.abs(det) > 1e-12 * a * d)) // relative: a wide camera shrinks every term together
             return null;
         double[] u = step(j, a, b, d, det, 2.0 / vpWidth, 0), v = step(j, a, b, d, det, 0, 2.0 / vpHeight);
         double lu = Math.sqrt(dot(u, u)), lv = Math.sqrt(dot(v, v));
