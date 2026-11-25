@@ -4,6 +4,7 @@
 [![Latest release](https://img.shields.io/github/v/release/GillySpace27/HelioFITS-Studio?include_prereleases&style=flat)](https://github.com/GillySpace27/HelioFITS-Studio/releases)
 [![checks](https://github.com/GillySpace27/HelioFITS-Studio/actions/workflows/checks.yml/badge.svg?branch=master)](https://github.com/GillySpace27/HelioFITS-Studio/actions/workflows/checks.yml)
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-blue.svg)](LICENSE)
+[![Docs](https://app.readthedocs.org/projects/heliofits-studio/badge/?version=latest)](https://heliofits-studio.readthedocs.io/)
 ![Platforms: macOS, Windows, Linux](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)
 
 > **The HelioFITS suite**
