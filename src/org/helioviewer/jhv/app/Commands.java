@@ -113,6 +113,16 @@ public final class Commands {
         Player.setFrame(frame);
     }
 
+    /** The first frame of the playback range (the trimmed movie). */
+    public static void firstFrame() {
+        Player.setFrame(ViewState.playbackData().firstFrame());
+    }
+
+    /** The last frame of the playback range. */
+    public static void lastFrame() {
+        Player.setFrame(ViewState.playbackData().lastFrame());
+    }
+
     public static void seekTime(JHVTime time) {
         Player.setTime(time);
     }
@@ -302,8 +312,109 @@ public final class Commands {
         DisplayController.resetView();
     }
 
+    // Zoom, warp and crop as they stood when a session file was last loaded or explicitly saved in this run
+    // (autosave does not count, or / would restore whatever was on screen a moment ago); null before either.
+    // Crop is not in the session file, so it is remembered here rather than read back from the file.
+    private static final java.util.concurrent.atomic.AtomicReference<double[]> savedScaling = new java.util.concurrent.atomic.AtomicReference<>();
+
+    /** Zoom, warp and crop to remember as "last saved": on a session load completing and on an explicit save. */
+    public static void rememberScaling() {
+        savedScaling.set(new double[]{org.helioviewer.jhv.display.Display.getActiveViewport().zoom,
+                org.helioviewer.jhv.display.Display.getWarpLambda(), org.helioviewer.jhv.display.Display.getWarpOuterRadius()});
+    }
+
+    /** The defaults {@link #resetScaling} writes, as {zoom, warp lambda, crop radius}. */
+    public static final double[] DEFAULT_SCALING = {1, 1, 0};
+
+    /** What the / key goes back to: {@code saved} when there is one, else the defaults. */
+    public static double[] scalingTarget(@Nullable double[] saved) {
+        return saved != null ? saved.clone() : DEFAULT_SCALING.clone();
+    }
+
+    /**
+     * The / canvas key (Gilly, 2026-11-20): zoom, warp and crop back to the last saved session's values,
+     * or to the defaults when nothing has been loaded or saved in this run. R stays the fit-zoom reset.
+     * Returns whether saved values were used.
+     */
+    public static boolean restoreScaling() {
+        double[] saved = savedScaling.get();
+        if (saved == null) {
+            resetScaling();
+            return false;
+        }
+        double[] t = scalingTarget(saved);
+        org.helioviewer.jhv.display.CMETracker.stop();
+        ViewState.setWarpLambda(t[1]);
+        org.helioviewer.jhv.display.Display.setWarpOuterRadius(t[2]);
+        for (org.helioviewer.jhv.display.Viewport vp : org.helioviewer.jhv.display.Display.getViewports())
+            vp.zoom = t[0];
+        DisplayController.display();
+        return true;
+    }
+
+    /**
+     * Zoom, warp and crop back to their defaults, the Projection palette's Reset view (and / before any save):
+     * warp off (lambda 1, the identity; 0 is the hard logarithmic warp), crop auto, magnification 1x. CME
+     * tracking lets go first, or its next tick would write over them.
+     */
+    public static void resetScaling() {
+        org.helioviewer.jhv.display.CMETracker.stop();
+        ViewState.setWarpLambda(1);
+        org.helioviewer.jhv.display.Display.setWarpOuterRadius(0);
+        org.helioviewer.jhv.display.Display.resetViewportZoom();
+        DisplayController.display();
+    }
+
     public static void resetViewAxis() {
         DisplayController.resetViewAxis();
+    }
+
+    /**
+     * Flip the grid's master switch, the Grid row's checkbox, the way that checkbox does. Returns the
+     * new state, or null when there is no grid layer.
+     */
+    @Nullable
+    public static Boolean toggleGrid() {
+        org.helioviewer.jhv.layers.GridLayer grid = org.helioviewer.jhv.layers.Layers.getGridLayer();
+        if (grid == null)
+            return null;
+        grid.setEnabled(!grid.isEnabled());
+        org.helioviewer.jhv.layers.Layers.fireLayerUpdated(grid); // the sidebar row and the Grid palette follow
+        DisplayController.render(1);
+        return grid.isEnabled();
+    }
+
+    /** The projections the palette lists, in its order (the sky is a checkbox there, not one of them). */
+    public static List<org.helioviewer.jhv.display.MapMode> listedProjections() {
+        return java.util.Arrays.stream(org.helioviewer.jhv.display.MapMode.values())
+                .filter(m -> m != org.helioviewer.jhv.display.MapMode.ObserverSky).toList();
+    }
+
+    /**
+     * Pick a projection as the palette's radio does: with the sky on, a base that can host it changes what the
+     * sky is drawn on and the view stays in the sky; any other change is a projection switch.
+     */
+    public static void selectProjection(org.helioviewer.jhv.display.MapMode el) {
+        selectProjection(el, () -> {});
+    }
+
+    /** As {@link #selectProjection(org.helioviewer.jhv.display.MapMode)}; {@code afterSkyBase} runs once a sky base change is applied. */
+    public static void selectProjection(org.helioviewer.jhv.display.MapMode el, Runnable afterSkyBase) {
+        if (ViewState.getProjection() == org.helioviewer.jhv.display.MapMode.ObserverSky && el.hostsSky()) {
+            org.helioviewer.jhv.display.ProjectionTransition.requestChange(() -> {
+                org.helioviewer.jhv.display.Display.setSkyBase(el);
+                afterSkyBase.run();
+            });
+        } else
+            ViewState.setProjection(el);
+    }
+
+    /** Turn "Render in 3D" on or off; the new state. It only shows in Helioradial. */
+    public static boolean toggleRender3D() {
+        boolean on = !org.helioviewer.jhv.display.Display.isHelioradial3D();
+        org.helioviewer.jhv.display.Display.setHelioradial3D(on);
+        DisplayController.render(1);
+        return on;
     }
 
     public static void rotateView90(@Nullable String axis) {

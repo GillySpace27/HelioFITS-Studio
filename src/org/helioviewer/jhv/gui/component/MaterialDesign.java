@@ -27,6 +27,7 @@ enum MaterialDesign {
     FLASH("mdi-flash", '\uf241'), // a bolt, for space weather events; rasterized from the shipped font before use
     CROP_LANDSCAPE("mdi-crop-landscape", '\uf1a0'),
     CROSSHAIRS_GPS("mdi-crosshairs-gps", '\uf1a4'),
+    EARTH("mdi-earth", '\uf1e7'), // a globe; codepoint read from the shipped font's cmap, then rasterized (2026-11-23)
     CUBE_OUTLINE("mdi-cube-outline", '\uf1a7'),
     CURSOR_MOVE("mdi-cursor-move", '\uf1b6'),
     DEBUG_STEP_OUT("mdi-debug-step-out", '\uf1bc'),
@@ -38,6 +39,7 @@ enum MaterialDesign {
     INFORMATION_VARIANT("mdi-information-variant", '\uf64e'),
     INVERT_COLORS("mdi-invert-colors", '\uf301'),
     LOCK("mdi-lock", '\uf33e'),
+    METEOR("mdi-meteor", '\uf629'), // a body trailing its tail, for Track comet; checked in the shipped font's cmap and post tables
     OPEN_IN_NEW("mdi-open-in-new", '\uf3cc'),
     PAGE_LAYOUT_SIDEBAR_LEFT("mdi-page-layout-sidebar-left", '\uf6fc'), // a window with its left panel marked; rasterized from the shipped font
     PAGE_LAYOUT_SIDEBAR_RIGHT("mdi-page-layout-sidebar-right", '\uf6fd'), // a box with an arrow leaving it; verified against the shipped font's cmap

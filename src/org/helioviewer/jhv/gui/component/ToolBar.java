@@ -114,6 +114,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     private final ButtonText REFRESH = new ButtonText(Buttons.refresh, "Refresh", "Automatic refresh");
     private final ButtonText RESETCAMERA = new ButtonText(Buttons.resetCamera, "Reset View", "Reset view to default");
     private final ButtonText RESETCAMERAAXIS = new ButtonText(Buttons.resetCameraAxis, "Reset Axis", "Reset view axis");
+    private final ButtonText VIEWFROMEARTH = new ButtonText(Buttons.viewFromEarth, "Earth", "3D views: put the camera at Earth, 1 au out");
     private final ButtonText ROTATE = new ButtonText(Buttons.rotate, "Rotate", "Drag on the canvas to rotate the view");
     private final ButtonText ROTATE90 = new ButtonText(Buttons.rotate90, "Rotate View 90°", "Rotate view 90°");
     private final ButtonText SAMP = new ButtonText(Buttons.samp, "SAMP", "Send SAMP message");
@@ -264,6 +265,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
     // The Projection palette's controls and their state (ProjectionPaletteContent, HS-8).
     private final ProjectionPaletteContent projectionControls = new ProjectionPaletteContent(this);
     private JToggleButton trackingButton;
+    private JButton viewFromEarthButton;
 
     // --- which tools are on the bar, and in what order ----------------------------------------
     // Every control is BUILT every time, and only the chosen ones are added. That is the whole
@@ -499,6 +501,11 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         resetCamera.addActionListener(new Actions.ResetCamera());
         JButton resetCameraAxis = toolButton(RESETCAMERAAXIS);
         resetCameraAxis.addActionListener(new Actions.ResetCameraAxis());
+        // On the bar because the View menu item and the Viewpoint options button were too hard to
+        // find (Gilly, 2026-11-22). Greyed in the flat projections, where it does nothing.
+        viewFromEarthButton = toolButton(VIEWFROMEARTH);
+        viewFromEarthButton.addActionListener(new Actions.ViewFromEarth());
+        viewFromEarthButton.setEnabled(ViewState.getProjection().rendersIn3D());
 
         SplitButton rotate90Button = toolSplitButton(ROTATE90);
         rotate90Button.addItem(new Actions.Rotate90Camera("X Axis", "X"));
@@ -511,6 +518,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         register("zoomOne", ZOOMONE, zoomOne);
         register("resetCamera", RESETCAMERA, resetCamera);
         register("resetAxis", RESETCAMERAAXIS, resetCameraAxis);
+        register("viewFromEarth", VIEWFROMEARTH, viewFromEarthButton);
         register("rotate90", ROTATE90, rotate90Button);
 
         // Interaction
@@ -1132,6 +1140,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         projectionControls.syncSkyAim();
         Palette.keepVisible();
         projectionControls.syncZoomSliderFromDisplay();
+        projectionControls.syncWarpCropFromDisplay();
     }
 
 
@@ -1226,6 +1235,7 @@ public final class ToolBar extends JToolBar implements ViewState.ModeListener {
         diffRotationButton.setSelected(ViewState.isDifferentialRotation());
         coronaButton.setSelected(ViewState.isShowCorona());
         multiviewButton.setSelected(ViewState.isMultiview());
+        viewFromEarthButton.setEnabled(ViewState.getProjection().rendersIn3D());
         if (refreshToggle != null)
             refreshToggle.setSelected(ViewState.isRefresh());
         projectionControls.modeStateChanged();

@@ -116,7 +116,7 @@ public final class KeybindingsPanel extends JPanel {
             }
         });
 
-        JButton canvasBtn = button("Canvas keys...", "The bare keys the picture answers to while it has focus: W A S D Q E turn the scene, Up and Down set the playback rate", this::canvasKeys);
+        JButton canvasBtn = button("Canvas keys...", "The bare keys the picture answers to while it has focus: W A S D Q E turn the scene, [ and ] zoom, comma and period warp, apostrophe and semicolon crop, G shows or hides the grid, R resets the view and fits the zoom, / puts zoom, warp and crop back as last saved (or to their defaults)", this::canvasKeys);
 
         JPanel top = new JPanel(new BorderLayout(6, 0));
         top.add(new JLabel("Search:"), BorderLayout.LINE_START);
@@ -154,14 +154,40 @@ public final class KeybindingsPanel extends JPanel {
         JCheckBox invert = new JCheckBox("Invert pitch and yaw", CanvasKeys.invert());
         invert.setToolTipText("By default a key moves the near side of the scene the way a drag that way would: D to the right, W up");
         JSpinner rate = new JSpinner(new SpinnerNumberModel(CanvasKeys.degreesPerSecond(), 1, 360, 5));
-        rate.setToolTipText("How fast a held key turns the scene; Option held makes it five times slower");
+        rate.setToolTipText("How fast a held key turns the scene; Shift held makes it five times faster, Option five times slower");
+        String opt = org.helioviewer.jhv.app.Platform.isMacOS() ? "Option" : "Alt";
+        JSpinner pan = new JSpinner(new SpinnerNumberModel(CanvasKeys.panPixelsPerSecond(), 1, 5000, 25));
+        pan.setToolTipText(opt + " with the pitch and yaw keys (W A S D) pans the view with no mouse, this many screen pixels a second");
+        JSpinner panFast = new JSpinner(new SpinnerNumberModel(CanvasKeys.panFast(), 1, 100, 1));
+        panFast.setToolTipText("Pan rate factor with Shift held");
+        JSpinner panFine = new JSpinner(new SpinnerNumberModel(CanvasKeys.panFine(), 0.01, 1, 0.05));
+        panFine.setToolTipText("Pan rate factor with Ctrl held");
+        JSpinner panRamp = new JSpinner(new SpinnerNumberModel(CanvasKeys.panRampSeconds(), 0, 10, 0.25));
+        panRamp.setToolTipText("Seconds a held pan takes to reach full rate; 0 is no ramp");
+        JCheckBox toolHold = new JCheckBox("Tool key: a tap keeps the tool, a hold only borrows it",
+                "true".equals(org.helioviewer.jhv.app.Settings.getProperty(CanvasKeys.TOOL_MOMENTARY)));
+        toolHold.setToolTipText("Off: each press of the Switch Tool key swaps Rotate and Pan. On: hold it to borrow the other tool until you let go");
+        JPanel panRow = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
+        panRow.add(new JLabel(opt + "+W A S D pan, pixels per second"));
+        panRow.add(pan);
+        panRow.add(new JLabel("Shift x"));
+        panRow.add(panFast);
+        panRow.add(new JLabel("Ctrl x"));
+        panRow.add(panFine);
+        panRow.add(new JLabel("Ramp s"));
+        panRow.add(panRamp);
         JPanel extra = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
         extra.add(invert);
         extra.add(new JLabel("Degrees per second"));
         extra.add(rate);
+        extra.add(new JLabel("Hold Shift: faster. Hold " + (org.helioviewer.jhv.app.Platform.isMacOS() ? "Option" : "Alt") + ": slower."));
         JPanel p = new JPanel(new BorderLayout(0, 8));
         p.add(grid, BorderLayout.CENTER);
-        p.add(extra, BorderLayout.PAGE_END);
+        JPanel below = new JPanel(new GridLayout(0, 1));
+        below.add(extra);
+        below.add(panRow);
+        below.add(toolHold);
+        p.add(below, BorderLayout.PAGE_END);
         if (JOptionPane.showConfirmDialog(this, p, "Canvas keys", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION)
             return;
         // Clear every binding first so a swap between two of them is not refused as a clash
@@ -180,6 +206,11 @@ public final class KeybindingsPanel extends JPanel {
         }
         org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.INVERT, Boolean.toString(invert.isSelected()));
         org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.RATE, String.valueOf(((Number) rate.getValue()).doubleValue()));
+        org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.TOOL_MOMENTARY, Boolean.toString(toolHold.isSelected()));
+        org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.PAN_RATE, String.valueOf(((Number) pan.getValue()).doubleValue()));
+        org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.PAN_FAST, String.valueOf(((Number) panFast.getValue()).doubleValue()));
+        org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.PAN_FINE, String.valueOf(((Number) panFine.getValue()).doubleValue()));
+        org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.PAN_RAMP, String.valueOf(((Number) panRamp.getValue()).doubleValue()));
         status.setText(problems.length() == 0 ? "Canvas keys saved." : problems.toString().strip());
     }
 

@@ -180,7 +180,20 @@ public final class AppInfo {
      * exists; the build number is the commit count, which grows with every commit.
      */
     public static String displayBuild() {
-        return displayBuild(label(), revision, commit(), dirty(), channel());
+        String label = label();
+        if (label.equals(version)) { // no tag of VERSION yet: count from the latest release tag instead
+            String seq = sequence(version, System.getProperty("jhv.sincetag"));
+            if (!seq.isEmpty())
+                label = seq;
+        }
+        return displayBuild(label, revision, commit(), dirty(), channel());
+    }
+
+    /** "0.9.2+37" from VERSION and "v0.9.1 37" (latest tag, commits since); empty when there was no tag. */
+    static String sequence(String version, @Nullable String sinceTag) {
+        if (sinceTag == null || !sinceTag.matches("v\\S+ [0-9]+"))
+            return "";
+        return version + '+' + sinceTag.split(" ")[1];
     }
 
     static String displayBuild(String label, String revision, String commit, boolean dirty, String channel) {

@@ -82,6 +82,8 @@
     "Filters/Spectrum…": "The measured spectrum, with a live preview while you drag the band; it is measured while a velocity filter runs",
     "Filters/Gate": "Hard drops what falls below the noise threshold; Wiener scales it down smoothly",
     "Filters/Size": "The side of each neighbourhood the noise is estimated in, in pixels and frames",
-    "Filters/Show the residual (what was removed)": "Show what the filter removed instead of what it kept"
+    "Filters/Show the residual (what was removed)": "Show what the filter removed instead of what it kept",
+    "StorageTab/Keep at most": "Largest size the download cache may reach, in GB; blank means no limit",
+    "StorageTab/Apply": "Save the limit and trim the download cache to it now, oldest files first; files a saved session uses are kept"
   }
 }

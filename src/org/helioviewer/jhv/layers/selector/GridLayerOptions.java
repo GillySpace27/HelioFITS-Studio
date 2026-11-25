@@ -65,7 +65,16 @@ public final class GridLayerOptions extends JPanel {
         add(new CollapsiblePane("Thomson sphere", thomsonSection(layer), false, true, Buttons.projection));
         add(new CollapsiblePane("Celestial sphere", celestialSection(layer), false, true, Buttons.rotate));
         add(new CollapsiblePane("Ecliptic plane", eclipticSection(layer), false, true));
-        add(new CollapsiblePane("Planets", planetSection(layer), false, true, Buttons.track));
+        // The planets moved to the 3D Scene pane (planetControls), beside the other things placed in space.
+    }
+
+    private GridLayerOptions() {
+        setLayout(new BoxLayout(this, BoxLayout.PAGE_AXIS));
+    }
+
+    /** The planet controls on their own, for the 3D Scene pane: same widgets, bound to the same layer. */
+    public static JPanel planetControls(GridLayer layer) {
+        return new GridLayerOptions().planetSection(layer);
     }
 
     private JPanel gridSection(GridLayer layer) {
@@ -248,8 +257,12 @@ public final class GridLayerOptions extends JPanel {
         c.gridwidth = 1;
 
         JPanel rows = new JPanel(new GridBagLayout());
+        addAdjustmentRow(rows, "Color ", createPlanetColorBox(layer), 0);
+        JHVSlider size = createScaleSlider(layer.getPlanetScale(), layer::setPlanetScale);
+        size.setToolTipText("Size of the planet markers, from a quarter to four times the default");
+        addAdjustmentRow(rows, "Marker size ", size, 1);
         addAdjustmentRow(rows, "Orbit opacity ",
-                createOpacitySlider(layer.getPlanetOrbitAlpha(), layer::setPlanetOrbitAlpha), 0);
+                createOpacitySlider(layer.getPlanetOrbitAlpha(), layer::setPlanetOrbitAlpha), 2);
 
         c.gridy = 2;
         c.gridx = 0;
@@ -294,6 +307,21 @@ public final class GridLayerOptions extends JPanel {
         comboBox.setRenderer(new ColorRenderer());
         comboBox.addActionListener(e ->
                 setter.accept((Colors) Objects.requireNonNull(comboBox.getSelectedItem())));
+        return comboBox;
+    }
+
+    /** Each planet in its own colour (the first item), or every marker in one. */
+    static final String PLANET_OWN_COLORS = "Each its own";
+
+    private static JComboBox<Object> createPlanetColorBox(GridLayer layer) {
+        JComboBox<Object> comboBox = new JComboBox<>();
+        comboBox.addItem(PLANET_OWN_COLORS);
+        for (Colors c : Colors.values())
+            comboBox.addItem(c);
+        comboBox.setSelectedItem(layer.getPlanetColor() == null ? PLANET_OWN_COLORS : layer.getPlanetColor());
+        comboBox.setToolTipText("Colour of the planet markers: each planet's own, or one for all of them");
+        comboBox.setRenderer(new ColorRenderer());
+        comboBox.addActionListener(e -> layer.setPlanetColor(comboBox.getSelectedItem() instanceof Colors c ? c : null));
         return comboBox;
     }
 

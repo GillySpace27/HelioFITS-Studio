@@ -71,6 +71,12 @@ public final class UpdateInstaller {
 
     /** From the EDT, when the user chose Download and Install. */
     public static void install(ReleaseFeed.Release release) {
+        if (Platform.isMacOS() && ReleaseFeed.brewManaged()) {
+            Message.info("Installed with Homebrew", "This copy was installed with Homebrew, which keeps its own record of the version.\n"
+                    + "Update it from a terminal:\n\n    brew upgrade --cask " + ReleaseFeed.CASK + "\n\n"
+                    + "Nothing was downloaded or changed.");
+            return;
+        }
         SessionBackup.Result backup;
         try {
             backup = protectSession(release.version(), LocalDateTime.now(), Session::saveForUpdate);

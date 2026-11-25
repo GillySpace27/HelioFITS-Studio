@@ -1,5 +1,13 @@
 package org.helioviewer.jhv.astronomy;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import org.helioviewer.jhv.app.AppInit;
+import org.helioviewer.jhv.app.Platform;
+import org.helioviewer.jhv.io.Directories;
+import org.helioviewer.jhv.io.JplHorizons;
+
 /**
  * The comet track, from Horizons' own output to the numbers the warp solve is handed.
  *
@@ -13,6 +21,12 @@ package org.helioviewer.jhv.astronomy;
  * <p>The expected values are the same rows, reduced independently. C/2024 G3 came to perihelion on
  * 2025-01-13 at q = 0.093 au, which is 20 solar radii, so a projected closest approach a little
  * inside that is the answer a correct reduction has to give.
+ *
+ * <p>PsAng is measured at the comet, so the angle at the Sun is solved for first (Comets.bearingAtSun)
+ * and needs the Sun's direction from SOHO. Here SOHO is held at ecliptic longitude 113 degrees, on
+ * the ecliptic (judgement: about where it was that day; any fixed place pins the plumbing). The
+ * expected angles come from RA/Dec spherical trig and bisection rather than the vectors and Newton
+ * steps Comets uses (the Python in the comment above {@code soho}).
  *
  * <p>Run: java -Djava.awt.headless=true -cp "bin:extra/test-classes:resources:lib/*" org.helioviewer.jhv.astronomy.CometTrackCheck
  */
@@ -40,7 +54,53 @@ public final class CometTrackCheck {
             " 2025-Jan-13 06:00, , , 356.3113, -981.347,  0.97464611005918,  0.0084135,",
             " 2025-Jan-13 12:00, , , 356.1933, -981.312,  0.97464743814099,  0.0099862,"};
 
+    // Computed with this script (python3), which prints 342.7010, 355.3269 and 9.1559:
+    //   import math
+    //   EPS = math.radians(84381.448 / 3600)  # IAU 1976 obliquity, as the Horizons fixture header states
+    //   def sun_radec(lon_deg, lat_deg):
+    //       # SOHO at ecliptic (lon, lat); the Sun is opposite
+    //       l, b = math.radians(lon_deg + 180), math.radians(-lat_deg)
+    //       x, y, z = math.cos(b)*math.cos(l), math.cos(b)*math.sin(l), math.sin(b)
+    //       y, z = y*math.cos(EPS) - z*math.sin(EPS), y*math.sin(EPS) + z*math.cos(EPS)
+    //       return math.atan2(y, x), math.asin(z)
+    //   def dest(a, d, brg, e):
+    //       d2 = math.asin(math.sin(d)*math.cos(e) + math.cos(d)*math.sin(e)*math.cos(brg))
+    //       a2 = a + math.atan2(math.sin(brg)*math.sin(e)*math.cos(d), math.cos(e) - math.sin(d)*math.sin(d2))
+    //       return a2, d2
+    //   def bearing(a1, d1, a2, d2):  # initial bearing from 1 to 2, east of north
+    //       return math.atan2(math.sin(a2-a1)*math.cos(d2), math.cos(d1)*math.sin(d2) - math.sin(d1)*math.cos(d2)*math.cos(a2-a1))
+    //   def wrap(x): return math.remainder(x, 2*math.pi)
+    //   def at_sun(sa, sd, elong, psang):
+    //       e, psi = math.radians(elong), math.radians(psang)
+    //       def f(phi):
+    //           ta, td = dest(sa, sd, phi, e)
+    //           away = bearing(ta, td, sa, sd) + math.pi   # back toward the Sun, turned round
+    //           return wrap(away - psi)
+    //       lo, hi = psi - 0.5, psi + 0.5
+    //       assert f(lo) < 0 < f(hi), (f(lo), f(hi))
+    //       for _ in range(200):
+    //           mid = (lo + hi)/2
+    //           if f(mid) < 0: lo = mid
+    //           else: hi = mid
+    //       return math.degrees((lo+hi)/2)
+    //   sa, sd = sun_radec(113.0, 0.0)
+    //   print("sun ra %.4f dec %.4f" % (math.degrees(sa) % 360, math.degrees(sd)))
+    //   for el, ps, npa in ((5.3741, 339.779, 356.4295), (5.0934, 351.889, 356.3113), (4.9647, 5.192, 356.1933)):
+    //       print("%.4f" % ((at_sun(sa, sd, el, ps) - npa) % 360))
+    private static CometEphemeris soho(long from, long to) {
+        double l = Math.toRadians(113), au = 1.4959787e8;
+        double[] km = {au * Math.cos(l), au * Math.sin(l), 0};
+        return CometEphemeris.of("SOHO", new JplHorizons.States(new long[]{from, to},
+                new double[]{km[0], km[1], km[2], km[0], km[1], km[2]}, new double[6]), "", 0);
+    }
+
     public static void main(String[] args) throws Exception {
+        Path home = Files.createTempDirectory("comet-track-check");
+        System.setProperty("user.home", home.toString());
+        Platform.init();
+        Directories.createPersistentDirs();
+        Directories.createCacheDirs();
+        AppInit.loadSpice(); // the angle at the Sun turns SOHO's ecliptic position into J2000
         String block = "header we do not want\n$$SOE\n" + String.join("\n", COMET) + "\n$$EOE\ntrailer we do not want\n";
         expect("the ephemeris is read from between $$SOE and $$EOE", Comets.rows(block).length == 3);
         try {
@@ -62,7 +122,9 @@ public final class CometTrackCheck {
         expect("while a coronagraph-sized elongation is unaffected",
                 Math.abs(Comets.projectedRadius(5.3741, 0.97464500836512) - 19.715339) < 1e-4);
 
-        Comets.Track track = Comets.parse(COMET, SUN, "C/2024 G3");
+        long day = 86400_000L, first = new org.helioviewer.jhv.time.JHVTime("2025-01-13T00:00:00").milli;
+        CometEphemeris soho = soho(first - day, first + day);
+        Comets.Track track = Comets.parse(COMET, SUN, "C/2024 G3", soho);
         expect("all three rows survive parsing", track.milli().length == 3);
 
         long t0 = track.milli()[0], t1 = track.milli()[1], t2 = track.milli()[2];
@@ -74,10 +136,10 @@ public final class CometTrackCheck {
         near("halfway between two samples the radius is halfway too",
                 track.radius((t0 + t1) / 2.), 0.5 * (19.715339 + 18.679993), 1e-4);
 
-        near("position angle is measured from SOLAR north, not celestial: 339.779 - 356.4295",
-                track.positionAngle(t0), 343.3495, 1e-3);
+        near("position angle is the angle at the Sun (PsAng 339.779 turned round 5.37 deg) from SOLAR north (NP.ang 356.4295)",
+                track.positionAngle(t0), 342.7010, 1e-3);
         near("and through 360 it goes the short way, not the long way round",
-                track.positionAngle((t1 + t2) / 2.), 2.288, 1e-2); // 355.5777 -> 8.9987, halfway
+                track.positionAngle((t1 + t2) / 2.), 2.2414, 1e-3); // 355.3269 -> 9.1559, halfway
         expect("an interpolated angle stays in [0, 360)",
                 track.positionAngle((t1 + t2) / 2.) >= 0 && track.positionAngle((t1 + t2) / 2.) < 360);
 
@@ -85,7 +147,7 @@ public final class CometTrackCheck {
                 track.radius(t0 - 86400_000L), 19.715339, 1e-4);
         near("and after the last one too", track.radius(t2 + 86400_000L), 18.205610, 1e-4);
 
-        Comets.Track single = Comets.parse(new String[]{COMET[1]}, new String[]{SUN[1]}, "one row");
+        Comets.Track single = Comets.parse(new String[]{COMET[1]}, new String[]{SUN[1]}, "one row", soho);
         expect("a one-sample track answers rather than running off the end of its own array",
                 single.radius(t0) == single.radius(t2) && single.positionAngle(t0) == single.positionAngle(t2));
 

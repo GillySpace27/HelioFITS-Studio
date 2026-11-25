@@ -50,6 +50,7 @@ final class ProjectionPaletteContent {
     // values into the sliders. Guarded so that programmatic move does not look like a manual one
     // and disengage the very tracking that caused it.
     private boolean syncingFromTracker;
+    private boolean syncingFromKeys; // the canvas keys moved warp or crop: the sliders follow and do not write back
 
     JPanel build() {
         JPanel content = new JPanel();
@@ -103,13 +104,7 @@ final class ProjectionPaletteContent {
     // deferred through the transition like a projection switch, so the outgoing picture is still
     // there to fade from, and the palette follows once it has been applied.
     private void selectProjection(MapMode el) {
-        if (ViewState.getProjection() == MapMode.ObserverSky && el.hostsSky()) {
-            org.helioviewer.jhv.display.ProjectionTransition.requestChange(() -> {
-                Display.setSkyBase(el);
-                toolBar.modeStateChanged(); // the Warp, Crop, Disk and Surface controls follow the base
-            });
-        } else
-            ViewState.setProjection(el);
+        org.helioviewer.jhv.app.Commands.selectProjection(el, toolBar::modeStateChanged); // the Warp, Crop, Disk and Surface controls follow the base
     }
 
     // Mirror the knob CME tracking is animating back into its slider, so the readout matches what
@@ -158,6 +153,8 @@ final class ProjectionPaletteContent {
         warpLambdaValue.setPreferredSize(new JLabel("-0.000").getPreferredSize());
         warpLambdaSlider.readout(warpLambdaValue);
         warpLambdaSlider.addChangeListener(e -> {
+            if (syncingFromKeys)
+                return;
             if (!syncingFromTracker && CMETracker.getMode() == CMETracker.Mode.WARP)
                 CMETracker.stop(); // a manual move takes the wheel back, but only from the knob tracking drives
             ViewState.setWarpLambda(sliderToWarpLambda(warpLambdaSlider.getValue()));
@@ -387,13 +384,10 @@ final class ProjectionPaletteContent {
     // directly rather than by moving the sliders, because a slider already sitting at its
     // default fires no change event and would silently skip its half of the reset.
     private void resetProjectionControls() {
-        CMETracker.stop();
-        ViewState.setWarpLambda(1); // the identity member: no warp at all
-        Display.setWarpOuterRadius(0); // auto: the full loaded field
+        org.helioviewer.jhv.app.Commands.resetScaling(); // warp off, crop auto, 1x: the defaults the / canvas key falls back to
         Display.setDiskScale(Display.DEFAULT_DISK_SCALE); // the shipped default, not the raw anchor
         if (diskSlider != null)
             diskSlider.setValue(diskScaleToSlider(Display.DEFAULT_DISK_SCALE));
-        Display.resetViewportZoom();
 
         syncingFromTracker = true; // the widgets are following state here, not driving it
         try {
@@ -692,6 +686,28 @@ final class ProjectionPaletteContent {
         return panel;
     }
 
+    /** Put the Warp and Crop handles where the canvas keys left the values, without the sliders writing back a rounded value. */
+    void syncWarpCropFromDisplay() {
+        if (warpLambdaSlider == null || warpCropSlider == null)
+            return;
+        syncingFromKeys = true;
+        try {
+            int w = warpLambdaToSlider(Display.getWarpLambda());
+            if (warpLambdaSlider.getValue() != w) {
+                warpLambdaSlider.setValue(w);
+                warpLambdaValue.setText(String.format("%.3f", Display.getWarpLambda()));
+            }
+            double radius = Display.getWarpOuterRadius();
+            int t = cropRadiusToSlider(radius, Math.max(ImageLayers.getLargestRadialSize(), 2));
+            if (warpCropSlider.getValue() != t) {
+                warpCropSlider.setValue(t);
+                warpCropValue.setText(radius <= 0 ? "auto" : String.format("%.0f R\u2609", radius));
+            }
+        } finally {
+            syncingFromKeys = false;
+        }
+    }
+
     // Off-scale zooms (the wheel is unbounded, this slider is not) park the handle at the end
     // and let the number keep telling the truth.
     void syncZoomSliderFromDisplay() {
@@ -745,6 +761,8 @@ final class ProjectionPaletteContent {
         JLabel value = warpCropValue;
         value.setPreferredSize(new JLabel("-0.000").getPreferredSize());
         warpCropSlider.addChangeListener(e -> {
+            if (syncingFromKeys)
+                return;
             if (!syncingFromTracker && CMETracker.getMode() == CMETracker.Mode.CROP)
                 CMETracker.stop(); // crop-mode tracking owns this slider; a manual move takes it back
             double radius = sliderToCropRadius(warpCropSlider.getValue(), Math.max(ImageLayers.getLargestRadialSize(), 2));

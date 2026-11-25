@@ -32,6 +32,7 @@ import org.helioviewer.jhv.gui.TransferAccess;
 import org.helioviewer.jhv.gui.UIGlobals;
 import org.helioviewer.jhv.gui.UITimer;
 import org.helioviewer.jhv.gui.component.MoviePanel;
+import org.helioviewer.jhv.gui.component.PassWheelScrollPane;
 import org.helioviewer.jhv.gui.component.TableValue;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.layers.Layer;
@@ -78,6 +79,22 @@ public final class LayersPanel extends JPanel {
         LayersTable(TableModel tm) {
             super(tm);
             UITimer.register(this);
+        }
+
+        // Always the focused selection colours. FlatLaf swaps in its dimmed inactive pair when the table
+        // loses focus, which is exactly when the selected layers' shared controls below are being worked,
+        // so the rows those controls act on faded out while they were in use (Gilly, 2026-11-19). Read
+        // from the defaults each time, so a theme switch still reaches them.
+        @Override
+        public java.awt.Color getSelectionBackground() {
+            java.awt.Color c = javax.swing.UIManager.getColor("Table.selectionBackground");
+            return c == null ? super.getSelectionBackground() : c;
+        }
+
+        @Override
+        public java.awt.Color getSelectionForeground() {
+            java.awt.Color c = javax.swing.UIManager.getColor("Table.selectionForeground");
+            return c == null ? super.getSelectionForeground() : c;
         }
 
         @Override
@@ -171,10 +188,9 @@ public final class LayersPanel extends JPanel {
 
         grid = new LayersTable(model);
 
-        jsp = new JScrollPane(grid, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         // The list is sized to every row, so it never has anything of its own to scroll; a pane that handles the
         // wheel anyway keeps the events and the sidebar around it will not move while the pointer is over the list.
-        jsp.setWheelScrollingEnabled(false);
+        jsp = new PassWheelScrollPane(grid, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         UIGlobals.themed(jsp, c -> c.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UIGlobals.separator())));
         // Plain, so updateComponentTreeUI leaves it behind: the strip below the last row would
         // otherwise stay in the previous theme's colour after a switch.
@@ -192,8 +208,8 @@ public final class LayersPanel extends JPanel {
         grid.setIntercellSpacing(new Dimension(0, 0));
 
         grid.getColumnModel().getColumn(HANDLE_COL).setCellRenderer(new CellRenderer.Handle());
-        grid.getColumnModel().getColumn(HANDLE_COL).setPreferredWidth(ICON_WIDTH + 4);
-        grid.getColumnModel().getColumn(HANDLE_COL).setMaxWidth(ICON_WIDTH + 4);
+        grid.getColumnModel().getColumn(HANDLE_COL).setPreferredWidth(ICON_WIDTH + 12); // room for the selected row's arrow
+        grid.getColumnModel().getColumn(HANDLE_COL).setMaxWidth(ICON_WIDTH + 12);
 
         grid.getColumnModel().getColumn(ENABLED_COL).setCellRenderer(new CellRenderer.Enabled());
         grid.getColumnModel().getColumn(ENABLED_COL).setPreferredWidth(ICON_WIDTH + 8);

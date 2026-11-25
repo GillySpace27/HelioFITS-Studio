@@ -64,7 +64,7 @@ public final class StarSkyCheck {
         Directories.createCacheDirs();
         AppInit.loadSpice();
         checkEndToEnd();
-        checkOrbit();
+        checkPlane();
         checkSettings();
 
         if (failures != 0) {
@@ -84,13 +84,13 @@ public final class StarSkyCheck {
     private static void checkProjection() {
         double[] theta = new double[2];
         for (Object[] r : PROJ) {
-            boolean in = StarSky.theta(ray(r), theta);
+            boolean in = theta(ray(r), theta);
             double dx = Math.toDegrees(theta[0]) - (double) r[5], dy = Math.toDegrees(theta[1]) - (double) r[6];
             expect(in && Math.abs(dx) < 1e-4 && Math.abs(dy) < 1e-4,
                     r[0] + ": Tx, Ty match sunpy to 1e-4 deg (off by " + fmt(dx) + ", " + fmt(dy) + ")");
         }
         for (Object[] r : CULLED)
-            expect(!StarSky.theta(ray(r), theta), r[0] + " is culled from the 3D plane");
+            expect(!StarSky.inCut(ray(r)[2]), r[0] + " is culled from the 3D plane");
         // The sky maps place far-side stars themselves; HPC drops a ray pointing away from the Sun (z > 0)
         double[] back = ray(CULLED[1]);
         expect(Math.abs(back[2] - Math.cos(Math.toRadians(180 - 168.5))) < 1e-3, "a star 168.5 deg from the Sun points away from it (ray z " + fmt(back[2]) + ")");
@@ -109,7 +109,7 @@ public final class StarSkyCheck {
         double[] ray = new double[3];
         for (double[] s : END_TO_END) {
             StarSky.starRay(frame, carr, Math.toRadians(s[1]), Math.toRadians(s[2]), ray);
-            boolean in = StarSky.theta(ray, theta);
+            boolean in = theta(ray, theta);
             double dx = Math.toDegrees(theta[0]) - s[3], dy = Math.toDegrees(theta[1]) - s[4];
             // SPICE's Earth and sunpy's differ by light time and frame details; 0.02 deg is about a pixel on a LASCO C3 frame
             expect(in && Math.abs(dx) < 0.02 && Math.abs(dy) < 0.02,
@@ -168,17 +168,25 @@ public final class StarSkyCheck {
                 "declination bands cover both poles");
     }
 
-    // The 3D sheet is a sky at infinity: orbiting turns the directions instead of swinging a flat plane edge-on
-    private static void checkOrbit() {
+    // The Orthographic sheet is the layer's plane of sky: a star sits at (-d x/z, -d y/z), on the imagery, and orbiting leaves it there
+    // (it used to turn the sky with the drag, as a sky at infinity; StarPlaneCheck pins the placement against Probes.ortho)
+    private static void checkPlane() {
         StarSky.Points p = new StarSky.Points(2, new float[]{0, 0, -1, 1, 0, 0}, new float[]{3, 3}, new byte[8]);
-        BufVertex none = new BufVertex(), turned = new BufVertex();
-        StarSky.plane(p, 215, null, none);
-        StarSky.plane(p, 215, org.helioviewer.jhv.math.Quat.createAxisY(Math.PI / 2), turned);
-        expect(none.getCount() == 1 && none.toBuffer().getFloat(0) == 0, "no drag: the Sun-line star is placed, the one 90 deg west is culled");
-        expect(turned.getCount() == 1 && Math.abs(turned.toBuffer().getFloat(0)) < 1e-3 && Math.abs(turned.toBuffer().getFloat(4)) < 1e-3,
-                "a 90 deg orbit brings the star that was 90 deg west onto the new line of sight and culls the old one");
         BufVertex flat = StarSky.plane(p, 215);
-        expect(flat.getCount() == none.getCount() && flat.toBuffer().getFloat(0) == none.toBuffer().getFloat(0), "plane(p, d) is the no-drag placement");
+        expect(flat.getCount() == 1 && flat.toBuffer().getFloat(0) == 0, "the Sun-line star is placed, the one 90 deg west is culled");
+        StarSky.Points tilted = new StarSky.Points(1, new float[]{0.3f, 0.5f, -(float) Math.sqrt(1 - 0.09 - 0.25)}, new float[]{3}, new byte[4]);
+        java.nio.ByteBuffer b = StarSky.plane(tilted, 215).toBuffer().order(java.nio.ByteOrder.nativeOrder());
+        expect(Math.abs(b.getFloat(0) - 215 * 0.3 / Math.sqrt(0.66)) < 1e-3 && Math.abs(b.getFloat(4) - 215 * 0.5 / Math.sqrt(0.66)) < 1e-3,
+                "off the axes the placement is (-d x/z, -d y/z), not (d tan Tx, d tan Ty)");
+    }
+
+    /** Helioprojective (Tx, Ty) of a ray in radians: false for anything outside the cut. */
+    private static boolean theta(double[] ray, double[] theta) {
+        if (!StarSky.inCut(ray[2]))
+            return false;
+        theta[0] = Math.atan2(ray[0], -ray[2]);
+        theta[1] = Math.asin(Math.clamp(ray[1], -1, 1));
+        return true;
     }
 
     private static void checkSettings() {

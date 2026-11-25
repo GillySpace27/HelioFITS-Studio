@@ -307,8 +307,7 @@ this repository or at upstream.
 ## Branches
 
 `dev` is the integration branch and `master` is prod. Work branches fork from `dev` and pull
-requests open with `--base dev` (the repository default branch is still `master`, so `gh pr create`
-needs the flag). Agents push to `dev` and merge pull requests into it freely. `master` changes only when Gilly asks to merge `dev` into it, and releases ship
+requests target `dev`, which is now the repository default branch, so `gh pr create` needs no flag. Agents push to `dev` and merge pull requests into it freely. `master` changes only when Gilly asks to merge `dev` into it, and releases ship
 from `master` as before. Debug builds (`release/debug-build.sh`) start from `origin/dev`, so a debug
 build is always the combined state of everything merged for testing; a pull request not based on
 `dev` is skipped in its report. After a hotfix lands on `master` first, merge `master` back into `dev`.

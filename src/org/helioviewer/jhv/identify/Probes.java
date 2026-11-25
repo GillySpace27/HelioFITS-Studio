@@ -3,6 +3,8 @@ package org.helioviewer.jhv.identify;
 import javax.annotation.Nullable;
 
 import org.helioviewer.jhv.astronomy.Position;
+import org.helioviewer.jhv.display.Display;
+import org.helioviewer.jhv.display.MapScale;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.display.ViewportMath;
@@ -17,50 +19,65 @@ import org.helioviewer.jhv.math.Vec3;
  * <p>Each mode samples an image layer its own way, and the probe follows the shader for that mode
  * so the body named is the one drawn under the pointer:
  * <ul>
- * <li>HPC and Observer Sky lay the page out in helioprojective angles, and every layer is sampled
- * at those angles in its own frame (imageHpc.frag), so the direction is the same for all layers.</li>
+ * <li>HPC lays the page out in helioprojective angles, and every layer is sampled at those angles
+ * in its own frame (imageHpc.frag), so the direction is the same for all layers.</li>
+ * <li>Observer Sky is the same, except that a composed sky undoes the radial scale from each
+ * layer's own surface distance (solarSky.frag), so the direction is per layer there.</li>
  * <li>Helioradial and Helioradial Unrolled lay out a point of the plane of sky, and each layer
  * turns it into angles with its own observer distance (sampleWarpedHpcColor).</li>
  * <li>Orthographic rotates the screen point into each layer's frame through cameraDiff, takes the
  * solar disk where it is in front and the layer's image plane elsewhere (imageOrtho.frag), and the
  * direction runs from that layer's observer to the point.</li>
+ * <li>Helioradial in 3D draws a warped surface mesh; {@link SkyScreen} is its twin, per layer.</li>
  * </ul>
- * Latitudinal maps the solar surface, not the sky, and Helioradial in 3D draws a warped surface
- * mesh: neither has a sight line under the pointer, and both return null.
+ * Latitudinal maps the solar surface, not the sky, and returns null.
  */
 public final class Probes {
 
-    /** The probe for the pointer at screen (x, y), or null in a mode with no sky under the pointer. */
+    /**
+     * The probe for the pointer at screen (x, y), or null in a mode with no sky under the pointer.
+     * The pointer is a whole pixel: a fractional position is rounded, as the footer always did
+     * (the 3D mesh, which has a smooth inverse, reads it as given). {@link #exact} does not round.
+     */
     @Nullable
     public static Identifier.Probe at(MapView mv, Viewport vp, double x, double y) {
+        boolean whole = !SkyScreen.applies(mv);
+        return exact(mv, vp, whole ? Math.floor(x + 0.5) : x, whole ? Math.floor(y + 0.5) : y);
+    }
+
+    /**
+     * The same at a real-valued canvas point, which {@link SkyScreen#place} needs to check a
+     * placement to a fraction of a pixel. At a whole pixel it is exactly {@link #at}.
+     */
+    @Nullable
+    public static Identifier.Probe exact(MapView mv, Viewport vp, double x, double y) {
         if (mv.isLatitudinal())
             return null;
-        if (mv.isHpc()) {
-            Vec2 c = mv.mouseToMap(vp, (int) Math.round(x), (int) Math.round(y));
-            return c == Vec2.NAN ? null : helioprojective(Math.toRadians(c.x), Math.toRadians(c.y));
-        }
-        if (mv.isObserverSky()) {
-            Vec2 c = mv.mouseToSkyAngles(vp, (int) Math.round(x), (int) Math.round(y));
-            return helioprojective(Math.toRadians(c.x), Math.toRadians(c.y));
-        }
-        if (mv.isHelioradial() || mv.isHelioradialUnrolled()) {
-            if (mv.rendersIn3D())
-                return null;
-            // Off the page the shaders discard (imageRadialWarp.frag: t > 1; the unrolled map: outside [0, 1])
-            double w = mv.cameraWidth(vp);
-            double ux = ViewportMath.computeUpX(vp, w, mv.cameraTranslationX(), x);
-            double uy = ViewportMath.computeUpY(vp, w, mv.cameraTranslationY(), y);
-            if (mv.isHelioradial() ? 2 * Math.hypot(ux, uy) > 1 : Math.abs(ux / vp.aspect) > .5 || Math.abs(uy) > .5)
-                return null;
-            Vec2 c = mv.mouseToMap(vp, (int) Math.round(x), (int) Math.round(y));
-            if (c == Vec2.NAN || !Double.isFinite(c.y))
-                return null;
-            double theta = Math.toRadians(c.x);
-            return plane(PolarBasis.x(c.y, theta), PolarBasis.y(c.y, theta));
-        }
         double width = mv.cameraWidth(vp);
         double upX = ViewportMath.computeUpX(vp, width, mv.cameraTranslationX(), x);
         double upY = ViewportMath.computeUpY(vp, width, mv.cameraTranslationY(), y);
+        if (mv.isHpc()) {
+            MapScale s = mv.scale(vp);
+            return helioprojective(Math.toRadians(s.toMapX(upX / vp.aspect + .5)), Math.toRadians(s.toMapY(upY + .5)));
+        }
+        if (mv.isObserverSky()) {
+            MapScale s = mv.scale(vp);
+            return sky(new Vec2(s.toMapX(upX / vp.aspect + .5), s.toMapY(upY + .5)), mv.viewpoint().distance);
+        }
+        if (mv.isHelioradial() || mv.isHelioradialUnrolled()) {
+            if (mv.rendersIn3D())
+                return SkyScreen.probe(mv, vp, x, y);
+            // Off the page the shaders discard (imageRadialWarp.frag: t > 1; the unrolled map: outside [0, 1])
+            if (mv.isHelioradial() ? 2 * Math.hypot(upX, upY) > 1 : Math.abs(upX / vp.aspect) > .5 || Math.abs(upY) > .5)
+                return null;
+            MapScale s = mv.scale(vp);
+            double mapX = mv.isHelioradial() ? Math.toDegrees(PolarBasis.angle(upX, upY)) : s.toMapX(upX / vp.aspect + .5);
+            double mapY = s.toMapY(mv.isHelioradial() ? 2 * Math.hypot(upX, upY) : upY + .5);
+            if (!Double.isFinite(mapY))
+                return null;
+            double theta = Math.toRadians(mapX);
+            return plane(PolarBasis.x(mapY, theta), PolarBasis.y(mapY, theta));
+        }
         return ortho(mv.viewRotation(), upX, upY);
     }
 
@@ -68,6 +85,15 @@ public final class Probes {
     public static Identifier.Probe helioprojective(double tx, double ty) {
         Vec3 dir = Identifier.ray(tx, ty);
         return observer -> dir;
+    }
+
+    /**
+     * An Observer Sky page point (native degrees). When the sky is composed, each layer undoes the
+     * composition from its own surface distance, as solarSky.frag does with "Surface from: image
+     * observer"; null for a layer where the page is past the rim.
+     */
+    public static Identifier.Probe sky(Vec2 page, double viewpointDistance) {
+        return observer -> MapView.skyRay(page, Display.surfaceDistance(viewpointDistance, observer.distance));
     }
 
     /** A point of the plane of sky in solar radii, turned into angles with each layer's own distance. */

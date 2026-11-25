@@ -101,21 +101,36 @@ final class SkyMap {
 
     /** A ray read off the composed page, back to the data it stands for. Identity when not composing. */
     static Vec3 composeRay(Vec3 ray, Position viewpoint) {
+        Vec3 composed = composeRay(ray, Display.surfaceDistance(viewpoint.distance));
+        return composed == null ? ray : composed;
+    }
+
+    /**
+     * The same from an explicit surface distance (solarSky.frag's surfaceFrom). Null where the
+     * shader discards: past the rim, and in the half of the sky facing away from the Sun.
+     */
+    @Nullable
+    static Vec3 composeRay(Vec3 ray, double surfaceDistance) {
         MapScale warp = Display.skyComposeScale();
-        if (warp == null || ray.z >= 0)
+        if (warp == null)
             return ray;
-        double eTrue = unwarpElongation(Math.acos(Math.clamp(-ray.z, -1, 1)), Display.surfaceDistance(viewpoint.distance),
-                Display.getSurfaceModel(), warp);
-        return Double.isNaN(eTrue) ? ray : atElongation(ray, eTrue);
+        if (ray.z >= 0)
+            return null;
+        double eTrue = unwarpElongation(Math.acos(Math.clamp(-ray.z, -1, 1)), surfaceDistance, Display.getSurfaceModel(), warp);
+        return Double.isNaN(eTrue) ? null : atElongation(ray, eTrue);
     }
 
     /** The inverse, for putting a world direction on the composed page. */
     static Vec3 uncomposeRay(Vec3 ray, Position viewpoint) {
+        return uncomposeRay(ray, Display.surfaceDistance(viewpoint.distance));
+    }
+
+    /** The same from an explicit surface distance: the inverse of {@link #composeRay(Vec3, double)}. */
+    static Vec3 uncomposeRay(Vec3 ray, double surfaceDistance) {
         MapScale warp = Display.skyComposeScale();
         if (warp == null || ray.z >= 0)
             return ray;
-        double eDome = warpElongation(Math.acos(Math.clamp(-ray.z, -1, 1)), Display.surfaceDistance(viewpoint.distance),
-                Display.getSurfaceModel(), warp);
+        double eDome = warpElongation(Math.acos(Math.clamp(-ray.z, -1, 1)), surfaceDistance, Display.getSurfaceModel(), warp);
         return atElongation(ray, eDome);
     }
 
@@ -146,7 +161,12 @@ final class SkyMap {
     @Nullable
     static Vec2 projectRay(Position viewpoint, MapScale scale, SkyProjection projection,
                            double lookLon, double lookLat, Vec3 ray) {
-        Vec3 placed = uncomposeRay(ray, viewpoint); // identity unless the sky is composed
+        return projectPlaced(scale, projection, lookLon, lookLat, uncomposeRay(ray, viewpoint)); // identity unless the sky is composed
+    }
+
+    /** {@link #projectRay} for a ray already on the dome (composition undone by the caller). */
+    @Nullable
+    static Vec2 projectPlaced(MapScale scale, SkyProjection projection, double lookLon, double lookLat, Vec3 placed) {
         double rx = placed.x;
         double ry = placed.y;
         double rz = placed.z;

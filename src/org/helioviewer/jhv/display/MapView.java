@@ -124,11 +124,31 @@ public abstract class MapView {
      * the sky is measured in. Meaningless in the other modes, whose page is not a sky.
      */
     public Vec2 mouseToSkyAngles(Viewport vp, int x, int y) {
-        Vec3 ray = SkyMap.pageToRay(Display.getSkyProjection(),
-                Display.getSkyLookLon(), Display.getSkyLookLat(), mouseToMap(vp, x, y));
+        Vec2 page = mouseToMap(vp, x, y);
+        Vec3 ray = page == Vec2.NAN ? null : skyRay(page, Display.surfaceDistance(viewpoint.distance));
+        if (ray == null)
+            return Vec2.NAN; // off the composed field, where the shader draws nothing
         return new Vec2(
                 Math.toDegrees(Math.atan2(ray.x, -ray.z)),
                 Math.toDegrees(Math.asin(Math.clamp(ray.y, -1, 1))));
+    }
+
+    /** The observer-sky page point as a ray, composed as the shader does from this surface distance; null past the rim. */
+    @javax.annotation.Nullable
+    public static Vec3 skyRay(Vec2 page, double surfaceDistance) {
+        return SkyMap.composeRay(SkyMap.pageToRay(Display.getSkyProjection(),
+                Display.getSkyLookLon(), Display.getSkyLookLat(), page), surfaceDistance);
+    }
+
+    /**
+     * The inverse of {@link #skyRay}: where a sight line is drawn on the observer-sky page for the
+     * given surface distance (normalized, centred on zero, before the viewport aspect); null off
+     * what the projection can draw.
+     */
+    @javax.annotation.Nullable
+    public Vec2 skyPage(Viewport vp, Vec3 ray, double surfaceDistance) {
+        return SkyMap.projectPlaced(scale(vp), Display.getSkyProjection(), Display.getSkyLookLon(), Display.getSkyLookLat(),
+                SkyMap.uncomposeRay(ray, surfaceDistance));
     }
 
     public Vec3 mouseToSky(Viewport vp, int x, int y) {

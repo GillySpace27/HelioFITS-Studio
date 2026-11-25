@@ -100,6 +100,33 @@ public final class ExportReplayCheck {
         }
         expect("a record without a scene cannot be prepared, and says why", refused);
         ExportReplay.Prepared whole = ExportReplay.prepare(rec, dir.resolve("x.mp4.hfrec"), true, dir);
+
+        // by hash: a local file that is not here is found in the library through record.locate
+        Path held = Files.writeString(dir.resolve("held-copy.fits"), "x");
+        String sha = "c".repeat(64), gone = "d".repeat(64);
+        JSONObject lost = new JSONObject().put(STATE, new JSONObject().put("imageLayers", new JSONArray().put(new JSONObject().put("id", "L")
+                .put("data", new JSONObject().put("uris", new JSONArray().put(dir.resolve("away/a.fits").toUri().toString())
+                        .put(dir.resolve("away/b.fits").toUri().toString()).put(held.toUri().toString()).put("https://example.org/c.fits"))))));
+        JSONObject byHash = new JSONObject().put("layers", new JSONArray().put(new JSONObject().put("sources", new JSONArray()
+                .put(new JSONObject().put("original_name", "a.fits").put("sha256", sha))
+                .put(new JSONObject().put("original_name", "b.fits").put("sha256", gone))
+                .put(new JSONObject().put("original_name", "held-copy.fits").put("sha256", "e".repeat(64))))));
+        List<List<String>> asked = new ArrayList<>();
+        List<String> found = new ArrayList<>();
+        int moved = ExportReplay.relocate(lost, byHash, hashes -> {
+            asked.add(hashes);
+            return new JSONObject().put(sha, new JSONObject().put("status", "superseded").put("path", held.toString()))
+                    .put(gone, new JSONObject().put("status", "missing"));
+        }, found);
+        expect("only the hashes of files that are not here are asked for", asked.size() == 1 && asked.get(0).equals(List.of(sha, gone)));
+        expect("a missing file the library holds is repointed at the library's copy", moved == 1 && uris(lost, 0).get(0).equals(held.toUri().toString()));
+        expect("a file the library does not hold, a file that is here and a remote uri stay as they were",
+                uris(lost, 0).get(1).endsWith("away/b.fits") && uris(lost, 0).get(2).equals(held.toUri().toString()) && uris(lost, 0).get(3).startsWith("https:"));
+        expect("the note counts what was found", found.size() == 1 && found.get(0).contains("1 of 2"));
+        List<String> none = new ArrayList<>();
+        expect("no library: nothing moves and the note says so", ExportReplay.relocate(lost, byHash, hashes -> null, none) == 0
+                && none.size() == 1 && none.get(0).contains("no FITS library"));
+        expect("nothing missing: the library is not asked", ExportReplay.relocate(new JSONObject(), byHash, hashes -> { throw new IllegalStateException(); }, none) == 0);
         expect("range loads every source", uris(whole.session(), 0).size() == 5 && whole.movie() && !whole.narrowed());
 
         JSONObject a = new JSONObject().put("output", new JSONObject().put("width", 4).put("height", 4).put("pixel_sha256", "a".repeat(64)));

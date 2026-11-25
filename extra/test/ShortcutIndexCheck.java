@@ -46,7 +46,15 @@ public final class ShortcutIndexCheck {
             if (e.action().getValue(Action.ACCELERATOR_KEY) instanceof KeyStroke)
                 accelerators++;
         int canvas = (int) CanvasKeys.ALL.stream().filter(c -> CanvasKeys.key(c.id()) >= 0).count();
-        expect("one row per binding (" + accelerators + " commands + " + canvas + " canvas keys)", rows.size() == accelerators + canvas);
+        expect("one row per binding (" + accelerators + " commands + " + canvas + " canvas keys + " + ShortcutIndex.FIXED.size() + " fixed keys)",
+                rows.size() == accelerators + canvas + ShortcutIndex.FIXED.size() + 2); // + Shift faster, Option slower
+        expect("[ and ] zoom, comma and period warp, apostrophe and semicolon crop, and G shows or hides the grid, on the canvas",
+                has(rows, "Zoom In", "[") && has(rows, "Zoom Out", "]") && has(rows, "Crop Looser", ";") && has(rows, "Warp Stronger", ".") && has(rows, "Crop Tighter", "'")
+                && has(rows, "Show or Hide Grid", "G"));
+        expect("Shift faster and Option slower are listed", has(rows, "Hold for Faster Camera Keys (canvas)", "Shift")
+                && has(rows, "Hold for Slower Camera Keys (canvas)", "Option"));
+        expect("the fixed keys are listed, J K L among them", has(rows, "Shuttle Reverse, Stop, Forward (anywhere but a text field)", "J", "K", "L")
+                && rows.stream().anyMatch(r -> r.group().equals("Fixed keys") && r.caps().equals(List.of("Space"))));
         expect("sidebar toggle is there with its symbols", has(rows, "Show or Hide Left Sidebar", menuCap, "["));
         expect("W is on the canvas, bare", has(rows, "Pitch Up", "W"));
         expect("the overlay lists itself on the slash key", rows.stream().anyMatch(r -> r.name().equals("Keyboard Shortcuts") && r.caps().get(r.caps().size() - 1).equals("/")));

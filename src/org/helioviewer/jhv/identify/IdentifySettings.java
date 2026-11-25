@@ -1,6 +1,8 @@
 package org.helioviewer.jhv.identify;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.helioviewer.jhv.app.Settings;
@@ -27,12 +29,19 @@ public final class IdentifySettings {
     public static final String PLUTO = "identify.pluto";
     public static final String GLOW = "identify.glow";
     public static final String PULSE = "identify.pulse";
+    public static final String TOOLTIP_DETAILS = "identify.tooltip.details";
+    public static final String COMET_GLYPH = "identify.comet.glyph";
+    public static final String BOLD_WIDTH = "identify.bold.width";
+    public static final String BOLD_OPACITY = "identify.bold.opacity";
+    public static final String BOLD_SATURATION = "identify.bold.saturation";
+    public static final String BOLD_SHADOW = "identify.bold.shadow";
     public static final String ICON_BY_KIND = "identify.icon.byKind";
     public static final String ICON_COLOR = "identify.icon.color";
     public static final String TOOLTIP_BY_KIND = "identify.tooltip.byKind";
     public static final String SYMBOLS_INSTEAD = "identify.symbols.instead";
     public static final String SYMBOLS_ALWAYS = "identify.symbols.always";
     public static final String HIGHLIGHT_ALL = "identify.highlightAll";
+    public static final String HIGHLIGHT_INSIDE_CROP = "identify.highlightAll.insideCrop";
     public static final String DATA_COMETS = "identify.data.comets";
     public static final String DATA_CMES = "identify.data.cmes";
     public static final String DATA_CLUSTERS = "identify.data.clusters";
@@ -66,6 +75,8 @@ public final class IdentifySettings {
     public static final double DEFAULT_DEEP_SKY_MAX_MAG = 9;
 
     private static final List<Runnable> listeners = new CopyOnWriteArrayList<>();
+    /** Numbers shown while a slider is held, not yet saved: read before the settings file. */
+    private static final Map<String, String> previews = new ConcurrentHashMap<>();
 
     public static void addListener(Runnable r) {
         listeners.add(r);
@@ -82,7 +93,9 @@ public final class IdentifySettings {
     }
 
     private static double number(String key, double def, double min, double max) {
-        String v = Settings.getProperty(key);
+        String v = previews.get(key);
+        if (v == null)
+            v = Settings.getProperty(key);
         if (v == null)
             return def;
         try {
@@ -94,7 +107,14 @@ public final class IdentifySettings {
     }
 
     public static void set(String key, String value) {
+        previews.remove(key);
         Settings.setProperty(key, value);
+        fire();
+    }
+
+    /** Show {@code value} for {@code key} now without saving it: a slider being dragged. {@link #set} saves it. */
+    public static void preview(String key, String value) {
+        previews.put(key, value);
         fire();
     }
 
@@ -152,6 +172,36 @@ public final class IdentifySettings {
         return bool(PULSE, true);
     }
 
+    /** The second line of the label beside the pointer (distance, elongation, "as PUNCH saw it"); off leaves the name alone. */
+    public static boolean tooltipDetails() {
+        return bool(TOOLTIP_DETAILS, true);
+    }
+
+    /** A comet's highlight carries a small comet glyph (head and tail) at its centre, not only the ring. */
+    public static boolean cometGlyph() {
+        return bool(COMET_GLYPH, true);
+    }
+
+    /** Multiplier on the line width of every highlight, 1 = as it always was. */
+    public static double boldWidth() {
+        return number(BOLD_WIDTH, 1, 0.5, 4);
+    }
+
+    /** Multiplier on the opacity of every highlight (clamped to opaque), 1 = as it always was. */
+    public static double boldOpacity() {
+        return number(BOLD_OPACITY, 1, 0.25, 3);
+    }
+
+    /** Multiplier on the colour saturation of every highlight, 1 = as it was, 0 = grey. */
+    public static double boldSaturation() {
+        return number(BOLD_SATURATION, 1, 0, 2);
+    }
+
+    /** Strength of a dark outline behind every highlight, 0 = none (the default), 1 = strong. */
+    public static double boldShadow() {
+        return number(BOLD_SHADOW, 0, 0, 1);
+    }
+
     /** Icon and name colour follow the kind of object (stars white, planets green, comets red, ...). */
     public static boolean iconByKind() {
         return bool(ICON_BY_KIND, true);
@@ -192,6 +242,11 @@ public final class IdentifySettings {
 
     public static boolean highlightAll() {
         return bool(HIGHLIGHT_ALL, false);
+    }
+
+    /** Highlight all leaves out what lies past the Crop, where no imagery is drawn (Gilly, 2026-11-22). */
+    public static boolean highlightInsideCrop() {
+        return bool(HIGHLIGHT_INSIDE_CROP, true);
     }
 
     public static boolean dataComets() {
@@ -236,22 +291,32 @@ public final class IdentifySettings {
      * switching the feature off as a side effect would hide the evidence.
      */
     public static void resetToDefaults() {
-        Settings.setProperty(TOLERANCE_PX, String.valueOf(DEFAULT_TOLERANCE_PX));
-        Settings.setProperty(DWELL_MS, String.valueOf((double) DEFAULT_DWELL_MS));
-        Settings.setProperty(EARTH_UNCERTAINTY_KM, String.valueOf(DEFAULT_EARTH_UNCERTAINTY_KM));
-        Settings.setProperty(STAR_MAX_MAG, String.valueOf(DEFAULT_STAR_MAX_MAG));
-        Settings.setProperty(LIGHT_TIME, "false");
-        Settings.setProperty(PLUTO, "true");
-        Settings.setProperty(STAR_NAMES_IAU, "true");
-        Settings.setProperty(STAR_NAMES_BAYER, "true");
-        Settings.setProperty(GLOW, "true");
-        Settings.setProperty(PULSE, "true");
-        Settings.setProperty(ICON_BY_KIND, "true");
-        Settings.setProperty(ICON_COLOR, DEFAULT_ICON_COLOR);
-        Settings.setProperty(TOOLTIP_BY_KIND, "true");
-        Settings.setProperty(SYMBOLS_INSTEAD, "false");
-        Settings.setProperty(SYMBOLS_ALWAYS, "false");
-        Settings.setProperty(DEEP_SKY_MAX_MAG, String.valueOf(DEFAULT_DEEP_SKY_MAX_MAG));
+        previews.clear();
+        java.util.Map<String, String> values = new java.util.LinkedHashMap<>();
+        values.put(TOLERANCE_PX, String.valueOf(DEFAULT_TOLERANCE_PX));
+        values.put(DWELL_MS, String.valueOf((double) DEFAULT_DWELL_MS));
+        values.put(EARTH_UNCERTAINTY_KM, String.valueOf(DEFAULT_EARTH_UNCERTAINTY_KM));
+        values.put(STAR_MAX_MAG, String.valueOf(DEFAULT_STAR_MAX_MAG));
+        values.put(LIGHT_TIME, "false");
+        values.put(PLUTO, "true");
+        values.put(STAR_NAMES_IAU, "true");
+        values.put(STAR_NAMES_BAYER, "true");
+        values.put(GLOW, "true");
+        values.put(PULSE, "true");
+        values.put(TOOLTIP_DETAILS, "true");
+        values.put(COMET_GLYPH, "true");
+        values.put(BOLD_WIDTH, "1.0");
+        values.put(BOLD_OPACITY, "1.0");
+        values.put(BOLD_SATURATION, "1.0");
+        values.put(BOLD_SHADOW, "0.0");
+        values.put(ICON_BY_KIND, "true");
+        values.put(ICON_COLOR, DEFAULT_ICON_COLOR);
+        values.put(TOOLTIP_BY_KIND, "true");
+        values.put(SYMBOLS_INSTEAD, "false");
+        values.put(SYMBOLS_ALWAYS, "false");
+        values.put(HIGHLIGHT_INSIDE_CROP, "true");
+        values.put(DEEP_SKY_MAX_MAG, String.valueOf(DEFAULT_DEEP_SKY_MAX_MAG));
+        Settings.setProperties(values); // one write, not one per key
         fire();
     }
 
@@ -264,6 +329,9 @@ public final class IdentifySettings {
                 .put("tooltipDwellMillis", dwellMillis()).put("lightTime", lightTime())
                 .put("earthObserverUncertaintyKm", earthUncertaintyKm()).put("pluto", pluto())
                 .put("glow", glow()).put("pulse", pulse())
+                .put("tooltipDetails", tooltipDetails()).put("cometGlyph", cometGlyph())
+                .put("boldWidth", boldWidth()).put("boldOpacity", boldOpacity())
+                .put("boldSaturation", boldSaturation()).put("boldShadow", boldShadow())
                 .put("tooltipByKind", tooltipByKind()).put("symbolsInstead", symbolsInstead()).put("symbolsAlways", symbolsAlways())
                 .put("iconByKind", iconByKind()).put("iconColor", String.format("#%06X", iconColor()))
                 .put("highlightAll", highlightAll()).put("comets", dataComets()).put("cmes", dataCmes())

@@ -167,6 +167,21 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - View > Find Body...
   -
   - `identifyFindBody`
+* - View > Show or Hide Grid
+  - Turn the grid on or off: the master switch of the Grid row (G on the canvas)
+  - `toggleGrid`
+* - View > Turn Tracking On or Off
+  - Track solar rotation as the movie plays: the toolbar's Track button
+  - `toggleTracking`
+* - View > Turn Differential Rotation On or Off
+  - The toolbar's Differential button
+  - `toggleDiffRotation`
+* - View > Show or Hide Corona
+  - Show the off-disk corona or only the disk: the toolbar's Corona button
+  - `toggleCorona`
+* - View > Turn Multiview On or Off
+  - Each shown image layer in a view of its own: the toolbar's Multiview button
+  - `toggleMultiview`
 * - View > Left Sidebar Panels > Collapse All, Left First
   - Collapse all, never unfolding: press 1 folds every section of the left sidebar, press 2 within 5 seconds the other sidebar's too, press 3 collapses both sidebars and the timeline strip
   - `foldLeftPanelAll`
@@ -548,7 +563,7 @@ These are run by scripts and Search Controls rather than from a menu; the argume
   - Arguments: `observer`, `inner_deg`, `half_width_deg`, `field`, `outer_deg`, `start`, `end`, `step_minutes`
   - `identifyInField`
 * - Turn the cursor identifier and its tooltip and stars on or off, and set its tolerances; answers with every setting
-  - Arguments: `galaxies`, `highlight_all`, `earth_observer_uncertainty_km`, `light_time`, `tooltip`, `enabled`, `symbols_always`, `symbols_instead`, `icon_by_kind`, `star_names_bayer`, `clusters`, `tooltip_by_kind`, `nebulae`, `star_max_magnitude`, `pluto`, `stars`, `tolerance_pixels`, `icon_color`, `cmes`, `tooltip_dwell_ms`, `pulse`, `deep_sky_max_magnitude`, `comets`, `star_names_iau`, `glow`
+  - Arguments: `galaxies`, `highlight_all`, `earth_observer_uncertainty_km`, `light_time`, `tooltip`, `comet_glyph`, `enabled`, `symbols_always`, `symbols_instead`, `icon_by_kind`, `star_names_bayer`, `bold_shadow`, `bold_width`, `clusters`, `tooltip_by_kind`, `nebulae`, `star_max_magnitude`, `pluto`, `stars`, `tolerance_pixels`, `icon_color`, `cmes`, `tooltip_dwell_ms`, `tooltip_details`, `pulse`, `bold_opacity`, `bold_saturation`, `deep_sky_max_magnitude`, `comets`, `star_names_iau`, `glow`
   - `identifySet`
 * - Pin a body's label to the view, or unpin it, or list the pins; pins follow their body and are saved with the session
   - Arguments: `pinned`, `clear`, `body`

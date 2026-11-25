@@ -29,10 +29,21 @@ import org.helioviewer.jhv.opengl.Transform;
  *
  * <p>The outline is the body's own perimeter, not a circle drawn round a point: the cone of sight
  * lines that grazes the body's limb, as seen by the observer of the layer that named it, put on the
- * screen by the identifier run backwards ({@link IdentifyPins#locate}). So in every view the
+ * screen by the forward map of the view ({@link IdentifyPins#locate}). So in every view the
  * identifier supports it follows the projection the imagery is drawn in: round in the orthographic
  * view, stretched where a helioradial or unrolled view stretches the sky. A body smaller than a
  * few pixels keeps that shape, enlarged about its centre until the glow can be seen.
+ *
+ * <p>Every point is placed by the forward map of the view mode ({@link SkyScreen#place}), closed
+ * form and checked against the probe, so a frame of rings costs arithmetic and no solving. What is
+ * expensive and does not depend on the view (the mark list, the ephemeris) is kept per frame time
+ * in {@link MarkFrame}.
+ *
+ * <p>Three tiers, one draw path. Highlight All marks everything the view holds, but quietly: an
+ * ambient mark is one thin, dim line with no halo, no pulse and no label, so a field of them stays
+ * in the background. The mark under the pointer (hover) gets the full glow, the pulse and the
+ * label; a clicked mark (selected) keeps the full glow at a steady brightness. A hovered or
+ * selected mark replaces its ambient copy (they share a key), so it is never drawn twice.
  *
  * <p>The Sun is left out: on the disk it is under the pointer all the time, and a ring round the
  * whole Sun at every move would hide what the glow is for (judgement). Drawn objects (models,
@@ -57,9 +68,42 @@ public final class IdentifyGlow {
     /** Outlines broken where a projection's seam would draw a chord across the page. */
     private static final double SEAM_FRACTION = 0.25;
 
-    /** The halo, the middle and the core of the glow, from wide and faint to thin and bright, then the pulse. */
-    private static final double[] WIDTHS = {9, 4.5, 1.6};
-    private static final int[] ALPHAS = {38, 70, 200};
+    /**
+     * How loud a mark is. Ambient: every mark of Highlight All that is not under the pointer.
+     * Hover: the object under the pointer. Selected: the clicked object, which is followed.
+     */
+    enum Tier { AMBIENT, HOVER, SELECTED }
+
+    /**
+     * One tier's look: the line widths (screen points) and alphas of its passes from wide to thin,
+     * and the smallest outline radius in screen points.
+     */
+    record Style(double[] widths, int[] alphas, double minRadius) {
+        boolean visible() {
+            return widths.length > 0;
+        }
+    }
+
+    /** The halo, the middle and the core of the glow, from wide and faint to thin and bright; the pulse follows (judgement). */
+    static final Style LOUD = new Style(new double[]{9, 4.5, 1.6}, new int[]{38, 70, 200}, MIN_RADIUS);
+    /** One thin dim line, a pixel across, on a ring no smaller than 4 points (judgement: quiet until the pointer comes near). */
+    static final Style QUIET = new Style(new double[]{1}, new int[]{90}, 4);
+    /** Nothing drawn. */
+    static final Style NONE = new Style(new double[0], new int[0], MIN_RADIUS);
+    /** A planet's symbol beside or in an ambient ring is this fraction of the usual size (judgement). */
+    static final double AMBIENT_SYMBOL = 0.7;
+
+    /**
+     * What a ring of {@code tier} is drawn as. Ambient is always the thin line: Highlight All asked
+     * for it. A hovered or selected ring is the full glow when Glow is on; with Glow off it keeps
+     * the thin line under Highlight All (so it does not vanish when reached) and is not drawn
+     * otherwise. Glow off never makes the whole page of Highlight All loud.
+     */
+    static Style styleFor(Tier tier, Flags f) {
+        if (tier == Tier.AMBIENT)
+            return QUIET;
+        return f.glow() ? LOUD : f.all() ? QUIET : NONE;
+    }
 
     /** Each planet's astronomical symbol; the SDF text atlas carries them (resources/sdf/charset). */
     static final Map<String, String> SYMBOLS = Map.of("Mercury", "☿", "Venus", "♀", "Earth", "♁", "Moon", "☽", "Mars", "♂",
@@ -220,14 +264,15 @@ public final class IdentifyGlow {
 
     /**
      * One body's outline on the canvas, in canvas pixels, with its centre first; null when its
-     * centre is not on the page. Each limb point starts Newton's method from the one before, so
-     * the ring costs a few steps a point.
+     * centre is not on the page.
      */
     @Nullable
     static List<double[]> outline(Viewport vp, MapView mv, Identifier.Target target, Vec3 centreDir, double angR, @Nullable double[] start) {
-        double[] centre = IdentifyPins.locate(vp, mv, target, centreDir, start);
-        if (centre == null)
-            return null;
+        double[] centre = IdentifyPins.locate(vp, mv, target, centreDir);
+        return centre == null ? null : outlineAbout(vp, mv, target, centreDir, angR, centre);
+    }
+
+    private static List<double[]> outlineAbout(Viewport vp, MapView mv, Identifier.Target target, Vec3 centreDir, double angR, double[] centre) {
         List<double[]> out = new ArrayList<>(POINTS + 1);
         out.add(centre);
         if (angR < POINT_RADIUS) { // a point: atLeast lays the minimum circle about it
@@ -235,26 +280,27 @@ public final class IdentifyGlow {
                 out.add(centre);
             return out;
         }
-        double[] seed = centre;
-        for (Vec3 d : limb(centreDir, angR, POINTS)) {
-            double[] p = IdentifyPins.locate(vp, mv, target, d, seed);
-            out.add(p);
-            if (p != null)
-                seed = p;
-        }
+        for (Vec3 d : limb(centreDir, angR, POINTS))
+            out.add(IdentifyPins.locate(vp, mv, target, d));
         return out;
     }
 
-    /** The outline as drawn: {@link #outline}, with the centre first, and no smaller than {@code minPx}. */
+    /**
+     * The outline as drawn: {@link #outline}, with the centre first, and no smaller than
+     * {@code minPx}. The centre is placed first and a body whose centre is off the page costs
+     * nothing more. {@code start} is not needed any more and is ignored.
+     */
     @Nullable
     static List<double[]> ring(Viewport vp, MapView mv, Identifier.Target target, Vec3 centreDir, double angR, @Nullable double[] start, double minPx) {
-        double[] centre = IdentifyPins.locate(vp, mv, target, centreDir, start);
-        // A body under minPx: solve its limb at an enlarged angle, so the solver's error is not magnified with it
-        for (int i = 0; centre != null && angR >= POINT_RADIUS && i < 5; i++) {
+        double[] centre = IdentifyPins.locate(vp, mv, target, centreDir);
+        if (centre == null)
+            return null;
+        // A body under minPx: solve its limb at an enlarged angle, so the error is not magnified with it
+        for (int i = 0; angR >= POINT_RADIUS && i < 5; i++) {
             double r = 0;
             int n = 0;
             for (Vec3 d : limb(centreDir, angR, 4)) {
-                double[] p = IdentifyPins.locate(vp, mv, target, d, centre);
+                double[] p = IdentifyPins.locate(vp, mv, target, d);
                 if (p != null) {
                     r += Math.hypot(p[0] - centre[0], p[1] - centre[1]);
                     n++;
@@ -264,20 +310,24 @@ public final class IdentifyGlow {
                 break;
             angR *= Math.min(1e4, 1.05 * minPx / Math.max(r / n, 0.2));
         }
-        List<double[]> o = outline(vp, mv, target, centreDir, angR, centre);
-        if (o == null)
-            return null;
+        List<double[]> o = outlineAbout(vp, mv, target, centreDir, angR, centre);
         List<double[]> out = new ArrayList<>(o.size());
         out.add(o.getFirst());
         out.addAll(atLeast(o.subList(1, o.size()), o.getFirst(), minPx));
         return out;
     }
 
-    /** One outline on the page: its colour, its points, its centre, and whether the hover pulse runs on it. */
-    private record Ring(int[] rgb, List<double[]> points, double[] centre, boolean hover) {}
+    /** One outline on the page: its colour, its points, its centre, and its tier (the hover pulse runs on {@link Tier#HOVER} only). */
+    record Ring(int[] rgb, List<double[]> points, double[] centre, Tier tier) {}
 
-    /** A planet's symbol on the page: where, in what colour, and whether it stands in for the ring. */
-    private record Glyph(String text, int[] rgb, double[] centre, boolean replaces) {}
+    /** A planet's symbol on the page: where, in what colour, whether it stands in for the ring, and whether it is the quiet size. */
+    record Glyph(String text, int[] rgb, double[] centre, boolean replaces, boolean ambient) {}
+
+    /** What one frame puts on the page. */
+    record Scene(List<Ring> rings, List<Glyph> glyphs) {}
+
+    /** The Identify switches the glow reads, taken once at the top of a frame. */
+    record Flags(boolean glow, boolean pulse, boolean all, boolean always, boolean instead) {}
 
     /** The hover's marks: the bodies named under the pointer (not the Sun) and the drawn objects that carry an icon. */
     static List<Mark> hoverMarks() {
@@ -318,68 +368,23 @@ public final class IdentifyGlow {
         if (!IdentifySettings.enabled() || ExportMovie.isRecording())
             return;
         IdentifyHover.follow(Display.getActiveViewport(), GLRenderer.getMapView()); // a selected object moves with time and the view
+        IdentifyHover.refresh(Display.getActiveViewport(), GLRenderer.getMapView()); // so does the answer under a pointer that stood still
         double phase = pulsePhase(System.currentTimeMillis(), STATE.pulseStart);
-        boolean pulse = IdentifySettings.pulse() && phase < 1;
-        boolean all = IdentifySettings.highlightAll();
-        boolean always = IdentifySettings.symbolsAlways();
-        boolean instead = IdentifySettings.symbolsInstead();
-        if (!IdentifySettings.glow() && !pulse && !all && !always)
+        Flags f = new Flags(IdentifySettings.glow(), IdentifySettings.pulse() && phase < 1, IdentifySettings.highlightAll(),
+                IdentifySettings.symbolsAlways(), IdentifySettings.symbolsInstead());
+        if (!f.glow() && !f.pulse() && !f.all() && !f.always())
             return;
         Viewport vp = Display.getActiveViewport(); // the scene the probes look through, as for the footer and pins
         MapView mv = GLRenderer.getMapView();
-        List<Identifier.Target> targets = IdentifyHover.targets(vp, mv);
         double scale = Display.pixelScale[1];
-
-        Map<String, Mark> marks = new LinkedHashMap<>();
-        Set<String> hovered = new LinkedHashSet<>();
-        for (Mark m : hoverMarks()) {
-            marks.put(m.key(), m);
-            hovered.add(m.key());
-        }
-        if (all || always)
-            for (Mark m : allMarks(vp, mv, targets))
-                marks.putIfAbsent(m.key(), m);
-        if (marks.isEmpty())
-            return;
-
-        double[] pointer = IdentifyHover.pointer();
-        List<Ring> rings = new ArrayList<>();
-        List<Glyph> glyphs = new ArrayList<>();
-        for (Mark m : marks.values()) {
-            if (rings.size() >= MAX_RINGS)
-                break;
-            boolean hover = hovered.contains(m.key());
-            boolean wantRing = hover || all;
-            String sym = symbol(m);
-            boolean wantSym = sym != null && (always || (instead && wantRing));
-            if (!wantRing && !wantSym)
-                continue;
-            Identifier.Target target = m.layer() == null ? targets.getFirst() : byName(targets, m.layer());
-            if (target == null)
-                continue;
-            Vec3 dir = m.where().direction(target.observer());
-            if (dir == null)
-                continue;
-            int[] rgb = IdentifySettings.iconRgb(m.kind());
-            boolean replaces = wantSym && instead && wantRing;
-            if (!wantRing || replaces) { // only the centre is needed: a symbol stands where the ring would
-                double[] c = IdentifyPins.locate(vp, mv, target, dir, hover ? pointer : null);
-                if (c != null && wantSym)
-                    glyphs.add(new Glyph(sym, rgb, c, replaces));
-                continue;
-            }
-            List<double[]> o = ring(vp, mv, target, dir, m.angularRadius(), hover ? pointer : null, MIN_RADIUS * scale);
-            if (o == null)
-                continue;
-            double[] c = o.getFirst();
-            rings.add(new Ring(rgb, o.subList(1, o.size()), c, hover));
-            if (wantSym)
-                glyphs.add(new Glyph(sym, rgb, c, false));
-        }
+        Scene scene = scene(vp, mv, IdentifyHover.targets(vp, mv), f, scale);
+        List<Ring> rings = scene.rings();
+        List<Glyph> glyphs = scene.glyphs();
+        boolean pulse = f.pulse();
         if (rings.isEmpty() && glyphs.isEmpty())
             return;
 
-        // Bright for a moment when something new is reached, then steady
+        // Bright for a moment when something new is reached, then steady; a selected object is steady throughout
         double boost = pulse ? 1 + 0.6 * (1 - phase) : 1;
         Map<Integer, List<Ring>> byColour = new LinkedHashMap<>();
         for (Ring r : rings)
@@ -390,14 +395,33 @@ public final class IdentifyGlow {
         Transform.setIdentityView();
         try {
             for (List<Ring> group : byColour.values()) {
-                int[] rgb = group.getFirst().rgb();
-                for (int pass = 0; pass < WIDTHS.length; pass++)
-                    if (IdentifySettings.glow() || all)
-                        draw(LINES[pass], full, group, false, 0, rgb, (int) Math.min(255, ALPHAS[pass] * boost), WIDTHS[pass] * scale);
+                int[] rgb = saturate(group.getFirst().rgb(), IdentifySettings.boldSaturation());
+                for (Tier tier : Tier.values()) {
+                    Style style = styleFor(tier, f);
+                    List<Ring> same = new ArrayList<>();
+                    for (Ring r : group)
+                        if (r.tier() == tier)
+                            same.add(r);
+                    if (!style.visible() || same.isEmpty())
+                        continue;
+                    double b = (tier == Tier.HOVER ? boost : 1) * IdentifySettings.boldOpacity();
+                    double wm = IdentifySettings.boldWidth();
+                    double shadow = IdentifySettings.boldShadow();
+                    if (shadow > 0) // a dark outline under the colour so a mark stands out on a bright corona
+                        draw(LINES[3], full, same, 0, new int[]{0, 0, 0}, (int) Math.min(255, 200 * shadow * Math.min(1, b)),
+                                (style.widths()[0] + 3) * wm * scale);
+                    for (int pass = 0; pass < style.widths().length; pass++)
+                        draw(LINES[pass], full, same, 0, rgb, (int) Math.min(255, style.alphas()[pass] * b), style.widths()[pass] * wm * scale);
+                }
                 if (pulse) {
+                    List<Ring> hovered = new ArrayList<>();
+                    for (Ring r : group)
+                        if (r.tier() == Tier.HOVER)
+                            hovered.add(r);
                     double eased = 1 - Math.pow(1 - phase, 3);
                     int alpha = (int) (190 * Math.pow(1 - phase, 2));
-                    draw(LINES[3], full, group, true, PULSE_TRAVEL * scale * eased, rgb, alpha, (2.5 - 1.5 * phase) * scale);
+                    if (!hovered.isEmpty())
+                        draw(LINES[3], full, hovered, PULSE_TRAVEL * scale * eased, rgb, alpha, (2.5 - 1.5 * phase) * scale);
                 }
             }
         } finally {
@@ -407,29 +431,172 @@ public final class IdentifyGlow {
         drawGlyphs(full, glyphs, scale);
     }
 
+    /**
+     * Where everything the glow draws lands on the page this frame: the hover's marks, and with
+     * Highlight All or Always show planet symbols, every mark the view holds. The sky side (which
+     * marks, where each is) comes from the frame's {@link MarkFrame}; the page side is one
+     * {@link SkyScreen#place} per point.
+     */
+    static Scene scene(Viewport vp, MapView mv, List<Identifier.Target> targets, Flags f, double scale) {
+        MarkFrame frame = MarkFrame.of(mv, targets);
+        Map<String, Mark> marks = new LinkedHashMap<>();
+        Set<String> hovered = new LinkedHashSet<>();
+        Tier lit = IdentifyHover.selected() ? Tier.SELECTED : Tier.HOVER; // the marks the pointer answers are the selection when one is held
+        Set<String> comets = new LinkedHashSet<>();
+        for (Mark m : hoverMarks()) {
+            marks.put(m.key(), m);
+            hovered.add(m.key());
+            if (m.kind() == Kind.COMET)
+                comets.add(CometMarks.family(m));
+        }
+        for (String family : comets) // every ring of a hovered comet, asked of the source directly (no whole mark list)
+            for (Mark m : CometMarks.familyMarks(family, vp, mv, targets)) {
+                marks.putIfAbsent(m.key(), m);
+                hovered.add(m.key());
+            }
+        if (f.all() || f.always()) {
+            double crop = mv.isHelioradial() && IdentifySettings.highlightInsideCrop() ? Display.getWarpOuterRadius() : 0;
+            for (Mark m : frame.marks(vp, mv, targets)) {
+                if (crop > 0 && !hovered.contains(m.key())) { // what the pointer reaches is always answered
+                    Identifier.Target t = m.layer() == null ? targets.getFirst() : byName(targets, m.layer());
+                    Vec3 dir = t == null ? null : frame.direction(m, t);
+                    if (dir != null && !insideCrop(dir, t.observer().distance, crop, Display.getSurfaceModel()))
+                        continue;
+                }
+                marks.putIfAbsent(m.key(), m);
+            }
+        }
+        List<Ring> rings = new ArrayList<>();
+        List<Glyph> glyphs = new ArrayList<>();
+        Map<Kind, int[]> colours = new java.util.EnumMap<>(Kind.class);
+        for (Mark m : marks.values()) {
+            if (rings.size() >= MAX_RINGS)
+                break;
+            Tier tier = hovered.contains(m.key()) ? lit : Tier.AMBIENT; // a hovered or selected mark replaces its ambient copy: same key
+            boolean wantRing = tier != Tier.AMBIENT || f.all();
+            String sym = symbol(m);
+            boolean wantSym = sym != null && (f.always() || (f.instead() && wantRing));
+            if (!wantRing && !wantSym)
+                continue;
+            Identifier.Target target = m.layer() == null ? targets.getFirst() : byName(targets, m.layer());
+            if (target == null)
+                continue;
+            Vec3 dir = frame.direction(m, target);
+            if (dir == null)
+                continue;
+            int[] own = CometStyle.rgbFor(m);
+            int[] rgb = own != null ? own : colours.computeIfAbsent(m.kind(), IdentifySettings::iconRgb);
+            boolean replaces = wantSym && f.instead() && wantRing;
+            if (!wantRing || replaces) { // only the centre is needed: a symbol stands where the ring would
+                double[] c = IdentifyPins.locate(vp, mv, target, dir);
+                if (c != null && wantSym)
+                    glyphs.add(new Glyph(sym, rgb, c, replaces, tier == Tier.AMBIENT));
+                continue;
+            }
+            List<double[]> o = ring(vp, mv, target, dir, m.angularRadius(), null, styleFor(tier, f).minRadius() * scale);
+            if (o == null)
+                continue;
+            double[] c = o.getFirst();
+            rings.add(new Ring(rgb, o.subList(1, o.size()), c, tier));
+            if (m.kind() == Kind.COMET && IdentifySettings.cometGlyph())
+                rings.addAll(cometGlyph(rgb, c, tier, scale, meanRadius(o.subList(1, o.size()), c)));
+            if (wantSym)
+                glyphs.add(new Glyph(sym, rgb, c, false, tier == Tier.AMBIENT));
+        }
+        return new Scene(rings, glyphs);
+    }
+
+    /**
+     * Whether a sight line from an observer {@code observerDistance} from the Sun meets the
+     * imagery's surface within the Crop. {@code dir} is in the observer's frame, which looks down
+     * -z at the Sun. The surface radius is the heliocentric distance the warp mesh uses, so this
+     * cuts where the picture is cut. Pure, for IdentifyCropCheck.
+     */
+    static boolean insideCrop(Vec3 dir, double observerDistance, double crop, org.helioviewer.jhv.display.SurfaceModel surface) {
+        double len = Math.sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z);
+        if (len == 0 || crop <= 0)
+            return true;
+        double elongation = Math.acos(Math.clamp(-dir.z / len, -1, 1));
+        return surface.heliocentricRadius(elongation, observerDistance) <= crop;
+    }
+
+    /**
+     * A comet's tail at {@code c}: three strokes trailing to the lower left from the selection
+     * circle of radius {@code radius} (the ring itself is the head), like the meteor icon of the
+     * Track Comet panel, so the ring reads as the same circle with a tail. Strokes are two-point
+     * rings (out and back), so they take the tier's glow and pulse like any outline. The tail
+     * direction is fixed on the page, a symbol and not the comet's real tail.
+     */
+    static List<Ring> cometGlyph(int[] rgb, double[] c, Tier tier, double scale, double radius) {
+        List<Ring> out = new ArrayList<>();
+        for (List<double[]> stroke : cometGlyphStrokes(c, scale, radius))
+            out.add(new Ring(rgb, stroke, c, tier));
+        return out;
+    }
+
+    /**
+     * The tail strokes in page coordinates (y down), two points each: from the circle of
+     * {@code radius} around {@code c} outward. Public because a comet layer draws the same tail
+     * on its own rings, which this glow does not draw.
+     */
+    public static List<List<double[]>> cometGlyphStrokes(double[] c, double scale, double radius) {
+        List<List<double[]>> out = new ArrayList<>();
+        double[][] tails = {{0, 10}, {-3.5, 6.5}, {3.5, 6.5}}; // {sideways offset, length beyond the circle} in points
+        double ux = -Math.sqrt(0.5), uy = Math.sqrt(0.5); // toward the lower left on the page (y down)
+        for (double[] t : tails) {
+            double side = Math.copySign(Math.min(Math.abs(t[0]) * scale, radius * 0.9), t[0]); // a tail line stays inside the circle
+            double ox = c[0] - uy * side, oy = c[1] + ux * side; // on the line parallel to the axis
+            double start = Math.sqrt(Math.max(0, radius * radius - side * side)); // where that line meets the circle
+            double[] a = {ox + ux * start, oy + uy * start};
+            double[] b = {ox + ux * (start + t[1] * scale), oy + uy * (start + t[1] * scale)};
+            out.add(List.of(a, b));
+        }
+        return out;
+    }
+
+    /** The mean distance of a ring's points from {@code c}, ignoring points off the page. */
+    static double meanRadius(List<double[]> ring, double[] c) {
+        double sum = 0;
+        int n = 0;
+        for (double[] p : ring)
+            if (p != null) {
+                sum += Math.hypot(p[0] - c[0], p[1] - c[1]);
+                n++;
+            }
+        return n == 0 ? 0 : sum / n;
+    }
+
+    /** {@code rgb} with its saturation multiplied by {@code factor} (1 keeps it). */
+    public static int[] saturate(int[] rgb, double factor) {
+        if (factor == 1)
+            return rgb;
+        float[] hsb = java.awt.Color.RGBtoHSB(rgb[0], rgb[1], rgb[2], null);
+        int v = java.awt.Color.HSBtoRGB(hsb[0], (float) Math.min(1, hsb[1] * factor), hsb[2]);
+        return new int[]{v >> 16 & 255, v >> 8 & 255, v & 255};
+    }
+
     /** The symbols, in the label's text pass: centred on the body when they stand in for the ring, else just beside it. */
     private static void drawGlyphs(Viewport full, List<Glyph> glyphs, double scale) {
         for (Glyph g : glyphs) {
-            float[] size = GLText.floatTextSize(g.text());
+            double factor = g.ambient() ? AMBIENT_SYMBOL : 1;
+            double beside = (g.ambient() ? QUIET.minRadius() : MIN_RADIUS) * scale;
+            float[] size = GLText.floatTextSize(g.text(), factor);
             double cx = g.centre()[0] - full.x, cy = g.centre()[1] - full.yAWT;
-            double x = g.replaces() ? cx - size[0] / 2 : cx + MIN_RADIUS * scale + 3;
-            double y = g.replaces() ? cy + size[1] * 0.35 : cy - MIN_RADIUS * scale * 0.3;
-            float[] c = {g.rgb()[0] / 255f, g.rgb()[1] / 255f, g.rgb()[2] / 255f, 1};
-            GLText.drawTextFloat(full, List.of(g.text()), List.of(c), (int) Math.round(x), (int) Math.round(y));
+            double x = g.replaces() ? cx - size[0] / 2 : cx + beside + 3;
+            double y = g.replaces() ? cy + size[1] * 0.35 : cy - beside * 0.3;
+            float[] c = {g.rgb()[0] / 255f, g.rgb()[1] / 255f, g.rgb()[2] / 255f, g.ambient() ? 0.8f : 1};
+            GLText.drawTextFloat(full, List.of(g.text()), List.of(c), (int) Math.round(x), (int) Math.round(y), factor);
         }
     }
 
-    private static void draw(GLSLLine line, Viewport full, List<Ring> rings, boolean pulseOnly, double grow, int[] rgb, int alpha, double widthPx) {
+    private static void draw(GLSLLine line, Viewport full, List<Ring> rings, double grow, int[] rgb, int alpha, double widthPx) {
         if (alpha <= 0)
             return;
         byte[] col = {(byte) rgb[0], (byte) rgb[1], (byte) rgb[2], (byte) alpha};
         BUF.clear();
         double seam = SEAM_FRACTION * Math.max(full.width, full.height);
-        for (Ring r : rings) {
-            if (pulseOnly && !r.hover())
-                continue;
-            putRing(full, pulseOnly ? grown(r.points(), r.centre(), grow) : r.points(), col, seam);
-        }
+        for (Ring r : rings)
+            putRing(full, grow > 0 ? grown(r.points(), r.centre(), grow) : r.points(), col, seam);
         line.upload(BUF);
         if (full.height > 0)
             line.renderLine(full, widthPx / full.height);

@@ -14,6 +14,7 @@ import javax.swing.Timer;
 import org.helioviewer.jhv.app.AppInfo;
 import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.app.Message;
+import org.helioviewer.jhv.app.Platform;
 import org.helioviewer.jhv.app.Session;
 import org.helioviewer.jhv.app.Settings;
 import org.helioviewer.jhv.gui.MainFrame;
@@ -126,7 +127,21 @@ public final class UpdateCheck {
         String skipped = Settings.getProperty(SKIP_KEY);
         if (ReleaseFeed.shouldOffer(newest, running, skipped, manual)) {
             Log.info("Found newer version " + newest.version());
-            UpdateAvailableDialog.show(newest, running);
+            if (Platform.isMacOS() && ReleaseFeed.brewManaged()) { // brew owns updates: no dialog
+                Log.info("Installed with Homebrew; update with: brew upgrade --cask " + ReleaseFeed.CASK);
+                if (manual)
+                    Message.info("Update available", "Version " + newest.version() + " is available. This copy was installed with Homebrew; update it from a terminal:\n\n    brew upgrade --cask " + ReleaseFeed.CASK);
+                return;
+            }
+            UpdateAvailableDialog.show(newest, running, false);
+            return;
+        }
+        boolean same = newest != null && ReleaseFeed.sameBuild(newest, running, AppInfo.commit(), AppInfo.dirty(), System.getProperty("jhv.since"));
+        if (ReleaseFeed.shouldReinstall(newest, running, same, AppInfo.channel(), skipped, manual)) {
+            Log.info("Release " + newest.version() + " is another build than this one (" + AppInfo.buildId() + ")");
+            if (Platform.isMacOS() && ReleaseFeed.brewManaged())
+                return; // brew owns updates; a reinstall is its job too
+            UpdateAvailableDialog.show(newest, running, true);
             return;
         }
         if (newest != null && ReleaseFeed.isNewer(newest.version(), running))
@@ -138,6 +153,13 @@ public final class UpdateCheck {
         String text = ReleaseFeed.parse(running) == null
                 ? "This build (" + AppInfo.label() + ") does not carry a release version, so it cannot be compared.\nReleases: " + AppInfo.downloadURL
                 : "You are running the latest HelioFITS Studio version (" + running + ").";
+        if (newest != null && newest.version().equals(running)) { // the manual override: same build, reinstall it anyway
+            String[] options = {"OK", "Reinstall Latest Release"};
+            if (JOptionPane.showOptionDialog(MainFrame.get(), text, "Check for Updates", JOptionPane.DEFAULT_OPTION,
+                    JOptionPane.INFORMATION_MESSAGE, null, options, options[0]) == 1)
+                UpdateInstaller.install(newest);
+            return;
+        }
         JOptionPane.showMessageDialog(MainFrame.get(), text, "Check for Updates", JOptionPane.INFORMATION_MESSAGE);
     }
 

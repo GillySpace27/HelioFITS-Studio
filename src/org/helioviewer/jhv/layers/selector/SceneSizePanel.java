@@ -1,6 +1,15 @@
 package org.helioviewer.jhv.layers.selector;
 
+import java.awt.BorderLayout;
+import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
+import java.awt.event.ActionEvent;
+
+import javax.swing.AbstractAction;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JMenuItem;
+import javax.swing.JPopupMenu;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 
@@ -12,6 +21,14 @@ import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
 
 import org.helioviewer.jhv.app.state.ViewState;
+import org.helioviewer.jhv.display.DisplayController;
+import org.helioviewer.jhv.gui.Actions;
+import org.helioviewer.jhv.gui.component.Buttons;
+import org.helioviewer.jhv.gui.component.CollapsiblePane;
+import org.helioviewer.jhv.gui.dialog.ModelManager;
+import org.helioviewer.jhv.layers.GridLayer;
+import org.helioviewer.jhv.layers.Layer;
+import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.gui.component.JHVSlider;
 import org.helioviewer.jhv.layers.ModelLayer;
 import org.helioviewer.jhv.layers.ModelPlacement;
@@ -68,6 +85,8 @@ public final class SceneSizePanel extends JPanel {
 
         addRow("Enlarge", enlarge, enlargeValue, 0);
         addRow("Min size (px)", pixels, null, 1);
+        addLayerRow();
+        addPlanets();
 
         // Models are drawn only in a 3D view: in a flat projection the sizes stay visible but
         // greyed, and say where they apply.
@@ -82,6 +101,104 @@ public final class SceneSizePanel extends JPanel {
         };
         follow.run();
         ViewState.addModeListener(follow::run);
+    }
+
+    private static final java.util.List<Layer> sceneLayers() {
+        java.util.List<Layer> out = new java.util.ArrayList<>();
+        for (Layer l : Layers.getLayers())
+            if (l.kind() == Layer.Kind.SCENE)
+                out.add(l);
+        return out;
+    }
+
+    /** One switch for every 3D layer, and the ways to add one without leaving this pane. */
+    private void addLayerRow() {
+        JCheckBox all = new JCheckBox("All 3D layers");
+        all.setToolTipText("Switch every layer in this list on or off at once. Each keeps its own settings.");
+        all.addActionListener(e -> {
+            for (Layer l : sceneLayers()) {
+                l.setEnabled(all.isSelected());
+                Layers.fireLayerUpdated(l);
+            }
+            DisplayController.display();
+        });
+        Runnable follow = () -> {
+            java.util.List<Layer> layers = sceneLayers();
+            all.setEnabled(!layers.isEmpty());
+            all.setSelected(!layers.isEmpty() && layers.stream().allMatch(Layer::isEnabled));
+        };
+        follow.run();
+        Layers.addListener(new Layers.Listener() {
+            public void layerAdded(int index, Layer layer) { follow.run(); }
+            public void layerRemoved(int index, Layer layer) { follow.run(); }
+            public void layersCleared() { follow.run(); }
+            public void nameUpdated(Layer layer) { }
+            public void layerUpdated(Layer layer) { follow.run(); }
+            public void timeUpdated(Layer layer) { }
+        });
+
+        JPopupMenu menu = new JPopupMenu();
+        menu.add(new JMenuItem(new Actions.TrackComet())).setText("Comet...");
+        menu.add(new JMenuItem(new AbstractAction("3D model...") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                ModelManager.get().showDialog();
+            }
+        }));
+        menu.add(new JMenuItem(new Actions.NewPointCloudLayer())).setText("Point cloud...");
+        JButton add = new JButton("Add layer \u25BE");
+        add.setToolTipText("A comet (pick it in the list, then Show in 3D scene), a spacecraft or planet model from the 3D Model Manager, or a point cloud from files");
+        add.addActionListener(e -> menu.show(add, 0, add.getHeight()));
+
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
+        row.add(all);
+        row.add(add);
+        GridBagConstraints c = new GridBagConstraints();
+        c.gridy = 2;
+        c.gridwidth = 3;
+        c.weightx = 1;
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.insets = new Insets(4, 0, 2, 4);
+        add(row, c);
+    }
+
+    /** The planets, which the grid layer draws, controlled from here: rebuilt when that layer comes (back). */
+    private void addPlanets() {
+        JPanel holder = new JPanel(new BorderLayout());
+        GridLayer[] bound = {null}; // the layer the controls drive; a reorder keeps it, so the section stays as the user left it
+        Runnable build = () -> {
+            GridLayer grid = null;
+            for (Layer l : Layers.getLayers())
+                if (l instanceof GridLayer g) {
+                    grid = g;
+                    break;
+                }
+            if (grid == bound[0])
+                return;
+            bound[0] = grid;
+            holder.removeAll();
+            if (grid != null)
+                holder.add(new CollapsiblePane("Planets", GridLayerOptions.planetControls(grid), false, true, Buttons.track));
+            holder.revalidate();
+            holder.repaint();
+        };
+        build.run();
+        Layers.addListener(new Layers.Listener() {
+            public void layerAdded(int index, Layer layer) { if (layer instanceof GridLayer) build.run(); }
+            public void layerRemoved(int index, Layer layer) { }
+            // Opening a session (Layers.restore) swaps in a new grid layer and says only this: without
+            // the rebuild the planet controls stayed bound to the discarded one and did nothing (2026-11-22)
+            public void layersCleared() { build.run(); }
+            public void nameUpdated(Layer layer) { }
+            public void layerUpdated(Layer layer) { }
+            public void timeUpdated(Layer layer) { }
+        });
+        GridBagConstraints c = new GridBagConstraints();
+        c.gridy = 3;
+        c.gridwidth = 3;
+        c.weightx = 1;
+        c.fill = GridBagConstraints.HORIZONTAL;
+        add(holder, c);
     }
 
     private static int toSteps(double factor) {

@@ -87,6 +87,17 @@ public final class LoadGuardCheck {
         expect("Cancel beside Go aborts the whole load", LoadGuard.Review.ABORT.aborted() && !LoadGuard.Review.NONE.aborted());
         expect("a layer-level review never aborts", !r.aborted());
 
+        // Ticked event groups are rows too, at negative places, and trip the guard on a long range.
+        long t0 = java.time.Instant.parse("2026-10-01T00:00:00Z").toEpochMilli(), dayMs = 86_400_000L;
+        LoadGuard.Item month1 = LoadGuard.events(-1, "Events: Flare", t0, t0 + 30 * dayMs);
+        expect("a month of one group is 450 events, got " + month1.frames(), month1.frames() == 450 && month1.at() == -1);
+        LoadGuard.Estimate withEvents = small.plus(java.util.List.of(month1, LoadGuard.events(-2, "Events: CME", t0, t0 + 30 * dayMs), LoadGuard.events(-3, "Events: AR", t0, t0 + 30 * dayMs)));
+        expect("three groups over a month trip the frame limit though the layers alone do not",
+                withEvents.over(LoadGuard.DEFAULT_FRAMES, LoadGuard.DEFAULT_MB * 1_000_000L) && !small.over(LoadGuard.DEFAULT_FRAMES, LoadGuard.DEFAULT_MB * 1_000_000L));
+        r = LoadGuard.review(withEvents.items(), new LoadGuard.Choice[]{LoadGuard.Choice.DOWNLOAD, LoadGuard.Choice.POSTPONE, LoadGuard.Choice.CANCEL, LoadGuard.Choice.DOWNLOAD});
+        expect("an event row is held and dropped by its negative place", r.held().equals(java.util.Set.of(-1)) && r.dropped().equals(java.util.Set.of(-2)));
+        expect("a short range is a day's worth at least", LoadGuard.events(-1, "x", t0, t0 + 1000).frames() == 15);
+
         // A postponed layer loads nothing, is not mistaken for a failed one, and a save still writes what it would load.
         JSONObject held = new JSONObject().put("uris", new JSONArray().put("https://a/1.fits").put("https://a/2.fits"));
         org.helioviewer.jhv.layers.ImageLayer layer = org.helioviewer.jhv.layers.ImageLayer.createDetached(held, true);

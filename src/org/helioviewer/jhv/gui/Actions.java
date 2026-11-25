@@ -635,6 +635,7 @@ public final class Actions {
         public void actionPerformed(ActionEvent e) {
             State.save(Settings.getProperty("path.state"), "state__" + TimeUtils.formatFilename(System.currentTimeMillis()) + ".jhv");
             org.helioviewer.jhv.app.Session.markSaved();
+            org.helioviewer.jhv.app.Commands.rememberScaling(); // what the / canvas key goes back to
         }
     }
 
@@ -866,6 +867,39 @@ public final class Actions {
             Commands.loadState(file.toURI());
             if (!org.helioviewer.jhv.app.state.TemplateLibrary.isTemplate(file)) // a template is a starting point, never the save target
                 org.helioviewer.jhv.app.Session.setSessionFile(file, true);
+        }
+    }
+
+    // A session from another install: opened as a copy would be, with no save target, so Save asks for a name.
+    public static class OpenFromInstall extends AbstractAction {
+        private final java.io.File file;
+
+        public OpenFromInstall(org.helioviewer.jhv.io.Siblings.Entry e) {
+            super("[" + e.install() + "] " + e.file().getName());
+            file = e.file();
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            Commands.loadState(file.toURI());
+        }
+    }
+
+    // Copy the other installs' recent sessions and cache index into this install. Never overwrites.
+    public static class ImportFromInstalls extends AbstractAction {
+        public ImportFromInstalls() {
+            super("Import Into This Install");
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            int states = 0;
+            for (var s : org.helioviewer.jhv.io.Siblings.recents())
+                if (org.helioviewer.jhv.io.Siblings.importState(s.file()) != null)
+                    states++;
+            int moves = org.helioviewer.jhv.io.LibraryStore.importMoves();
+            org.helioviewer.jhv.app.Message.info("Import from other installs", "Copied " + states + " recent session(s) into States, and "
+                    + moves + " cached file location(s) into this install's cache index.");
         }
     }
 

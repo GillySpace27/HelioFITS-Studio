@@ -72,6 +72,11 @@ public final class Interaction {
             announce();
     }
 
+    /** The mode chosen on the toolbar, ignoring any modifier held now. */
+    public Mode chosenMode() {
+        return mode;
+    }
+
     /** The mode in effect right now: the held one while a modifier is down, else the chosen one. */
     public Mode getMode() {
         return held != null ? held : mode;
@@ -183,12 +188,14 @@ public final class Interaction {
         activeDrag.mousePressed(e, vp);
     }
 
-    public void keyPressed(KeyInputEvent e) {
+    /** True when a canvas key ({@link CanvasKeys}) took the press. */
+    public boolean keyPressed(KeyInputEvent e) {
         hold(e.metaDown(), e.altDown(), e.ctrlDown());
-        if (annotating(e.shiftDown())) {
+        // Canvas keys first, Shift or not (Shift is fast): none sits on N, P or Delete, the annotation keys. A pending annotation keeps every key.
+        if (!Annotations.hasPending() && CanvasKeys.pressed(e)) {
+            return true; // W A S D Q E turn the scene, [ and ] zoom, , and . warp, ' and ; crop, G the grid, R resets the view, Cmd+Left and Right set the playback rate (rebindable)
+        } else if (annotating(e.shiftDown())) {
             interactionAnnotate.keyPressed(e);
-        } else if (CanvasKeys.pressed(e)) {
-            // W A S D Q E turn the scene, Up and Down zoom, R resets the view, Cmd+Left and Right set the playback rate (rebindable)
         } else if (e.key() == KeyInputEvent.Key.X || e.key() == KeyInputEvent.Key.Y || e.key() == KeyInputEvent.Key.Z) {
             if (axisKeys.add(e.key()))
                 updateAxis();
@@ -205,6 +212,7 @@ public final class Interaction {
             else
                 Commands.nextFrame();
         }
+        return false;
     }
 
     public void keyReleased(KeyInputEvent e) {

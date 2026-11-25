@@ -5,7 +5,7 @@
     python3 release/bundle_core.py linux   pkg-out/HFStudio/lib/heliofits-core
 
 The core is the commit release/fits-core.txt pins, cloned from HFCORE_REPO (default: the GitHub
-repository), installed with its archives extra into a python-build-standalone "install_only"
+repository), installed with its archives and mcp extras into a python-build-standalone "install_only"
 Python for the target. The Python download is checked against the SHA-256 digest GitHub publishes
 for the asset and refused without one. Studio finds the result with FitsCoreIngest.studioCore.
 
@@ -111,7 +111,7 @@ def main():
         py = python_in(out, target)
         # -s: packages in the build machine's user site would count as installed and be left out.
         if subprocess.run([str(py), "-s", "-m", "pip", "install", "--quiet", "--no-cache-dir", "--no-compile",
-                           "--disable-pip-version-check", f"{src}[archives]"]).returncode:
+                           "--disable-pip-version-check", f"{src}[archives,mcp]"]).returncode:
             die("installing HelioFITS Core failed")
         # The trim the Mac bundle gets too (pyHelioFITS app/tools/trim_python.py, from #43 on): test
         # suites, pip, IDLE, headers. Older pins have no script and ship untrimmed.
@@ -119,6 +119,7 @@ def main():
         if trim.is_file() and subprocess.run([sys.executable, str(trim), str(out)]).returncode:
             die("trimming the bundled Python failed")
 
+    relocate_scripts(out, target)
     for cache in list(out.rglob("__pycache__")):
         shutil.rmtree(cache, ignore_errors=True)
     # The same command Studio runs (FitsCoreIngest.command), so a core Use FITS cannot use fails here.
@@ -136,6 +137,41 @@ def main():
     (out / "HFCORE_MODULE").write_text(module + "\n")  # FitsCoreIngest.MODULE_MARK
     size = sum(f.stat().st_size for f in out.rglob("*") if f.is_file())
     print(f"   HelioFITS Core {commit} (-m {module}) in {out} ({size / 2**20:.0f} MB)")
+
+
+# sh runs line 2 and never reads on; Python reads lines 2 and 3 as two adjacent string literals.
+RELOCATABLE_HEAD = (b"#!/bin/sh\n"
+                    b"'''exec' \"$(dirname -- \"$(realpath -- \"$0\" 2>/dev/null || echo \"$0\")\")/python3\" \"$0\" \"$@\"\n"
+                    b"' '''\n")
+
+
+def relocate_scripts(out, target):
+    """pip writes the build machine's absolute Python path into each console script's first line, so
+    hfcore and heliofits-mcp ran only on the machine that built the package (0.9.2 Linux: "cannot
+    execute: required file not found"). Point each at the python3 beside it instead. Windows
+    launchers are .exe files and are left alone."""
+    if target == "windows":
+        return 0
+    bindir = out / "bin"
+    done = 0
+    for script in sorted(bindir.iterdir()) if bindir.is_dir() else ():
+        if script.is_symlink() or not script.is_file():
+            continue
+        with script.open("rb") as f:
+            if f.read(2) != b"#!":
+                continue
+            first, rest = f.readline(), f.read()
+        if first.strip() == b"/bin/sh" and rest.startswith(b"'''exec'"):
+            # pip's own form for a long or spaced build path; ours, once written, is left alone.
+            if (b"#!/bin/sh\n" + rest).startswith(RELOCATABLE_HEAD):
+                continue
+            rest = rest.split(b"\n", 2)[2]
+        elif b"python" not in first or b"/env " in first:
+            continue
+        script.write_bytes(RELOCATABLE_HEAD + rest)
+        done += 1
+    print(f"   {done} console scripts now find the bundled Python by their own location")
+    return done
 
 
 if __name__ == "__main__":

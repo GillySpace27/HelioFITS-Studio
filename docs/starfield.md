@@ -20,11 +20,18 @@ view. It is off by default.
 - Each star's ICRS direction (with proper motion from epoch J1991.25) is rotated to Carrington
   with `Spice.j2000ToSun` and projected to helioprojective (Tx, Ty) about the observer, as the
   older Gaia star code did. Planets use SPICE positions at the frame time, minus the observer's.
-- Each body is kept as a direction (a unit ray in the observer's frame) and each view places it:
-  the 3D views at (d tan Tx, d tan Ty) on the plane through Sun centre, HPC and Observer Sky
-  through the page mapping the imagery uses.
-- The 3D views leave out anything more than 80 degrees from the Sun, where that placement runs
-  away. Observer Sky shows the whole sky; HPC shows the hemisphere toward the Sun.
+- Each body is kept as a direction (a unit ray in the observer's frame) and each view places it
+  where the imagery shows that direction (`SkyScreen.place`, which Identify also uses): Orthographic
+  at (-d x/z, -d y/z) on the layer's plane through Sun centre; Helioradial in 3D on the selected
+  surface (plane of sky, Thomson sphere or celestial), warped with the imagery; HPC, Observer Sky and
+  flat Helioradial through the page mapping the imagery uses. Before 0.9.2 the 3D views used
+  (d tan Tx, d tan Ty), which is off the imagery by d tan Ty (1/cos Tx - 1): 35 arcsec at 4 degrees
+  from the Sun line in both angles, 97 arcsec at 5.6 degrees (computed from the formulas).
+- The frame is one observer's: the active image layer's, the viewpoint when there is no image layer.
+  Identify names and rings stars in the same frame, so the name is of the star drawn there.
+- The Orthographic and 3D Helioradial placements leave out anything more than 80 degrees from the
+  Sun, where that placement runs away. Observer Sky shows the whole sky; HPC shows the hemisphere
+  toward the Sun.
 - A planet nearer the observer than 0.25 solar radii, or within 1 arcsec of the Sun line, is
   taken to be the body the view is from and is not drawn. The second rule covers images with no
   observer position, which Studio places on the Sun-Earth line.
@@ -41,11 +48,13 @@ B-V to temperature by Ballesteros (2012, EPL 97, 34008), then Planck's law at 61
 
 ## Where it shows
 
-The 3D-capable projections from the observer, HPC, and Observer Sky (any sky projection, aim and
+Orthographic, Helioradial (flat and in 3D), HPC, and Observer Sky (any sky projection, aim and
 field). Not drawn in Latitudinal or the unrolled helioradial map, which are maps of the Sun rather
-than of the sky. In the orbited 3D camera the sky is at infinity: dragging turns each star's direction about the
-viewer (the placement is redone every frame, so the sheet no longer swings edge-on) and the 80 degree
-cut follows the camera.
+than of the sky (Identify still names stars there). Orbiting the camera moves the stars with the
+imagery they are on; they no longer turn as a sky at infinity.
 
-The flat views re-place every point each frame, so a deep limit (V = 9, about 83,000 points) costs
-more there than in the 3D views, which place them once per viewpoint.
+Everything but Orthographic re-places every point each frame, so a deep limit (V = 9, about 83,000
+points) costs more there than in Orthographic, which places them once per observer.
+
+The Stars row's magnitude limit sets what is drawn. Identify has its own limit for what it names
+(Settings > Identify); the two are separate.

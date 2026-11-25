@@ -23,13 +23,15 @@ import org.helioviewer.jhv.movie.Player;
  * That is exact for LASCO, within about a percent of parallax for anything else on the Sun-Earth
  * line (AIA, PUNCH), and wrong for STEREO or Solar Orbiter; see {@link Comets}. The search runs once
  * per movie range in the background, the first time the switch is on, and needs the network.
+ *
+ * <p>A comet with a comet layer on is left to {@link CometMarks}, which places it per image.
  */
 public final class CometSky implements Drawn.Source {
 
     private static final CometSky SOURCE = new CometSky();
     private static final long RETRY_MS = 5 * 60_000L;
 
-    private record Tracked(Comets.Comet comet, Comets.Track track) {}
+    record Tracked(Comets.Comet comet, Comets.Track track) {}
 
     /** The answer for one movie range; {@code at} is when it was asked, so a failure can be retried later. */
     private record State(String key, List<Tracked> comets, long at, boolean failed) {}
@@ -46,12 +48,12 @@ public final class CometSky implements Drawn.Source {
         long now = mv.viewpoint().time.milli;
         List<Drawn.Hit> out = new ArrayList<>();
         for (Tracked t : current()) {
-            if (!inTrack(t, now))
+            if (!shown(t, now))
                 continue;
             double radius = t.track().radius(now), pa = t.track().positionAngle(now);
             Drawn.Hit h = Drawn.planeOfSky(vp, mv, x, y, tolerancePixels, t.comet().label(), "comet, JPL ephemeris for SOHO", radius, pa);
             if (h != null)
-                out.add(new Drawn.Hit(h.name(), h.kind(), h.pixels(), h.distanceAu(), Kind.COMET, mark(t, radius, pa)));
+                out.add(new Drawn.Hit(h.name(), h.kind(), h.pixels(), h.distanceAu(), Kind.COMET, mark(t)));
         }
         return out;
     }
@@ -61,9 +63,14 @@ public final class CometSky implements Drawn.Source {
         long now = mv.viewpoint().time.milli;
         List<Mark> out = new ArrayList<>();
         for (Tracked t : current())
-            if (inTrack(t, now))
-                out.add(mark(t, t.track().radius(now), t.track().positionAngle(now)));
+            if (shown(t, now))
+                out.add(mark(t));
         return out;
+    }
+
+    /** Named and marked here: on its sampled track, and not drawn by a comet layer (CometMarks names that one, per image). */
+    static boolean shown(Tracked t, long now) {
+        return inTrack(t, now) && !CometMarks.ownsDesignation(t.comet().designation());
     }
 
     private static boolean inTrack(Tracked t, long now) {
@@ -71,10 +78,15 @@ public final class CometSky implements Drawn.Source {
         return now >= m[0] && now <= m[m.length - 1]; // off the sampled track there is no position to name
     }
 
-    private static Mark mark(Tracked t, double radius, double paDeg) {
-        double theta = Math.toRadians(paDeg);
-        return new Mark("comet:" + t.comet().designation(), Kind.COMET, null,
-                Probes.plane(PolarBasis.x(radius, theta), PolarBasis.y(radius, theta)), 0);
+    /** The comet's mark reads the track at the observer's own time, so a selected comet follows time instead of holding the spot it was clicked at. */
+    static Mark mark(Tracked t) {
+        return new Mark("comet:" + t.comet().designation(), Kind.COMET, null, observer -> {
+            long now = observer.time.milli;
+            if (!inTrack(t, now))
+                return null;
+            double theta = Math.toRadians(t.track().positionAngle(now)), radius = t.track().radius(now);
+            return Probes.plane(PolarBasis.x(radius, theta), PolarBasis.y(radius, theta)).direction(observer);
+        }, 0);
     }
 
     /** The comets for the loaded movie, or none while they are still being fetched (or when the switch is off). */

@@ -12,7 +12,6 @@ import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.layers.stars.StarCatalog;
 import org.helioviewer.jhv.layers.stars.StarNames;
 import org.helioviewer.jhv.layers.stars.StarSky;
-import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.math.Vec3;
 
 import spice.basic.SpiceErrorException;
@@ -25,7 +24,8 @@ import spice.basic.SpiceErrorException;
  * <p>Both tables are loaded once, in the background, the first time the switch is on: from the
  * disk cache if there is one, else from the archive, as the Stars overlay does. Until they arrive
  * no star is named. Stars are at infinity, so the direction from any observer is the same; the
- * first target's observer only fixes the frame the probe and the rays share.
+ * first target's observer (the active image layer's) fixes the frame the probe and the rays share,
+ * and is the frame the Stars overlay draws in, so the name is of the star drawn under the pointer.
  */
 public final class Stars {
 
@@ -39,10 +39,9 @@ public final class Stars {
 
     /**
      * A star under the pointer: its row, how far in pixels, and the label the settings ask for.
-     * {@code ray} is its sight line in the first target's frame, null in the orbited 3D view,
-     * where the star is drawn turned with the drag and the pointer's probe no longer finds it.
+     * {@code ray} is its sight line in the first target's frame (the active image layer's).
      */
-    public record Star(int row, double pixels, String label, String details, @Nullable Vec3 ray) {}
+    public record Star(int row, double pixels, String label, String details, Vec3 ray) {}
 
     /** The nearest star within the tolerance of canvas point (x, y), or null. */
     @Nullable
@@ -54,20 +53,12 @@ public final class Stars {
         if (cat == null)
             return null;
         Position obs = IdentifyHover.targets(vp, mv).getFirst().observer();
-        Vec3 dir, dir1;
-        boolean turned = mv.isOrthographic() && Drawn.orbited(mv.viewRotation(), obs.toQuat());
-        if (turned) {
-            // The sky is drawn at infinity, turned by the drag (StarSky.plane): undo the placement
-            obs = mv.viewpoint();
-            dir = orbitedDirection(mv, vp, x, y);
-            dir1 = orbitedDirection(mv, vp, x + 1, y);
-        } else {
-            Identifier.Probe probe = Probes.at(mv, vp, x, y), probe1 = Probes.at(mv, vp, x + 1, y);
-            if (probe == null || probe1 == null)
-                return null;
-            dir = probe.direction(obs);
-            dir1 = probe1.direction(obs);
-        }
+        // One rule in every view, orbited or not: the star is where the overlay and the rings put it,
+        // on the imagery, so the pointer's sight line on that imagery is the one to match
+        Identifier.Probe probe = Probes.at(mv, vp, x, y), probe1 = Probes.at(mv, vp, x + 1, y);
+        if (probe == null || probe1 == null)
+            return null;
+        Vec3 dir = probe.direction(obs), dir1 = probe1.direction(obs);
         if (dir == null || dir1 == null)
             return null;
         double perPixel = Identifier.angle(dir, dir1);
@@ -82,7 +73,7 @@ public final class Stars {
         int row = r.index()[best];
         Vec3 ray = new Vec3(r.rays()[3 * best], r.rays()[3 * best + 1], r.rays()[3 * best + 2]);
         return new Star(row, Identifier.angle(dir, ray) / perPixel, label(cat, names.get(), row,
-                IdentifySettings.starNamesIau(), IdentifySettings.starNamesBayer()), details(cat, row), turned ? null : ray);
+                IdentifySettings.starNamesIau(), IdentifySettings.starNamesBayer()), details(cat, row), ray);
     }
 
     /** The most named stars to mark at once: a full IAU list is 450 and a ring each would be a wall of rings (judgement). */
@@ -117,32 +108,6 @@ public final class Stars {
             out.add(new Mark("star:" + cat.hip[row], Kind.STAR, null, observer -> ray, 0));
         }
         return out;
-    }
-
-    /**
-     * The direction, in the scene viewpoint's frame, of the star the orbited 3D view draws at canvas
-     * point (x, y): the inverse of StarSky.plane (screen position d tan Tx, d tan Ty of the
-     * drag-turned ray, the drag undone after). Null where the plane is edge-on or the point is
-     * beyond the cut where stars are not drawn.
-     */
-    @Nullable
-    static Vec3 orbitedDirection(MapView mv, Viewport vp, int x, int y) {
-        Vec3 hit = mv.mouseToPlane(vp, x, y);
-        if (hit == null)
-            return null;
-        Quat drag = mv.dragRotation();
-        Vec3 screen = drag.rotateVector(hit); // mouseToPlane undoes the drag; the screen point is x, y of the turned hit
-        return fromPlane(screen.x, screen.y, mv.viewpoint().distance, drag);
-    }
-
-    /** The unturned ray of the star StarSky.plane puts at screen (x, y) for a camera orbited by {@code drag}, or null beyond the cut. */
-    @Nullable
-    static Vec3 fromPlane(double x, double y, double distance, Quat drag) {
-        double tx = Math.atan(x / distance), ty = Math.atan(y / distance);
-        Vec3 turned = new Vec3(Math.sin(tx) * Math.cos(ty), Math.sin(ty), -Math.cos(tx) * Math.cos(ty));
-        if (-turned.z < Math.cos(Math.toRadians(StarSky.MAX_ELONGATION_DEG)))
-            return null;
-        return drag.rotateInverseVector(turned);
     }
 
     /** The index of the ray closest to {@code dir} whose cosine with it is at least {@code minCos}, or -1. */

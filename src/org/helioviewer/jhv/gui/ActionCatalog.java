@@ -39,7 +39,7 @@ public final class ActionCatalog {
     public record Entry(String id, Action action, String menuPath, String description) {}
 
     /** Actions classes built where they are used, one instance per dialog or file: never catalogued. */
-    public static final Set<String> PER_USE = Set.of("ShowDialog", "OpenRecent");
+    public static final Set<String> PER_USE = Set.of("ShowDialog", "OpenRecent", "OpenFromInstall", "ImportFromInstalls");
 
     /**
      * Toolbar ids that name a control (a toggle, a palette, a split button), not a command. They are
@@ -100,6 +100,27 @@ public final class ActionCatalog {
         put(org.helioviewer.jhv.identify.IdentifyActions.TOOLTIP, org.helioviewer.jhv.identify.IdentifyActions.tooltip(), "View/Identify Tooltip", "");
         put(org.helioviewer.jhv.identify.IdentifyActions.STARS, org.helioviewer.jhv.identify.IdentifyActions.stars(), "View/Identify Stars", "");
         put(org.helioviewer.jhv.identify.IdentifyActions.FIND_BODY, org.helioviewer.jhv.identify.IdentifyActions.findBody(), "View/Find Body...", "");
+        // The grid's master switch, also G on the canvas (CanvasKeys); no default here, so a person can give it a modified key
+        put("toggleGrid", new AbstractAction("Show or Hide Grid") {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                org.helioviewer.jhv.app.Commands.toggleGrid();
+            }
+        }, "View/Show or Hide Grid", "Turn the grid on or off: the master switch of the Grid row (G on the canvas)");
+        // The toolbar's mode toggles as commands (Gilly, 2026-11-11), so they can take a key and Cmd+K runs them; the buttons follow through ViewState
+        put("toggleTracking", toggle("Turn Tracking On or Off", () -> org.helioviewer.jhv.app.state.ViewState.setTracking(!org.helioviewer.jhv.app.state.ViewState.isTracking())),
+                "View/Turn Tracking On or Off", "Track solar rotation as the movie plays: the toolbar's Track button");
+        put("toggleDiffRotation", toggle("Turn Differential Rotation On or Off",
+                () -> org.helioviewer.jhv.app.state.ViewState.setDifferentialRotation(!org.helioviewer.jhv.app.state.ViewState.isDifferentialRotation())),
+                "View/Turn Differential Rotation On or Off", "The toolbar's Differential button");
+        put("toggleCorona", toggle("Show or Hide Corona", () -> org.helioviewer.jhv.app.state.ViewState.setShowCorona(!org.helioviewer.jhv.app.state.ViewState.isShowCorona())),
+                "View/Show or Hide Corona", "Show the off-disk corona or only the disk: the toolbar's Corona button");
+        put("toggleMultiview", toggle("Turn Multiview On or Off", () -> {
+            boolean entering = !org.helioviewer.jhv.app.state.ViewState.isMultiview();
+            org.helioviewer.jhv.app.state.ViewState.setMultiview(entering);
+            if (entering) // each view starts filled, as the toolbar button does
+                org.helioviewer.jhv.display.DisplayController.zoomFit();
+        }), "View/Turn Multiview On or Off", "Each shown image layer in a view of its own: the toolbar's Multiview button");
         // Layers
         put("newJp2Layer", new Actions.NewLayer(), "Layers/New Image Layer…", "");
         put("newSynopticLayer", new Actions.NewSynopticLayer(), "Layers/New Synoptic Layer...", "");
@@ -261,8 +282,29 @@ public final class ActionCatalog {
         }
         // The window's layout and the interface scale: Cmd+[ Cmd+] Cmd+\, Cmd+Shift+= - 0 (LayoutKeys)
         org.helioviewer.jhv.gui.component.LayoutKeys.register(ActionCatalog::put);
+        // Default keys for commands whose actions are built without one (Gilly, 2026-11-11), before the person's own
+        int menu = DesktopIntegration.menuShortcutMask;
+        defaultKey("copyFrame", java.awt.event.KeyEvent.VK_C, menu | java.awt.event.InputEvent.SHIFT_DOWN_MASK);
+        defaultKey("duplicateLayer", java.awt.event.KeyEvent.VK_D, menu);
+        defaultKey(org.helioviewer.jhv.identify.IdentifyActions.FIND_BODY, java.awt.event.KeyEvent.VK_F, menu);
+        defaultKey(org.helioviewer.jhv.identify.IdentifyActions.UNDER_CURSOR, java.awt.event.KeyEvent.VK_I, menu);
+        defaultKey("quickShare", java.awt.event.KeyEvent.VK_E, menu);
+        defaultKey("punchLatest", java.awt.event.KeyEvent.VK_L, menu);
         // The person's own keybindings (Settings > Keybindings), applied over the defaults stated above
         org.helioviewer.jhv.gui.registry.KeyBindings.apply();
+    }
+
+    private static Action toggle(String name, Runnable run) {
+        return new AbstractAction(name) {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                run.run();
+            }
+        };
+    }
+
+    private static void defaultKey(String id, int key, int modifiers) {
+        entries.get(id).action().putValue(Action.ACCELERATOR_KEY, javax.swing.KeyStroke.getKeyStroke(key, modifiers));
     }
 
     /** How a catalogue in another package hands its commands to register(). */

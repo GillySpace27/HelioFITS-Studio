@@ -99,6 +99,28 @@ is turned on by its `confirmed` flag in
 `heliofits-studio/index.html` (the `GillySpace27.github.io` repository), and the release
 also carries that platform's file.
 
+## Homebrew tap
+
+The Mac cask lives in its own repository, **`GillySpace27/homebrew-tap`** (`Casks/hfstudio.rb`; the tap's `cask_renames.json` keeps the old token `heliofits-studio` working);
+the template and the bump script are `release/homebrew/` here. Rules:
+
+- **Every release updates the tap.** `release.sh` has a `tap` step after the site PR: it bumps `version` and
+  both dmg checksums from the release notes (`bump_cask.py`), pushes to the tap's `main`, and checks the raw
+  file serves the new version. Gilly's one release yes covers that push.
+- **`HFS_TAP_DIR`** names a local clone of the tap to use. Unset (the normal case) means a fresh clone in
+  `~/hfs-release/tap-<version>`. The value `skip` is the only way to leave the step out; the run says so and
+  the tap must then be bumped by hand. Any other failure stops the run, so the tap cannot go stale quietly.
+- **Never `brew uninstall --zap` to test it**: the cask's `zap` trashes `~/HFStudio`. Test with
+  `brew install --cask --appdir=<temp dir> GillySpace27/tap/hfstudio`, then plain `brew uninstall`.
+  A leftover `Caskroom/hfstudio` (or old `Caskroom/heliofits-studio`) folder makes the in-app updater defer to brew on that machine.
+- **Why a tap:** Homebrew's main cask repository wants notable software, so a bare `brew install hfstudio` is not
+  possible; users run `brew tap GillySpace27/tap` once. Newer Homebrew may ask them to `brew trust gillyspace27/tap`.
+  The tap's README holds the user text and the Peek cask's bump steps; keep it in step with the README here.
+- The cask needs macOS 14 (`depends_on`, and `LSMinimumSystemVersion` in the bundle): the bundled Python
+  extensions are built for it. Livecheck reads the releases Atom feed because every release is a pre-release.
+- Changing the cask's layout (the `on_arm`/`on_intel` blocks, the `version` line) means changing
+  `bump_cask.py` with it; it refuses a cask it no longer understands.
+
 ## Legacy names
 
 A few identifiers still carry the preview's JHelioviewer naming. Each one points
@@ -391,6 +413,19 @@ Quit any running HelioFITS Studio first. A second instance cannot take the JPIP
 ehcache persistence lock, and the failure is not contained: `levelCache` stays
 null and every image read throws, which presents as a rendering bug rather than
 an "already running" message.
+
+### 5c. Replay gate
+
+`release/replay.sh` runs the golden set of HelioFITS Core (pyHelioFITS `tests/golden/`, four records with
+their pictures) with the Core commit pinned in `release/fits-core.txt`, read out of a pyHelioFITS checkout
+with `git archive` (the checkout is not switched). It needs pytest and numpy in `HELIAD_PYTHON`, runs
+offline, and `release/release.sh` runs it as the `replay` step after parity. It proves the digest, the PNG
+reader and the verdict logic of the bundled Core; it does not start Studio unless `HFS_REPLAY_RECORDS`
+names real records, which needs a display.
+
+```sh
+HELIAD_DIR=~/heliad HELIAD_PYTHON=~/heliad/.venv/bin/python release/replay.sh
+```
 
 ### 5b. Decode-parity report
 

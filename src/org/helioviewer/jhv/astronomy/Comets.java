@@ -3,6 +3,7 @@ package org.helioviewer.jhv.astronomy;
 import java.io.IOException;
 import java.io.Reader;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -186,8 +187,9 @@ public final class Comets {
      * anywhere near the movie. So the catalog now only nominates candidates, and an ephemeris
      * decides, which is the only thing that can.
      *
-     * <p>Costs one Horizons request per candidate plus one for the Sun, so it is bounded by
-     * {@link #MAX_CANDIDATES} and reports progress rather than going quiet for twenty seconds.
+     * <p>Costs one Horizons request per candidate plus one for the Sun and one for SOHO's states
+     * (cached on disk), so it is bounded by {@link #MAX_CANDIDATES} and reports progress rather than
+     * going quiet for twenty seconds.
      */
     public static List<Sighting> search(long start, long end, double fieldRsun, Consumer<String> progress) throws Exception {
         List<Comet> candidates = catalog(start, end);
@@ -199,6 +201,7 @@ public final class Comets {
 
         long step = Math.max(1, (end - start) / 60_000 / SURVEY_SAMPLES);
         String[] sun = rows(ephemerisText("'10'", "'17,20'", start, end, step));
+        CometEphemeris soho = CometEphemeris.fetchBody("-21", "SOHO", start, end, false);
 
         List<Sighting> seen = new ArrayList<>();
         int checked = 0;
@@ -207,7 +210,7 @@ public final class Comets {
             Track track;
             try {
                 track = parse(rows(ephemerisText("'DES=" + comet.designation() + "; CAP;'", "'23,27'", start, end, step)),
-                        sun, comet.designation());
+                        sun, comet.designation(), soho);
             } catch (Exception e) {
                 continue; // catalogued but not integrable by Horizons: it could never be tracked either
             }
@@ -256,8 +259,9 @@ public final class Comets {
      * Sun-to-target radius vector (PsAng), both in the observer's sky and both referred to the
      * celestial north pole. A coronagraph frame is referred to the solar north pole instead, which
      * is why the Sun's own ephemeris is fetched on the same grid: its north-pole position angle
-     * turns PsAng into the angle CACTus and the trackers use, and its range sets the apparent solar
-     * radius that turns an elongation into solar radii.
+     * turns the angle at the Sun ({@link #bearingAtSun}, from PsAng) into the angle CACTus and the
+     * trackers use, and its range sets the apparent solar radius that turns an elongation into
+     * solar radii.
      */
     public static Track ephemeris(Comet comet, long start, long end) throws Exception {
         if (start >= end)
@@ -268,7 +272,8 @@ public final class Comets {
         long step = Math.clamp((end - start) / 60_000 / TRACK_SAMPLES, 1, TRACK_STEP_CEILING);
 
         return parse(rows(ephemerisText("'DES=" + comet.designation + "; CAP;'", "'23,27'", start, end, step)),
-                rows(ephemerisText("'10'", "'17,20'", start, end, step)), comet.designation());
+                rows(ephemerisText("'10'", "'17,20'", start, end, step)), comet.designation(),
+                CometEphemeris.fetchBody("-21", "SOHO", start, end, false));
     }
 
     /**
@@ -276,9 +281,10 @@ public final class Comets {
      * against captured output rather than against the network.
      *
      * <p>The two requests share a time grid, so their rows pair up; a row either side of the pair
-     * that cannot be read is dropped rather than guessed at.
+     * that cannot be read is dropped rather than guessed at, and so is one where {@code soho} (SOHO's
+     * Horizons states, which give the Sun's direction for {@link #bearingAtSun}) has no position.
      */
-    static Track parse(String[] target, String[] sun, String what) throws Exception {
+    static Track parse(String[] target, String[] sun, String what, CometEphemeris soho) throws Exception {
         int len = Math.min(target.length, sun.length);
         if (len == 0)
             throw new Exception("No ephemeris for " + what);
@@ -308,14 +314,71 @@ public final class Comets {
             if (Double.isNaN(elongDeg) || Double.isNaN(psAngDeg) || Double.isNaN(npAngDeg) || Double.isNaN(sunDistAu))
                 continue;
 
-            milli[n] = parseHorizonsTime(tf[0]);
+            long t = parseHorizonsTime(tf[0]);
+            double[] km = soho.eclipticKm(t);
+            if (km == null)
+                continue;
+            milli[n] = t;
             rSun[n] = projectedRadius(elongDeg, sunDistAu);
-            paDeg[n] = ((psAngDeg - npAngDeg) % 360 + 360) % 360;
+            double[] sunDir = unit(Spice.rotate("ECLIPJ2000", "J2000", t, new double[]{-km[0], -km[1], -km[2]}));
+            double atSun = elongDeg < 90 ? bearingAtSun(sunDir, elongDeg, psAngDeg) : psAngDeg;
+            paDeg[n] = ((atSun - npAngDeg) % 360 + 360) % 360;
             n++;
         }
         if (n == 0)
             throw new Exception("Unreadable ephemeris for " + what);
         return new Track(Arrays.copyOf(milli, n), Arrays.copyOf(rSun, n), Arrays.copyOf(paDeg, n));
+    }
+
+    /**
+     * PsAng turned into the position angle at the Sun. Horizons measures PsAng at the comet, from the
+     * celestial north there; NP.ang is measured at the Sun. So the comet is put on the great circle
+     * from the Sun, {@code elongDeg} out, whose bearing at the comet is PsAng (Newton's method on the
+     * bearing at the Sun, from PsAng), and that bearing at the Sun is returned, degrees from celestial
+     * north. Near the Sun the two agree; subtracting NP.ang from PsAng itself put C/2025 R3 66 arcsec
+     * off at 12.8 Rsun, 532 at 23.5 Rsun and about 3.9 degrees at 30 degrees of elongation
+     * (CometTrackAngleCheck). The Sun's
+     * direction must be SOHO's own: Earth's is up to 100 arcsec wrong here (computed, same check).
+     */
+    static double bearingAtSun(double[] sun, double elongDeg, double psAngDeg) {
+        double e = Math.toRadians(elongDeg), psi = Math.toRadians(psAngDeg), phi = psi;
+        for (int k = 0; k < 30; k++) {
+            double f = Math.IEEEremainder(bearingAtTarget(sun, e, phi) - psi, 2 * Math.PI), h = 1e-7;
+            double d = Math.IEEEremainder(bearingAtTarget(sun, e, phi + h) - bearingAtTarget(sun, e, phi), 2 * Math.PI) / h;
+            if (!(Math.abs(d) > 1e-6))
+                return psAngDeg; // degenerate geometry: keep Horizons' angle
+            double step = f / d;
+            phi -= step;
+            if (Math.abs(step) < 1e-12)
+                break;
+        }
+        return Double.isFinite(phi) ? Math.toDegrees(phi) : psAngDeg;
+    }
+
+    /** The bearing, at the point {@code e} from {@code sun} along bearing {@code phi}, of the great circle continued away from the Sun. */
+    private static double bearingAtTarget(double[] sun, double e, double phi) {
+        double[][] ne = northEast(sun);
+        double[] t = new double[3];
+        for (int i = 0; i < 3; i++)
+            t[i] = Math.cos(e) * sun[i] + Math.sin(e) * (Math.cos(phi) * ne[0][i] + Math.sin(phi) * ne[1][i]);
+        double st = dot(sun, t);
+        double[] away = {st * t[0] - sun[0], st * t[1] - sun[1], st * t[2] - sun[2]};
+        double[][] at = northEast(t);
+        return Math.atan2(dot(away, at[1]), dot(away, at[0]));
+    }
+
+    /** Unit north and east at {@code p} on the celestial sphere. */
+    private static double[][] northEast(double[] p) {
+        return new double[][]{unit(new double[]{-p[2] * p[0], -p[2] * p[1], 1 - p[2] * p[2]}), unit(new double[]{-p[1], p[0], 0})};
+    }
+
+    private static double dot(double[] a, double[] b) {
+        return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    }
+
+    private static double[] unit(double[] a) {
+        double l = Math.sqrt(dot(a, a));
+        return new double[]{a[0] / l, a[1] / l, a[2] / l};
     }
 
     /**
@@ -354,7 +417,15 @@ public final class Comets {
     }
 
     private static String ephemerisText(String command, String quantities, long start, long end, long stepMinutes) throws Exception {
-        URI uri = new URI(query(HORIZONS,
+        URI uri = ephemerisUri(command, quantities, start, end, stepMinutes);
+        try (NetClient nc = NetClient.of(uri, true); Reader reader = nc.getReader()) {
+            return CharStreams.toString(reader);
+        }
+    }
+
+    /** The observer-table request from SOHO that {@link #ephemerisText} sends; separate so checks can rebuild it. */
+    static URI ephemerisUri(String command, String quantities, long start, long end, long stepMinutes) throws URISyntaxException {
+        return new URI(query(HORIZONS,
                 "format", "text",
                 "COMMAND", command,
                 "OBJ_DATA", "NO",
@@ -366,9 +437,6 @@ public final class Comets {
                 "STEP_SIZE", "'" + stepMinutes + " m'",
                 "QUANTITIES", quantities,
                 "CSV_FORMAT", "'YES'"));
-        try (NetClient nc = NetClient.of(uri, true); Reader reader = nc.getReader()) {
-            return CharStreams.toString(reader);
-        }
     }
 
     /**

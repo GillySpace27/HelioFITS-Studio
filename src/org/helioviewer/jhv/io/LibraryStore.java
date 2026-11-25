@@ -70,15 +70,67 @@ public final class LibraryStore {
         Map<String, Move> moved = moves().byName();
         String root = lib.root().toAbsolutePath().toString();
         for (String name : cacheNames) {
-            Move m = moved.get(name);
-            if (m != null && m.root().equals(root)) {
-                File f = lib.root().resolve(m.relpath()).toFile();
-                if (f.isFile())
-                    return f;
-            }
+            File f = resolve(lib, root, moved.get(name));
+            if (f != null)
+                return f;
+        }
+        for (String name : cacheNames) { // then what the other installs on this computer moved (read-only)
+            File f = resolve(lib, root, siblingMoves().get(name));
+            if (f != null)
+                return f;
         }
         String url = FitsCoreIngest.provenance(uri);
         return url == null ? null : FitsLibrary.bySource(lib, url);
+    }
+
+    @Nullable
+    private static File resolve(FitsLibrary.Location lib, String root, @Nullable Move m) {
+        if (m == null || !m.root().equals(root))
+            return null;
+        File f = lib.root().resolve(m.relpath()).toFile();
+        return f.isFile() ? f : null;
+    }
+
+    /** Sibling installs' moves, re-read when a file's size or time changes. */
+    private static final Map<Path, Object[]> SIBLING_READ = new ConcurrentHashMap<>();
+
+    private static Map<String, Move> siblingMoves() {
+        Map<String, Move> all = new java.util.HashMap<>();
+        for (Path home : Siblings.homes()) {
+            Path file = home.resolve("FileCache").resolve(MOVES);
+            try {
+                String stamp = Files.size(file) + ":" + Files.getLastModifiedTime(file).toMillis();
+                Object[] cached = SIBLING_READ.get(file);
+                if (cached == null || !cached[0].equals(stamp)) {
+                    cached = new Object[]{stamp, readMoves(file)};
+                    SIBLING_READ.put(file, cached);
+                }
+                @SuppressWarnings("unchecked")
+                Map<String, Move> m = (Map<String, Move>) cached[1];
+                all.putAll(m);
+            } catch (IOException e) {
+                // no such file: that install has moved nothing
+            }
+        }
+        return all;
+    }
+
+    /** Copy the other installs' move lines for this library into this install's own list; how many were new. */
+    public static int importMoves() {
+        FitsLibrary.Location lib = FitsLibrary.find();
+        if (lib == null)
+            return 0;
+        String root = lib.root().toAbsolutePath().toString();
+        Moves own = moves();
+        int added = 0;
+        for (Map.Entry<String, Move> e : siblingMoves().entrySet()) {
+            Move m = e.getValue();
+            if (m.root().equals(root) && !own.byName().containsKey(e.getKey())) {
+                remember(lib.root(), e.getKey(), m.relpath());
+                added++;
+            }
+        }
+        return added;
     }
 
     /**
@@ -155,6 +207,13 @@ public final class LibraryStore {
         Moves m = MOVES_READ.get();
         if (m != null && m.file().equals(file))
             return m;
+        Moves fresh = new Moves(file, readMoves(file));
+        MOVES_READ.set(fresh);
+        return fresh;
+    }
+
+    /** One list of moves; a line that does not parse (a half-written last line, say) is skipped. */
+    private static Map<String, Move> readMoves(Path file) {
         Map<String, Move> byName = new ConcurrentHashMap<>();
         if (Files.isRegularFile(file)) {
             try {
@@ -167,14 +226,13 @@ public final class LibraryStore {
                 Log.warn("Could not read " + file, e);
             }
         }
-        Moves fresh = new Moves(file, byName);
-        MOVES_READ.set(fresh);
-        return fresh;
+        return byName;
     }
 
     /** Forget what was read and tried, for a check that points the cache or the home elsewhere. */
     static void reset() {
         MOVES_READ.set(null);
+        SIBLING_READ.clear();
         AUTO_TRIED.set(false);
     }
 

@@ -12,17 +12,28 @@ for example to find a date without the Moon in PUNCH.
 - **View > Identify Tooltip** also draws the name, its distance and its angle from the Sun beside
   the pointer once it rests (Settings > Identify > Label delay). The label is never recorded.
 - **View > Identify Stars** includes stars (see "Stars" below).
-- **The Identify panel** (right sidebar; the toolbar's More menu has its button) holds the three
-  switches, the pointer tolerance in screen pixels (default 6), the label delay (400 ms), the
-  near-Earth observer uncertainty (7,400 km), light travel time (off), Pluto (on), and the star
-  options (IAU names, Bayer designations, faintest magnitude). Above them it shows what the
-  identifier matched under the pointer and why: for each body the layer, how far the pointer was
-  from the body's centre against the allowed radius (the body's angular radius plus the pointer
-  tolerance, in degrees), its distance, its angle from the Sun and any qualifier; and, for each
-  visible image layer, the observer and frame time the identification used. The last answer stays
-  after the pointer leaves the image (marked as old), **Freeze this result** holds it, **Copy**
-  puts the settings, result and observers on the clipboard as text for a bug report, and **Reset**
-  restores the numbers and finer switches (the three main switches stay as they are).
+- **The Identify panel** (right sidebar; the toolbar's More menu has its button) has the
+  **Identify under cursor** switch at the top with a line saying whether Identify reads the current
+  projection, then four subheadings that fold like any section (the choice is remembered):
+  - **Under the pointer** shows what the identifier matched and why: for each body the layer, how
+    far the pointer was from the body's centre against the allowed radius (the body's angular radius
+    plus the pointer tolerance, in degrees), its distance, its angle from the Sun and any qualifier.
+    The last answer stays after the pointer leaves the image (marked as old), **Freeze this result**
+    holds it, and **Copy** puts the settings, result and observers on the clipboard as text for a
+    bug report. **Observers used** (closed) lists, for each visible image layer, the observer and
+    frame time the identification used.
+  - **What to name**: Pluto, stars and their faintest magnitude, the deep-sky and event datasets
+    and their magnitude limit.
+  - **How it looks**: the label beside the pointer, glow, pulse, Highlight All, the icon colours,
+    and the two planet-marker boxes.
+  - **Advanced** (closed): the pointer tolerance in screen pixels (default 6), the label delay
+    (400 ms), the near-Earth observer uncertainty (7,400 km), light travel time (off), the star name
+    styles (IAU names, Bayer designations) and **Reset**, which restores the numbers and finer
+    switches in one write (the three main switches stay as they are). A number is saved when it has
+    rested for a third of a second, not at every tick of the arrow.
+  - The answer under a pointer that stands still follows the view: when the zoom, warp, crop,
+    orbit or the frame changes, it is asked again at the same pixel on the next drawn frame (not
+    while an object is selected, which is followed by its own rule, or while a result is frozen).
 - **Glow around what is identified** (Identify panel, on) draws a soft glow along the outline of
   the body named under the pointer, and **Pulse when it changes** (on) sends a short ring outward
   from that outline when the pointer reaches a different body. The outline is the body's own
@@ -37,8 +48,8 @@ for example to find a date without the Moon in PUNCH.
 - **Colour the name like its icon** (on): the name beside the pointer is written in the icon's colour, so the planet's name is green when its ring is. Off gives the usual light gray.
 - **Planet symbols instead of rings** draws ☿ ♀ ♁ ☽ ♂ ♃ ♄ ♅ ♆ ♇ at a planet or the Moon in place of its ring (hover and Highlight All). **Always show planet symbols** puts the symbol beside every planet and the Moon in view all the time, with no hover. Both are off by default; identifySet takes `tooltip_by_kind`, `symbols_instead` and `symbols_always`.
 - The **Identify under cursor** box is at the top of the panel. In the readout each name is bold and coloured by kind: Sun amber, planets green, Moon silver, stars white, comets red, CMEs orange, clusters teal, galaxies violet, diffuse nebulae blue (judgement; the colour is darkened or lightened until it reads on the panel). The icon uses the same colours unless **Colour the icon by kind** is off, when it takes the **Icon colour** you pick.
-- **Highlight all named objects in view** draws the icon on every body the imagery shows, every named star (the brightest 120) and every object of the datasets below, as on hover; the hover pulse still plays.
-- **Datasets (optional, off):** comets in the movie's field (JPL SBDB and Horizons for SOHO, the comet tracker's data; needs the network), CMEs (the CACTus events of the event layer, at the constant-speed front the layer draws), open and globular clusters, galaxies, nebulae and supernova remnants (OpenNGC, CC BY-SA 4.0, fetched on first use into the catalogue folder; objects with a Messier number or common name always, others to the magnitude limit, 9 by default). Datasets are not named in the orbited 3D view. identifySet takes `icon_by_kind`, `icon_color`, `highlight_all`, `comets`, `cmes`, `clusters`, `galaxies`, `nebulae`, `deep_sky_max_magnitude`.
+- **Highlight all named objects in view** marks every body the imagery shows, every named star (the brightest 120) and every object of the datasets below, quietly: one thin, dim line (about 1 px, alpha 90) on a ring of at least 4 points, with no halo, pulse or label, and planet symbols at 70 percent size. The object under the pointer gets the full glow, the pulse and the name, and a clicked one keeps the full glow at a steady brightness; either replaces its quiet mark. With **Glow** off the marks stay as thin lines (a reached one keeps its line); Glow no longer makes them loud.
+- **Datasets (optional, off):** comets in the movie's field (JPL SBDB and Horizons for SOHO, the comet tracker's data; needs the network; a comet with a comet layer on is named per image by that layer instead), CMEs (the CACTus events of the event layer, at the constant-speed front the layer draws), open and globular clusters, galaxies, nebulae and supernova remnants (OpenNGC, CC BY-SA 4.0, fetched on first use into the catalogue folder; objects with a Messier number or common name always, others to the magnitude limit, 9 by default). Datasets are not named in the orbited 3D view. identifySet takes `icon_by_kind`, `icon_color`, `highlight_all`, `comets`, `cmes`, `clusters`, `galaxies`, `nebulae`, `deep_sky_max_magnitude`.
 - **Settings > Identify** now only points at the panel.
 
 All defaults are judgements and can be changed. Settings keys start with `identify.`.
@@ -127,7 +138,15 @@ With the identifier on, the footer also names, in every view mode:
   Ejection"). The popup stays the event's label; the identifier adds no second one.
 - **The tracked comet** (Track comet panel) where its track puts it at the current time, while
   the tracker follows it. The track is SOHO's view (Comets), so it is placed on the plane of sky
-  and seen from the first visible layer's observer.
+  and seen from the first visible layer's observer. A comet that also has a comet layer on is
+  left to that layer, so it is never placed twice.
+- **Comet layers** (Show in scene): each ring is named under the pointer as "comet, as <image>
+  saw it", and the dot in the Orthographic view as "comet, true position". When rings of several
+  images overlap (C2 and C3), the first image is named (the active layer first), so the name
+  does not flip as the comet moves. Hovering or selecting any ring or the dot lights every ring of that comet,
+  in the comet's colour, and the dot gets a halo (never in a recording). A selection is held per
+  comet, not per image, so it stays when the comet passes from C2 into C3. Highlight All adds no
+  copy of these comets (CometMarks).
 - **FOV outlines** (the FOV layer) the pointer is inside, as "AIA & HMI (Earth orbit)": the sight
   line from each platform's observer onto its plane of sky, against the outline as drawn, Solar
   Orbiter rolled by its attitude.

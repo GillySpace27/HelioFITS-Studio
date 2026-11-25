@@ -9,6 +9,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import javax.annotation.Nullable;
 import javax.swing.Timer;
 
+import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.display.MapView;
 import org.helioviewer.jhv.display.Viewport;
@@ -41,6 +42,9 @@ public final class IdentifyHover {
     private final Timer dwell;
     private boolean labelShown;
     private int mouseX, mouseY;
+    /** Whether the pointer is on the canvas, and what the view was (at the pointer) when it last answered. */
+    private boolean pointerOn;
+    private String viewKey = "";
     private List<Identifier.Match> last = List.of();
     private List<Drawn.Hit> lastDrawn = List.of();
     private Snapshot kept = Snapshot.NONE;
@@ -72,6 +76,7 @@ public final class IdentifyHover {
         dwell.setRepeats(false);
         Drawn.register(DeepSky.source());
         Drawn.register(CometSky.source());
+        Drawn.register(CometMarks.source()); // a comet a layer draws: its rings and dot (CometSky leaves those to it)
         IdentifySettings.addListener(() -> {
             if (!IdentifySettings.enabled() || !IdentifySettings.tooltip())
                 INSTANCE.clear();
@@ -181,11 +186,12 @@ public final class IdentifyHover {
         return out;
     }
 
+    /** The drawn objects' keys, a comet's rings in different images counting as one (its family), so the chosen image may change. */
     private static Set<String> drawnKeys(List<Drawn.Hit> drawn) {
         Set<String> out = new HashSet<>();
         for (Drawn.Hit h : drawn)
             if (h.mark() != null)
-                out.add(h.mark().key());
+                out.add(CometMarks.family(h.mark()));
         return out;
     }
 
@@ -240,7 +246,7 @@ public final class IdentifyHover {
                 matches.add(m);
         List<Drawn.Hit> drawn = new ArrayList<>();
         for (Drawn.Hit h : Drawn.at(vp, mv, x, y, options.tolerancePixels()))
-            if (h.mark() != null && selDrawn.contains(h.mark().key()))
+            if (h.mark() != null && selDrawn.contains(CometMarks.family(h.mark())))
                 drawn.add(h);
         if (matches.isEmpty() && drawn.isEmpty())
             return;
@@ -277,19 +283,76 @@ public final class IdentifyHover {
         return INSTANCE.last;
     }
 
+    /**
+     * Once per frame: when the view changed under a pointer that has not moved (a warp, crop or
+     * zoom, an orbit, the movie playing), asks again at the last pointer position, so the name,
+     * the glow and the panel follow what is now under it. Cheap when nothing changed: one probe at
+     * the pointer, compared with the one that gave the last answer. Not while an object is selected
+     * (that is {@link #follow}) or a result is frozen.
+     */
+    public static void refresh(Viewport vp, MapView mv) {
+        INSTANCE.refresh(vp, mv, targets(vp, mv));
+    }
+
+    void refresh(Viewport vp, MapView mv, List<Identifier.Target> targets) {
+        if (!pointerOn || frozen || selected() || !IdentifySettings.enabled())
+            return;
+        String key = viewKey(vp, mv, targets, mouseX, mouseY);
+        if (key.equals(viewKey))
+            return;
+        viewKey = key;
+        Identifier.Options options = Identifier.Options.fromSettings();
+        List<Identifier.Match> matches = identify(vp, mv, mouseX, mouseY, options, targets);
+        List<Drawn.Hit> drawn = Drawn.at(vp, mv, mouseX, mouseY, options.tolerancePixels());
+        if (IdentifyGlow.key(matches, drawn).equals(IdentifyGlow.key(last, lastDrawn))) {
+            // The same objects: bring their numbers up to date without hiding a label that is showing
+            boolean shown = labelShown;
+            last = matches;
+            lastDrawn = drawn;
+            keep(matches, drawn);
+            if (!label.isEmpty()) {
+                label.clear();
+                labelColours.clear();
+                lastText = describe(matches, drawn);
+                labelShown = shown;
+                if (shown)
+                    DisplayController.display();
+            }
+            return;
+        }
+        apply(matches, drawn, mouseX, mouseY);
+    }
+
+    /** What the view looks like at the pointer: the sight line it gives the first layer, and the time of that layer. */
+    private static String viewKey(Viewport vp, MapView mv, List<Identifier.Target> targets, int x, int y) {
+        Identifier.Target first = targets.getFirst();
+        Identifier.Probe p = Probes.at(mv, vp, x, y);
+        Vec3 d = p == null ? null : p.direction(first.observer());
+        return targets.size() + "|" + first.observer().time.milli + "|" + (d == null ? "off" : d.x + "," + d.y + "," + d.z);
+    }
+
     @Nullable
     private String update(Viewport vp, MapView mv, int x, int y) {
         if (!IdentifySettings.enabled()) {
             clear();
             return null;
         }
+        pointerOn = true;
         if (selected() && lastText != null)
             return lastText; // a selected object owns the readout; follow() keeps it current
         if (frozen && lastText != null && (!last.isEmpty() || !lastDrawn.isEmpty()))
             return lastText; // a frozen result holds the glow, the label and the footer where they are
         Identifier.Options options = Identifier.Options.fromSettings();
-        List<Identifier.Match> matches = identify(vp, mv, x, y, options);
+        List<Identifier.Target> targets = targets(vp, mv);
+        List<Identifier.Match> matches = identify(vp, mv, x, y, options, targets);
         List<Drawn.Hit> drawn = Drawn.at(vp, mv, x, y, options.tolerancePixels());
+        viewKey = viewKey(vp, mv, targets, x, y);
+        return apply(matches, drawn, x, y);
+    }
+
+    /** Makes (matches, drawn) at (x, y) the answer: the glow, the label's dwell, and the footer text, which it returns (null for nothing). */
+    @Nullable
+    private String apply(List<Identifier.Match> matches, List<Drawn.Hit> drawn, int x, int y) {
         last = matches;
         lastDrawn = drawn;
         keep(matches, drawn);
@@ -326,10 +389,12 @@ public final class IdentifyHover {
                 sb.append(", ");
             sb.append(m.label());
             label.add(m.label());
-            label.add(details(m));
             float[] c = tint(Kind.of(m.body()));
             labelColours.add(c);
-            labelColours.add(c);
+            if (IdentifySettings.tooltipDetails()) {
+                label.add(details(m));
+                labelColours.add(c);
+            }
         }
         for (Drawn.Hit h : drawn) {
             if (!sb.isEmpty())
@@ -338,10 +403,12 @@ public final class IdentifyHover {
             if (Drawn.labelledElsewhere(h))
                 continue; // the orbit plot and the event popup label their own
             label.add(h.name());
-            label.add(h.details());
             float[] c = h.mark() == null ? null : tint(h.mark().kind());
             labelColours.add(c);
-            labelColours.add(c);
+            if (IdentifySettings.tooltipDetails()) {
+                label.add(h.details());
+                labelColours.add(c);
+            }
         }
         return sb.toString();
     }
@@ -399,17 +466,34 @@ public final class IdentifyHover {
         return out;
     }
 
-    /** The visible image layers, each with its own observer, or the display viewpoint when there are none. */
+    /**
+     * The visible image layers, each with its own observer, or the display viewpoint when there are
+     * none. The active image layer comes first: its observer is the frame stars and the other marks
+     * at infinity are placed in (the Stars overlay, the star and deep-sky hover and rings alike).
+     */
     public static List<Identifier.Target> targets(Viewport vp, MapView mv) {
+        return targets(vp, mv.viewpoint());
+    }
+
+    /** The frame stars and the other marks at infinity are placed in: the first of {@link #targets}'s observers. */
+    public static Position frameObserver(Viewport vp, Position viewpoint) {
+        return targets(vp, viewpoint).getFirst().observer();
+    }
+
+    private static List<Identifier.Target> targets(Viewport vp, Position viewpoint) {
         List<Identifier.Target> out = new ArrayList<>();
+        ImageLayer active = Layers.getActiveImageLayer();
         for (ImageLayer layer : Layers.getImageLayers()) {
             View.ImageData data = layer.getImageData();
             if (data == null || !layer.isVisible(vp.idx))
                 continue;
-            out.add(target(layer.getName(), data));
+            if (layer == active)
+                out.add(0, target(layer.getName(), data));
+            else
+                out.add(target(layer.getName(), data));
         }
         if (out.isEmpty())
-            out.add(Identifier.Target.viewpoint(mv.viewpoint()));
+            out.add(Identifier.Target.viewpoint(viewpoint));
         return out;
     }
 
@@ -419,6 +503,7 @@ public final class IdentifyHover {
     }
 
     private void clear() {
+        pointerOn = false;
         if ((frozen || selected()) && IdentifySettings.enabled() && (!last.isEmpty() || !lastDrawn.isEmpty()))
             return; // leaving the canvas does not drop a frozen or selected result
         selMarks = List.of();

@@ -605,6 +605,96 @@
         "type": "object",
         "properties": {}
       },
+      "name": "toggleGrid",
+      "description": "Turn the grid on or off: the master switch of the Grid row (G on the canvas)",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "x-effect": "write"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "toggleTracking",
+      "description": "Track solar rotation as the movie plays: the toolbar's Track button",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "x-effect": "write"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "toggleDiffRotation",
+      "description": "The toolbar's Differential button",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "x-effect": "write"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "toggleCorona",
+      "description": "Show the off-disk corona or only the disk: the toolbar's Corona button",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "x-effect": "write"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
+      "name": "toggleMultiview",
+      "description": "Each shown image layer in a view of its own: the toolbar's Multiview button",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": false
+      },
+      "x-effect": "write"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
       "name": "newJp2Layer",
       "description": "New Image Layer\u2026",
       "annotations": {
@@ -3039,11 +3129,22 @@
           },
           "light_time": {"type": "boolean"},
           "tooltip": {"type": "boolean"},
+          "comet_glyph": {"type": "boolean"},
           "enabled": {"type": "boolean"},
           "symbols_always": {"type": "boolean"},
           "symbols_instead": {"type": "boolean"},
           "icon_by_kind": {"type": "boolean"},
           "star_names_bayer": {"type": "boolean"},
+          "bold_shadow": {
+            "maximum": 1,
+            "type": "number",
+            "minimum": 0
+          },
+          "bold_width": {
+            "maximum": 4,
+            "type": "number",
+            "minimum": 0.5
+          },
           "clusters": {"type": "boolean"},
           "tooltip_by_kind": {"type": "boolean"},
           "nebulae": {"type": "boolean"},
@@ -3063,7 +3164,21 @@
             "type": "integer",
             "minimum": 0
           },
+          "tooltip_details": {
+            "description": "the label's second line",
+            "type": "boolean"
+          },
           "pulse": {"type": "boolean"},
+          "bold_opacity": {
+            "maximum": 3,
+            "type": "number",
+            "minimum": 0.25
+          },
+          "bold_saturation": {
+            "maximum": 2,
+            "type": "number",
+            "minimum": 0
+          },
           "deep_sky_max_magnitude": {"type": "number"},
           "comets": {"type": "boolean"},
           "star_names_iau": {"type": "boolean"},

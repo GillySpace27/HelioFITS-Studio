@@ -38,13 +38,13 @@ final class ToolbarOrder {
      * an id here when the tool is introduced; remove it once nobody is running a build older than
      * that.
      */
-    private static final java.util.Set<String> SEED_ONCE = java.util.Set.of("timelines", "sidebarLeft", "sidebarRight", "trackCme", "undo", "redo", "compare", "pizza", "identify");
+    private static final java.util.Set<String> SEED_ONCE = java.util.Set.of("timelines", "sidebarLeft", "sidebarRight", "trackCme", "undo", "redo", "compare", "pizza", "identify", "viewFromEarth");
 
     static final String DEFAULT_ORDER = String.join("|",
             "present", SEPARATOR,
             "undo", "redo", SEPARATOR,
             "zoomIn", "zoomOut", "zoomFit", "zoomOne", SEPARATOR,
-            "resetCamera", "resetAxis", "rotate90", SEPARATOR,
+            "resetCamera", "resetAxis", "rotate90", "viewFromEarth", SEPARATOR,
             "pan", "rotate", "axis", SEPARATOR,
             "track", "diffRotation", "corona", "multiview", "sidebarLeft", "timelines", "sidebarRight", SEPARATOR,
             MORE_DIVIDER,

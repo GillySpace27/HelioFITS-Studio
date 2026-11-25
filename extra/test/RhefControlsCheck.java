@@ -95,6 +95,10 @@ public final class RhefControlsCheck {
             ImageFilterPanel panel = new ImageFilterPanel(layer);
             var button = panel.upsilonButton;
 
+            // The filter is the hero of the Intensity section (Gilly, 2026-11-19): its title carries the funnel and names the combo.
+            expect("the Filter title carries a glyph and labels the filter combo", panel.getFirst() instanceof JLabel t
+                    && t.getIcon() != null && t.getLabelFor() instanceof JComboBox);
+
             expect("off RHEF the Υ button is still shown", button.isVisible());
             expect("but greyed", !button.isEnabled());
             List<JButton> halves = all(button, JButton.class);

@@ -10,6 +10,7 @@ import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.math.FastFormat;
 import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.opengl.BufVertex;
+import org.helioviewer.jhv.opengl.FOVShape;
 
 import org.json.JSONObject;
 
@@ -67,7 +68,7 @@ final class AnnotateLoop extends AbstractAnnotateable {
     @Override
     public void draw(MapView mv, Viewport vp, BufVertex vexBuf) {
         boolean dragged = beingDragged();
-        if ((startPoint == null || endPoint == null) && !dragged)
+        if (sky || ((startPoint == null || endPoint == null) && !dragged))
             return;
 
         byte[] color = color(dragged);
@@ -85,7 +86,39 @@ final class AnnotateLoop extends AbstractAnnotateable {
 
     @Override
     protected Vec3 computeDragPoint(Viewport vp, int x, int y) {
-        return mouseToSurface(vp, x, y);
+        return surfaceOrSky(vp, x, y);
+    }
+
+    // Off the disk: a semicircle in the plane of the sky whose feet are the two points, bulging
+    // away from the Sun. No height readout: a plane-of-sky arc has no height above the surface.
+    @Override
+    public void drawTransformed(MapView mv, double lineThickness, BufVertex lineBuf, BufVertex centerBuf) {
+        boolean dragged = beingDragged();
+        if (!sky || ((startPoint == null || endPoint == null) && !dragged))
+            return;
+
+        byte[] color = color(dragged);
+        Vec3 p0 = dragged ? dragStartPoint : startPoint;
+        Vec3 p1 = dragged ? dragEndPoint : endPoint;
+        double cx = 0.5 * (p0.x + p1.x), cy = 0.5 * (p0.y + p1.y);
+        double ux = 0.5 * (p0.x - p1.x), uy = 0.5 * (p0.y - p1.y);
+        double vx = -uy, vy = ux; // perpendicular, the same length
+        if (vx * cx + vy * cy < 0) {
+            vx = -vx;
+            vy = -vy;
+        }
+        boolean flat = mv.isHpc();
+        for (int i = 0; i <= SUBDIVISIONS; i++) {
+            double t = i * Math.PI / SUBDIVISIONS;
+            double x = cx + Math.cos(t) * ux + Math.sin(t) * vx;
+            double y = cy + Math.cos(t) * uy + Math.sin(t) * vy;
+            double z = FOVShape.computeZ(x, y, flat, lineThickness);
+            if (i == 0)
+                lineBuf.startLine((float) x, (float) y, (float) z, 1, color);
+            else
+                lineBuf.putVertex((float) x, (float) y, (float) z, 1, color);
+        }
+        lineBuf.endLine();
     }
 
     @Nullable

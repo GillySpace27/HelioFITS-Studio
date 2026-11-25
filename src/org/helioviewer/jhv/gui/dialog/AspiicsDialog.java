@@ -27,6 +27,7 @@ import javax.swing.ButtonGroup;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
@@ -36,6 +37,9 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
+import javax.swing.JTextField;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 
 import org.helioviewer.jhv.app.Commands;
 import org.helioviewer.jhv.gui.ComponentUtils;
@@ -89,12 +93,15 @@ public class AspiicsDialog extends StandardDialog {
             new JRadioButton("fe"),
             new JRadioButton("he"),
             new JRadioButton("pb"),
-            new JRadioButton("pa")
+            new JRadioButton("pa"),
+            new JRadioButton(ProductVariants.ALL_PRODUCTS)
     };
+    private final JTextField filterField = new JTextField(16);
+    private final JCheckBox excludeBox = new JCheckBox("Exclude");
     private final JComboBox<Cadence> cadenceCombo = new JComboBox<>(CADENCES);
     // One product can come back as more than one kind of file (Sarah Gibson, pB). A kind is what is
     // left of the file name once product, time stamps and extension are gone (ProductVariants);
-    // "" shows every kind. The kind with the most frames is preselected.
+    // ALL_KINDS shows every kind and "" only the files with no suffix. The kind with the most frames is preselected.
     private final JComboBox<String> kindCombo = new JComboBox<>();
     private boolean settingKinds;
     private Map<String, Integer> kindCounts = Map.of();
@@ -216,8 +223,8 @@ public class AspiicsDialog extends StandardDialog {
         kindCombo.setRenderer(new DefaultListCellRenderer() {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
-                String kind = value instanceof String s ? s : "";
-                String text = kind.isEmpty() ? "all kinds" : kindLabel(kind) + " (" + kindCounts.getOrDefault(kind, 0) + " frames)";
+                String kind = value instanceof String s ? s : ProductVariants.ALL_KINDS;
+                String text = ProductVariants.ALL_KINDS.equals(kind) ? "all kinds" : kindLabel(kind) + " (" + kindCounts.getOrDefault(kind, 0) + " frames)";
                 return super.getListCellRendererComponent(list, text, index, isSelected, cellHasFocus);
             }
         });
@@ -226,7 +233,35 @@ public class AspiicsDialog extends StandardDialog {
                 showProducts();
         });
         queryPanel.add(kindCombo, gc);
+
+        gc.gridx = 0;
+        gc.gridy = 4;
+        queryPanel.add(new JLabel("Name"), gc);
+        JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 5, 0));
+        filterField.setToolTipText("Keep only the files whose name contains this text, or with Exclude drop them; not case sensitive. Works for any product or release, e.g. v03 or merged.");
+        filterPanel.add(filterField);
+        filterPanel.add(excludeBox);
+        gc.gridx = 1;
+        gc.gridwidth = 4;
+        queryPanel.add(filterPanel, gc);
         gc.gridwidth = 1;
+        filterField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                showProducts();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                showProducts();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                showProducts();
+            }
+        });
+        excludeBox.addActionListener(e -> showProducts());
 
         listPane.setCellRenderer(new DefaultListCellRenderer() {
             @Override
@@ -387,6 +422,8 @@ public class AspiicsDialog extends StandardDialog {
         jp2Button.setEnabled(enabled);
         setEnabled(productButtons, enabled);
         cadenceCombo.setEnabled(enabled);
+        filterField.setEnabled(enabled);
+        excludeBox.setEnabled(enabled);
         kindCombo.setEnabled(enabled && kindCounts.size() > 1);
         searchButton.setEnabled(enabled && orbitCombo.getSelectedItem() != null);
         addButton.setEnabled(enabled && listPane.getSelectedIndex() >= 0);
@@ -395,9 +432,9 @@ public class AspiicsDialog extends StandardDialog {
     // A new product or a new result: recount its kinds and preselect the one with the most frames.
     private void updateProductList() {
         String type = selectedProductType();
-        kindCounts = ProductVariants.countKinds(products.stream().filter(d -> type.equals(productType(d))).toList());
+        kindCounts = ProductVariants.countKinds(products.stream().filter(d -> ProductVariants.productMatches(type, productType(d))).toList());
         List<String> kinds = new ArrayList<>();
-        kinds.add("");
+        kinds.add(ProductVariants.ALL_KINDS);
         if (kindCounts.size() > 1)
             kinds.addAll(kindCounts.keySet());
         settingKinds = true;
@@ -414,10 +451,11 @@ public class AspiicsDialog extends StandardDialog {
 
     private void showProducts() {
         String type = selectedProductType();
-        String kind = kindCombo.getSelectedItem() instanceof String k ? k : "";
+        String kind = kindCombo.getSelectedItem() instanceof String k ? k : ProductVariants.ALL_KINDS;
         List<String> matching = products.stream()
-                .filter(datalocation -> type.equals(productType(datalocation)))
-                .filter(datalocation -> kind.isEmpty() || kind.equals(ProductVariants.aspiicsKind(datalocation)))
+                .filter(datalocation -> ProductVariants.productMatches(type, productType(datalocation)))
+                .filter(datalocation -> ProductVariants.nameMatches(filterField.getText(), excludeBox.isSelected(), datalocation))
+                .filter(datalocation -> ProductVariants.kindMatches(kind, datalocation))
                 .sorted(Comparator.comparingLong(AspiicsDialog::timeOf))
                 .toList();
         List<String> shown = thin(matching, selectedCadence());
@@ -473,7 +511,7 @@ public class AspiicsDialog extends StandardDialog {
         products = List.of();
         kindCounts = Map.of();
         settingKinds = true;
-        kindCombo.setModel(new DefaultComboBoxModel<>(new String[]{""}));
+        kindCombo.setModel(new DefaultComboBoxModel<>(new String[]{ProductVariants.ALL_KINDS}));
         settingKinds = false;
         listPane.setListData(new String[0]);
         foundLabel.setText(status);

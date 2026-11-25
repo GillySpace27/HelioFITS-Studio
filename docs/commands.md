@@ -48,7 +48,7 @@ command, and when a call is not refused for a bad argument. Ids are API: never r
 
 ## Data commands
 
-`DataCommands` (`gui/registry/`) holds the commands a notebook, the `heliofits` Python package or the
+`DataCommands` (`gui/registry/`) holds the commands a notebook, the `pyheliofits` Python package or the
 `heliofits-mcp` server needs to do a task rather than press a menu item. They are registered like
 any other parameterised command, so `docs/commands.json` carries their schemas and the Python side
 reads that file; the Java registry is the source, the Python package follows it.

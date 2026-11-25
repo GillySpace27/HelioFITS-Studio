@@ -30,6 +30,7 @@ set -euo pipefail
 
 REPO=GillySpace27/HelioFITS-Studio
 SITE_REPO=GillySpace27/GillySpace27.github.io
+TAP_REPO=GillySpace27/homebrew-tap
 HOME_DIR="${HFS_RELEASE_HOME:-$HOME/hfs-release}"
 FEED_URL=https://gilly.space/heliosoftware/feed/heliofits-studio.json
 
@@ -100,6 +101,7 @@ except ImportError:
     import heliofits_core.parity' >/dev/null 2>&1 \
         || die "parity needs a Python with sunpy, astropy and the core: set HELIAD_PYTHON (now: $PY)"
     [ -d "$HOME/HeliadLibrary" ] || die "parity needs ~/HeliadLibrary"
+    "$PY" -c 'import pytest, numpy' >/dev/null 2>&1 || die "the replay gate needs pytest and numpy in $PY"
     pgrep -fq 'HelioFITS Studio|HFStudio' && die "quit every running HelioFITS Studio first (JPIP cache lock; smoke test)"
     # A resume past publish finds the release it made; only a run that has not published must not.
     if ! grep -qsx publish "$STATE" && gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
@@ -164,6 +166,13 @@ parity() {
         --version "$V" --manifest release/parity-manifest.json || fail "parity report does not vouch for this jar"
 }
 
+# ---- 5c. replay gate: the pinned Core's golden set still reproduces its pixel digests -----------------------
+replay() {
+    cd "$CLONE"
+    HELIAD_DIR="${HELIAD_DIR:-$(dirname "$(dirname "$(dirname "$PY")")")}" HELIAD_PYTHON="$PY" release/replay.sh \
+        || fail "replay gate failed: the Core pinned in release/fits-core.txt does not reproduce its golden set"
+}
+
 # ---- 6. gate (dry run, strict guide, smoke) ------------------------------------------------------------------
 gate() { cd "$CLONE"; approvals; release/ship.sh gate; }
 
@@ -199,6 +208,22 @@ site() {
         sleep 15
     done
     gh pr merge "$_pr" --repo "$SITE_REPO" --squash
+}
+
+# ---- 8b. Homebrew tap (optional): HFS_TAP_DIR is a clone of the tap repo; unset skips it -------------------
+tap() {
+    # Rules (RELEASING.md, "Homebrew tap"): the tap is GillySpace27/homebrew-tap; a release always updates it.
+    # HFS_TAP_DIR names a clone to use; unset means a fresh clone in $HOME_DIR/tap-$V; "skip" is the only way
+    # to leave it out, and it is said out loud. A failure here stops the run, so the tap cannot go stale quietly.
+    [ "${HFS_TAP_DIR:-}" = skip ] && { echo "   (HFS_TAP_DIR=skip: the Homebrew tap is NOT updated; do it by hand)"; return 0; }
+    _tap="${HFS_TAP_DIR:-$HOME_DIR/tap-$V}"
+    [ -d "$_tap/.git" ] || gh repo clone "$TAP_REPO" "$_tap" -- -q || fail "cannot clone $TAP_REPO"
+    git -C "$_tap" pull -q --ff-only origin main || fail "the tap clone $_tap does not fast-forward"
+    ( cd "$CLONE" && python3 release/homebrew/bump_cask.py "$_tap/Casks/hfstudio.rb" "$V" ) || fail "bump_cask.py failed"
+    cd "$_tap"
+    git diff --quiet || { git commit -qam "hfstudio $V" && git push -q origin HEAD || fail "push to $TAP_REPO failed"; }
+    curl -fsS "https://raw.githubusercontent.com/$TAP_REPO/main/Casks/hfstudio.rb" | grep -q "version \"$V\"" \
+        || fail "$TAP_REPO does not serve a cask at $V"
 }
 
 # ---- 9. verify what the world sees -------------------------------------------------------------------------
@@ -237,8 +262,10 @@ fi
 step clone fresh_clone
 step build build
 step parity parity
+step replay replay
 step gate gate
 step publish publish
 step packages packages
 step site site
+step tap tap
 step verify verify

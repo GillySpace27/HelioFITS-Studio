@@ -31,7 +31,7 @@ When on, Studio listens on 127.0.0.1 at a port the system picks and writes `~/HF
 The file is readable by this user only where the file system can say so (POSIX mode 600); on
 Windows the home folder's own permissions apply. The token is new each run and the file is removed
 when the API is switched off or Studio quits, so a client reads the file each time it is refused.
-The `heliofits` package also honours `HFSTUDIO_API=<path>` for a file elsewhere.
+The `pyheliofits` package also honours `HFSTUDIO_API=<path>` for a file elsewhere.
 
 ## Who is calling, and what Studio shows
 

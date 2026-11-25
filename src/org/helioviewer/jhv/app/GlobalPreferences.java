@@ -332,7 +332,9 @@ public final class GlobalPreferences {
             Map.entry("display.uiScale", new double[]{0.25, 5}), Map.entry("display.textScale", new double[]{0.25, 5}),
             Map.entry("display.headingScale", new double[]{0.25, 5}), Map.entry("display.detailScale", new double[]{0.25, 5}),
             Map.entry("display.bodyScale", new double[]{0.25, 5}), Map.entry("api.glowLingerSeconds", new double[]{0, 600}),
-            Map.entry("canvasKeys.degreesPerSecond", new double[]{1, 720}), Map.entry("identify.tolerancePixels", new double[]{0, 200}),
+            Map.entry("canvasKeys.degreesPerSecond", new double[]{1, 720}), Map.entry("canvasKeys.panPixelsPerSecond", new double[]{1, 5000}),
+            Map.entry("canvasKeys.panFastFactor", new double[]{1, 100}), Map.entry("canvasKeys.panFineFactor", new double[]{0.01, 1}),
+            Map.entry("canvasKeys.panRampSeconds", new double[]{0, 10}), Map.entry("identify.tolerancePixels", new double[]{0, 200}),
             Map.entry("identify.tooltipDwellMillis", new double[]{0, 10_000}), Map.entry("identify.stars.maxMagnitude", new double[]{-2, 30}));
 
     /**
@@ -347,7 +349,8 @@ public final class GlobalPreferences {
             String v = value.strip();
             return v.isEmpty() || v.equals("none") || keystroke(v) ? null : "'" + value + "' is not a keystroke";
         }
-        if (key.startsWith("canvasKeys.") && !key.equals("canvasKeys.invert") && !key.equals("canvasKeys.degreesPerSecond")) {
+        if (key.startsWith("canvasKeys.") && !key.equals("canvasKeys.invert") && !key.equals("canvasKeys.degreesPerSecond")
+                && !key.startsWith("canvasKeys.pan") && !key.equals("canvasKeys.toolMomentary")) {
             String v = value.strip();
             return v.isEmpty() || v.equals("none") || KeyBindings.keyCode(v) != 0 ? null : "'" + value + "' is not a key name";
         }

@@ -40,22 +40,46 @@ public final class CanvasKeysCheck {
         Platform.init();
         org.helioviewer.jhv.io.Directories.SETTINGS.getFile().mkdirs();
 
+        org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.PREFIX + "canvasZoomIn", "DOWN");
+        org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.PREFIX + "canvasZoomOut", "UP");
+        expect("a zoom key stored on Up or Down is dropped, so [ zooms in and ] out",
+                CanvasKeys.key("canvasZoomIn") == KeyEvent.VK_OPEN_BRACKET && CanvasKeys.key("canvasZoomOut") == KeyEvent.VK_CLOSE_BRACKET);
+
         Set<Integer> seen = new LinkedHashSet<>();
         boolean distinct = true;
         for (CanvasKeys.Cmd c : CanvasKeys.ALL)
             distinct &= seen.add(CanvasKeys.key(c.id()));
-        expect("every canvas key starts on its own key", distinct && CanvasKeys.ALL.size() == 11);
-        expect("W S A D Q E turn; Up and Down zoom; R resets; Cmd+Right and Cmd+Left set the rate",
+        expect("T turns Render in 3D on or off; 1 to 5 pick the projections in the palette's order",
+                CanvasKeys.key("canvasToggle3D") == KeyEvent.VK_T && CanvasKeys.key("canvasProjection1") == KeyEvent.VK_1
+                        && CanvasKeys.key("canvasProjection5") == KeyEvent.VK_5
+                        && org.helioviewer.jhv.app.Commands.listedProjections().size() == 5
+                        && org.helioviewer.jhv.app.Commands.listedProjections().get(2) == org.helioviewer.jhv.display.MapMode.Helioradial);
+        expect("every canvas key starts on its own key", distinct && CanvasKeys.ALL.size() == 28 && CanvasKeys.key("canvasToggleTool") == KeyEvent.VK_M);
+        expect("W S A D Q E turn; [ and ] zoom; G the grid; R resets; Cmd+Right and Cmd+Left set the rate",
                 CanvasKeys.key("canvasPitchUp") == KeyEvent.VK_W && CanvasKeys.key("canvasYawRight") == KeyEvent.VK_D
-                        && CanvasKeys.key("canvasRollLeft") == KeyEvent.VK_Q && CanvasKeys.key("canvasZoomIn") == KeyEvent.VK_UP && CanvasKeys.key("canvasZoomOut") == KeyEvent.VK_DOWN
+                        && CanvasKeys.key("canvasRollLeft") == KeyEvent.VK_Q && CanvasKeys.key("canvasZoomIn") == KeyEvent.VK_OPEN_BRACKET && CanvasKeys.key("canvasZoomOut") == KeyEvent.VK_CLOSE_BRACKET
+                        && CanvasKeys.key("canvasToggleGrid") == KeyEvent.VK_G
+                        && CanvasKeys.key("canvasTrimStart") == KeyEvent.VK_I && CanvasKeys.key("canvasTrimEnd") == KeyEvent.VK_O
+                        && CanvasKeys.key("canvasFirstFrame") == KeyEvent.VK_HOME && CanvasKeys.key("canvasLastFrame") == KeyEvent.VK_END
                         && CanvasKeys.key("canvasResetView") == KeyEvent.VK_R && CanvasKeys.key("canvasFasterPlayback") == KeyEvent.VK_RIGHT
                         && CanvasKeys.key("canvasSlowerPlayback") == KeyEvent.VK_LEFT);
 
         expect("a key already on another canvas command is refused", CanvasKeys.set("canvasPitchUp", KeyEvent.VK_S) != null);
         expect("so is one the canvas already uses (Space, the arrows, X)", CanvasKeys.set("canvasPitchUp", KeyEvent.VK_SPACE) != null
                 && CanvasKeys.set("canvasPitchUp", KeyEvent.VK_LEFT) != null && CanvasKeys.set("canvasPitchUp", KeyEvent.VK_X) != null);
-        expect("a free key is accepted and then drives the command", CanvasKeys.set("canvasPitchUp", KeyEvent.VK_I) == null
-                && CanvasKeys.key("canvasPitchUp") == KeyEvent.VK_I && CanvasKeys.command(KeyEvent.VK_I).id().equals("canvasPitchUp")
+        expect("and the shuttle's J, K and L, which work in the whole window", CanvasKeys.set("canvasPitchUp", KeyEvent.VK_J) != null
+                && CanvasKeys.set("canvasPitchUp", KeyEvent.VK_K) != null && CanvasKeys.set("canvasPitchUp", KeyEvent.VK_L) != null
+                && CanvasKeys.key("canvasPitchUp") == KeyEvent.VK_W);
+
+        // A key a person gave one command before a later default took it: theirs wins, the new command starts unbound
+        org.helioviewer.jhv.app.Settings.setProperty(CanvasKeys.PREFIX + "canvasPitchUp", "G");
+        expect("a stored G keeps Pitch Up and leaves Show or Hide Grid unbound", CanvasKeys.key("canvasPitchUp") == KeyEvent.VK_G
+                && CanvasKeys.key("canvasToggleGrid") == -1 && CanvasKeys.command(KeyEvent.VK_G).id().equals("canvasPitchUp"));
+        CanvasKeys.reset("canvasPitchUp");
+        expect("reset gives G back to the grid", CanvasKeys.key("canvasToggleGrid") == KeyEvent.VK_G
+                && CanvasKeys.command(KeyEvent.VK_G).id().equals("canvasToggleGrid"));
+        expect("a free key is accepted and then drives the command", CanvasKeys.set("canvasPitchUp", KeyEvent.VK_H) == null
+                && CanvasKeys.key("canvasPitchUp") == KeyEvent.VK_H && CanvasKeys.command(KeyEvent.VK_H).id().equals("canvasPitchUp")
                 && CanvasKeys.command(KeyEvent.VK_W) == null && CanvasKeys.isCustom("canvasPitchUp"));
         expect("none unbinds it", CanvasKeys.set("canvasPitchUp", -1) == null && CanvasKeys.key("canvasPitchUp") == -1);
         CanvasKeys.reset("canvasPitchUp");
@@ -84,16 +108,36 @@ public final class CanvasKeysCheck {
         double zout = CanvasKeys.zoomFactor(Set.of("canvasZoomOut"), step);
         expect("Up zooms in, Down out, by inverse factors", zin > 1 && zout < 1 && Math.abs(zin * zout - 1) < 1e-12);
         expect("zoom runs at half the turn rate (e-folds per radian of turn)", Math.abs(Math.log(zin) - 0.5 * step) < 1e-12);
+        expect("pan ramp: none is full rate, a ramp starts low and reaches full",
+                CanvasKeys.rampFactor(0, 0) == 1 && CanvasKeys.rampFactor(0, 2) < 0.5 && CanvasKeys.rampFactor(5, 2) == 1);
         expect("both zoom keys held cancel", CanvasKeys.zoomFactor(Set.of("canvasZoomIn", "canvasZoomOut"), step) == 1
                 && CanvasKeys.zoomFactor(Set.of("canvasPitchUp"), step) == 1);
+
+        expect(", and . warp, ' and ; crop; F and V are free", CanvasKeys.key("canvasWarpWeaker") == KeyEvent.VK_COMMA
+                && CanvasKeys.key("canvasWarpStronger") == KeyEvent.VK_PERIOD && CanvasKeys.key("canvasCropTighter") == KeyEvent.VK_QUOTE
+                && CanvasKeys.key("canvasCropLooser") == KeyEvent.VK_SEMICOLON && CanvasKeys.command(KeyEvent.VK_F) == null
+                && CanvasKeys.command(KeyEvent.VK_V) == null);
+        double stronger = CanvasKeys.warpDelta(Set.of("canvasWarpStronger"), step);
+        expect("period warps stronger (lambda towards -1, the slider's right) at the zoom rate, comma the other way, both cancel",
+                stronger < 0 && Math.abs(stronger + 0.5 * step) < 1e-12 && CanvasKeys.warpDelta(Set.of("canvasWarpWeaker"), step) == -stronger
+                        && CanvasKeys.warpDelta(Set.of("canvasWarpWeaker", "canvasWarpStronger"), step) == 0);
+        double tighter = CanvasKeys.cropFactor(Set.of("canvasCropTighter"), step);
+        expect("apostrophe tightens and slash loosens by inverse factors; both cancel", tighter < 1
+                && Math.abs(tighter * CanvasKeys.cropFactor(Set.of("canvasCropLooser"), step) - 1) < 1e-12
+                && CanvasKeys.cropFactor(Set.of("canvasCropTighter", "canvasCropLooser"), step) == 1);
+        expect("tightening from no crop starts at the field, stops at 2 R; loosening past the field is no crop",
+                CanvasKeys.nextCrop(0, 30, 0.9) == 27 && CanvasKeys.nextCrop(2.1, 30, 0.5) == 2
+                        && CanvasKeys.nextCrop(28, 30, 1.1) == 0 && CanvasKeys.nextCrop(0, 30, 1.1) == 0);
 
         expect("a Cmd command takes only the navigation keys", CanvasKeys.set("canvasFasterPlayback", KeyEvent.VK_B) != null
                 && CanvasKeys.set("canvasFasterPlayback", KeyEvent.VK_PAGE_UP) == null);
         CanvasKeys.reset("canvasFasterPlayback");
-        expect("Up is free for zoom but Left and Right stay with the frame step",
-                CanvasKeys.set("canvasPitchUp", KeyEvent.VK_RIGHT) != null && CanvasKeys.set("canvasPitchUp", KeyEvent.VK_UP) != null);
-        expect("a plain and a Cmd command may share a key", CanvasKeys.command(KeyEvent.VK_UP, true) == null
-                && CanvasKeys.command(KeyEvent.VK_UP, false).id().equals("canvasZoomIn")
+        expect("Left and Right stay with the frame step; a free key such as F can be taken",
+                CanvasKeys.set("canvasPitchUp", KeyEvent.VK_RIGHT) != null && CanvasKeys.set("canvasPitchUp", KeyEvent.VK_F) == null
+                        && CanvasKeys.command(KeyEvent.VK_CLOSE_BRACKET).id().equals("canvasZoomOut"));
+        CanvasKeys.reset("canvasPitchUp");
+        expect("a plain and a Cmd command may share a key", CanvasKeys.command(KeyEvent.VK_OPEN_BRACKET, true) == null
+                && CanvasKeys.command(KeyEvent.VK_OPEN_BRACKET, false).id().equals("canvasZoomIn")
                 && CanvasKeys.command(KeyEvent.VK_RIGHT, true).id().equals("canvasFasterPlayback")
                 && CanvasKeys.command(KeyEvent.VK_RIGHT, false) == null);
 
@@ -107,23 +151,63 @@ public final class CanvasKeysCheck {
                 near(newDrag.rotateVector(v), Quat.axisAngle(angle, axis).rotateVector(drag.rotateVector(v))));
 
         CanvasKeys.focusLost();
-        boolean none = !CanvasKeys.pressed(key(KeyEvent.VK_W, true, false, false, false))
-                && !CanvasKeys.pressed(key(KeyEvent.VK_W, false, true, false, false))
+        boolean none = !CanvasKeys.pressed(key(KeyEvent.VK_W, false, true, false, false))
                 && !CanvasKeys.pressed(key(KeyEvent.VK_W, false, false, false, true));
-        expect("Shift (annotate), Cmd (pan) and Ctrl (axis) with a key are never camera keys", none && CanvasKeys.heldForCheck().isEmpty());
+        expect("Cmd (pan) and Ctrl (axis) with a key are never camera keys", none && CanvasKeys.heldForCheck().isEmpty());
+        expect("Shift+W is a camera key, held fast", CanvasKeys.pressed(key(KeyEvent.VK_W, true, false, false, false))
+                && CanvasKeys.heldForCheck().equals(java.util.List.of("canvasPitchUp")));
+        CanvasKeys.released(key(KeyEvent.VK_W, true, false, false, false));
+        expect("Shift is five times faster, Option five times slower, both cancel", Math.abs(CanvasKeys.speed(false, true) - 5) < 1e-12
+                && Math.abs(CanvasKeys.speed(true, false) - 0.2) < 1e-12 && Math.abs(CanvasKeys.speed(true, true) - 1) < 1e-12
+                && CanvasKeys.speed(false, false) == 1);
+        boolean mac0 = Platform.isMacOS();
+        expect("Cmd+Shift with a playback key is left to the menus", !CanvasKeys.pressed(new KeyInputEvent(KeyInputEvent.Key.OTHER, true, mac0, false, !mac0, KeyEvent.VK_RIGHT)));
         expect("a plain W is taken and held", CanvasKeys.pressed(key(KeyEvent.VK_W, false, false, false, false)) && CanvasKeys.heldForCheck().equals(java.util.List.of("canvasPitchUp")));
         CanvasKeys.released(key(KeyEvent.VK_W, false, false, false, false));
         expect("and let go on release", CanvasKeys.heldForCheck().isEmpty());
+        expect("a plain I is the canvas Trim Start and End is Last Frame, one press each, never held",
+                CanvasKeys.command(KeyEvent.VK_I).id().equals("canvasTrimStart") && CanvasKeys.command(KeyEvent.VK_END).id().equals("canvasLastFrame")
+                        && CanvasKeys.command(KeyEvent.VK_END, true) == null); // running one needs a movie, which this check has not
         expect("a key that is not bound is left alone", !CanvasKeys.pressed(key(KeyEvent.VK_B, false, false, false, false)));
 
         boolean mac = Platform.isMacOS();
         KeyInputEvent cmdOptLeft = new KeyInputEvent(KeyInputEvent.Key.OTHER, false, mac, true, !mac, KeyEvent.VK_LEFT);
-        KeyInputEvent cmdUp = new KeyInputEvent(KeyInputEvent.Key.OTHER, false, mac, false, !mac, KeyEvent.VK_UP);
+        KeyInputEvent cmdBracket = new KeyInputEvent(KeyInputEvent.Key.OTHER, false, mac, false, !mac, KeyEvent.VK_OPEN_BRACKET);
         expect("Cmd+Option+Left is Step Frame, not ours", !CanvasKeys.pressed(cmdOptLeft));
-        expect("a plain Up is the zoom key and Cmd+Up is not", CanvasKeys.pressed(key(KeyEvent.VK_UP, false, false, false, false))
-                && CanvasKeys.heldForCheck().equals(java.util.List.of("canvasZoomIn")) && !CanvasKeys.pressed(cmdUp));
-        CanvasKeys.released(key(KeyEvent.VK_UP, false, false, false, false));
-        expect("Up let go ends the zoom", CanvasKeys.heldForCheck().isEmpty());
+        expect("a plain [ is the zoom key and Cmd+[ (left sidebar) is not", CanvasKeys.pressed(key(KeyEvent.VK_OPEN_BRACKET, false, false, false, false))
+                && CanvasKeys.heldForCheck().equals(java.util.List.of("canvasZoomIn")) && !CanvasKeys.pressed(cmdBracket));
+        expect("the footer names what the held [ edits", CanvasKeys.editing().equals("Zoom In"));
+        CanvasKeys.released(key(KeyEvent.VK_OPEN_BRACKET, false, false, false, false));
+        expect("[ let go ends the zoom", CanvasKeys.heldForCheck().isEmpty());
+        expect("the readout gives zoom as a magnification, warp and crop, n/a where unused",
+                CanvasKeys.scaling(0.5, -0.25, 0, true, true, Set.of(), false).equals("Zoom 2.00×  Warp -0.250  Crop auto")
+                        && CanvasKeys.scaling(1, 0, 8, false, true, Set.of(), false).equals("Zoom 1.00×  Warp n/a  Crop 8.0 R☉")
+                        && CanvasKeys.scaling(1, 0, 0, false, false, Set.of(), false).equals("Zoom 1.00×  Warp n/a  Crop n/a"));
+        expect("and brackets the one a held key is changing",
+                CanvasKeys.scaling(1, 0.5, 0, true, true, Set.of("canvasWarpStronger"), false).equals("Zoom 1.00×  [Warp 0.500]  Crop auto"));
+        String quiet = CanvasKeys.scaling(1, 1, 0, true, true, Set.of(), true);
+        String busy = CanvasKeys.scaling(0.001, -0.25, 120, true, true, Set.of("canvasZoomIn", "canvasCropTighter"), true);
+        expect("in the footer each field keeps its width whatever the value or bracket", quiet.length() == busy.length()
+                && quiet.indexOf("Warp") == busy.indexOf("Warp") && quiet.indexOf("Crop") == busy.indexOf("Crop"));
+        String naming = CanvasKeys.readout(quiet, "Zoom In", true, 0);
+        expect("the footer puts the command name at the end, in a slot of fixed width",
+                naming.startsWith(quiet) && naming.stripTrailing().endsWith("Zoom In")
+                        && naming.length() == CanvasKeys.readout(quiet, "", false, 0).length()
+                        && naming.length() == CanvasKeys.readout(quiet, "Faster Playback (with Cmd) and more besides", true, 0).length());
+        expect("the footer blanks to spaces of the same width after the idle time, but not while a key is held",
+                CanvasKeys.readout(quiet, "Grid on", false, CanvasKeys.READOUT_IDLE_MS).isBlank()
+                        && CanvasKeys.readout(quiet, "Grid on", false, CanvasKeys.READOUT_IDLE_MS).length() == naming.length()
+                        && !CanvasKeys.readout(quiet, "Grid on", false, CanvasKeys.READOUT_IDLE_MS - 1).isBlank()
+                        && !CanvasKeys.readout(quiet, "Zoom In", true, 10 * CanvasKeys.READOUT_IDLE_MS).isBlank());
+        expect("/ is Restore Zoom, Warp and Crop, beside R's Reset View", CanvasKeys.key("canvasResetScaling") == KeyEvent.VK_SLASH
+                && CanvasKeys.command(KeyEvent.VK_SLASH).id().equals("canvasResetScaling"));
+        double[] saved = {0.5, -0.25, 12};
+        double[] back = org.helioviewer.jhv.app.Commands.scalingTarget(saved);
+        expect("/ goes back to the last saved zoom, warp and crop when there are some",
+                java.util.Arrays.equals(back, saved) && back != saved);
+        expect("and to the defaults (1x, warp off at lambda 1, crop auto) before any load or save",
+                java.util.Arrays.equals(org.helioviewer.jhv.app.Commands.scalingTarget(null), new double[]{1, 1, 0}));
+        expect("a plain F is no longer a canvas key", !CanvasKeys.pressed(key(KeyEvent.VK_F, false, false, false, false)));
         expect("a plain Left is the frame step, left alone", !CanvasKeys.pressed(key(KeyEvent.VK_LEFT, false, false, false, false)));
         System.out.println(failures == 0 ? "CanvasKeysCheck: all passed" : "CanvasKeysCheck: " + failures + " FAILED");
         System.exit(failures == 0 ? 0 : 1);

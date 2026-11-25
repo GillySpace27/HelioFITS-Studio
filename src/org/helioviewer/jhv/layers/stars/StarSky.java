@@ -6,7 +6,6 @@ import org.helioviewer.jhv.astronomy.Position;
 import org.helioviewer.jhv.astronomy.SpaceObject;
 import org.helioviewer.jhv.astronomy.Spice;
 import org.helioviewer.jhv.astronomy.SpiceMath;
-import org.helioviewer.jhv.math.Quat;
 import org.helioviewer.jhv.opengl.BufVertex;
 import org.helioviewer.jhv.time.JHVTime;
 
@@ -18,14 +17,15 @@ import spice.basic.SpiceErrorException;
  * <p>Everything is computed once per viewpoint as a DIRECTION: a unit ray in the observer's frame,
  * which is the frame the sky maps already speak (the Sun along -z, x toward increasing
  * helioprojective longitude, y toward increasing latitude, solar north up, so P = 0). Each view
- * then places those directions its own way: the 3D views on the plane through Sun centre
- * ({@link #plane}), HPC and Observer Sky through their page mapping (MapView.projectDirection).
+ * then places those directions through SkyScreen, in the frame of one observer (the active image
+ * layer's, the viewpoint when there is none); Orthographic uses the cached {@link #plane} buffer,
+ * which is the same placement written out for a whole sky.
  *
  * <p>The geometry reproduces GaiaClient.calcProj3, which the starfield spike (2026-11-07) checked
  * against sunpy's Helioprojective frame for real stars from Earth and from an observer at 0.3 AU:
  * agreement better than 0.0001 deg. Working in rays rather than calcProj3's angles also removes the
  * fold the spike found, where a star on the far side of the sky came back onto the field shifted
- * 180 deg in Tx. The 3D placement d tan(T) still runs away far from the Sun, so {@link #plane}
+ * 180 deg in Tx. The plane placement still runs away far from the Sun, so {@link #plane}
  * drops anything more than {@link #MAX_ELONGATION_DEG} from it; the sky maps need no such cut.
  *
  * <p>Solar light deflection, parallax and aberration are ignored: they are arcsecond effects, far
@@ -142,42 +142,24 @@ public final class StarSky {
     }
 
     /**
-     * Vertices for the 3D views: x, y on the plane through Sun centre normal to the line of sight
-     * (d tan Tx, d tan Ty, the placement GaiaClient used), size in pixels. Bodies more than
-     * MAX_ELONGATION_DEG from the Sun are left out.
+     * Vertices for Orthographic: the point where the star's ray from the observer meets the plane
+     * through Sun centre normal to the line of sight, (-d x/z, -d y/z), size in pixels. That is the
+     * point imageOrtho.frag samples the ray's direction from (and Probes.ortho inverts), so a star
+     * sits on its own pixels in the image plane at any rotation. Bodies more than MAX_ELONGATION_DEG
+     * from the Sun are left out. Helioradial in 3D places each ray on the selected surface instead
+     * (SkyScreen.Layout#surface).
      */
     public static BufVertex plane(Points p, double distance) {
         BufVertex buf = new BufVertex(Math.min(p.count(), 20000) + 10);
-        plane(p, distance, null, buf);
-        return buf;
-    }
-
-    /**
-     * The same placement for a camera orbited by {@code drag} (the world rotation the user's drag
-     * applies, null for none), written into {@code buf}. The stars are at infinity, so orbiting
-     * turns each direction by the drag and the placement is redone on the turned ray: the sky
-     * rotates about the viewer and the 80 degree cut follows the camera. A flat sheet turned with
-     * the scene would go edge-on instead. The result is in the screen frame, drawn with the whole
-     * view rotation undone. With no drag it equals {@link #plane(Points, double)}.
-     */
-    public static void plane(Points p, double distance, Quat drag, BufVertex buf) {
-        double[] in = new double[3];
-        double[] ray = new double[3];
-        double[] theta = new double[2];
         byte[] colour = new byte[4];
         for (int i = 0; i < p.count(); i++) {
-            in[0] = p.ray()[3 * i];
-            in[1] = p.ray()[3 * i + 1];
-            in[2] = p.ray()[3 * i + 2];
-            if (drag == null)
-                System.arraycopy(in, 0, ray, 0, 3);
-            else
-                drag.qxv(in, ray);
-            if (!theta(ray, theta))
+            double x = p.ray()[3 * i], y = p.ray()[3 * i + 1], z = p.ray()[3 * i + 2];
+            if (!inCut(z))
                 continue;
             System.arraycopy(p.colour(), 4 * i, colour, 0, 4);
-            buf.putVertex((float) (distance * Math.tan(theta[0])), (float) (distance * Math.tan(theta[1])), 0, p.size()[i], colour);
+            buf.putVertex((float) (-distance * x / z), (float) (-distance * y / z), 0, p.size()[i], colour);
         }
+        return buf;
     }
 
     /**
@@ -205,16 +187,12 @@ public final class StarSky {
     }
 
     /**
-     * Helioprojective (Tx, Ty) of a ray, in radians, for the 3D placement. False, with theta
-     * untouched, for anything more than MAX_ELONGATION_DEG from the Sun, which includes the whole
-     * far hemisphere.
+     * Whether a ray (its z component, the Sun being along -z) is drawn on the plane placements:
+     * false for anything more than MAX_ELONGATION_DEG from the Sun, which includes the whole far
+     * hemisphere.
      */
-    static boolean theta(double[] ray, double[] theta) {
-        if (-ray[2] < COS_MAX_ELONGATION) // the Sun is along -z, so -z is the cosine of the elongation
-            return false;
-        theta[0] = Math.atan2(ray[0], -ray[2]);
-        theta[1] = Math.asin(Math.clamp(ray[1], -1, 1));
-        return true;
+    public static boolean inCut(double z) {
+        return -z >= COS_MAX_ELONGATION; // the Sun is along -z, so -z is the cosine of the elongation
     }
 
     /** The {distance, Carrington lon, lat} of the observer, from a viewpoint (whose lon is stored negated). */

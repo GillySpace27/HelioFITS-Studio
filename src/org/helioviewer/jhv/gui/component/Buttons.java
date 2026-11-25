@@ -241,6 +241,7 @@ public class Buttons {
     public static final GlyphIcon projection = icon(MaterialDesign.CUBE_OUTLINE, TOOLBAR);
     public static final GlyphIcon scene3d = icon(MaterialDesign.ROTATE_3D, TOOLBAR);
     public static final GlyphIcon trackCme = icon(MaterialDesign.CROSSHAIRS_GPS, TOOLBAR); // a reticle: pick a front and hold it
+    public static final GlyphIcon trackComet = icon(MaterialDesign.METEOR, TOOLBAR); // has no toolbar button, but a sidebar header wants a glyph
     public static final GlyphIcon activityDone = icon(MaterialDesign.CHECK, INLINE); // the footer's "everything has landed"
     public static final GlyphIcon sequenceFilter = icon(MaterialDesign.FILTER, TOOLBAR); // NOT a vector-circle
     public static final GlyphIcon grid = icon(MaterialDesign.GRID, TOOLBAR);
@@ -257,6 +258,7 @@ public class Buttons {
     /** A box with an arrow leaving it: the AIA cut-out hands the view off to a service in a browser. */
     public static final GlyphIcon sdoCutout = icon(MaterialDesign.OPEN_IN_NEW, TOOLBAR);
     public static final GlyphIcon resetCamera = icon(MaterialDesign.IMAGE_FILTER_CENTER_FOCUS, TOOLBAR);
+    public static final GlyphIcon viewFromEarth = icon(MaterialDesign.EARTH, TOOLBAR);
     public static final GlyphIcon resetCameraAxis = icon(MaterialDesign.DEBUG_STEP_OUT, TOOLBAR);
     public static final GlyphIcon rotate = icon(MaterialDesign.ROTATE_3D, TOOLBAR);
     public static final GlyphIcon rotate90 = icon(MaterialDesign.ROTATE_90, TOOLBAR);

@@ -178,6 +178,7 @@ $INTEL_FILE
 - \`fabric_suvi.json.gz\`: demo point cloud; Open… it in the Point Cloud layer
 
 \`\`\`
+commit  $(cd "$SRC" && git rev-parse --short=12 HEAD)
 sha256  $DMGSHA  $TOP.dmg
 $INTEL_SHA
 sha256  $SHA  $TOP.zip
@@ -934,6 +935,9 @@ notarize_mac() {
         /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
         /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$APP/Contents/Info.plist"
     fi
+    # jpackage writes 10.11. The bundled Python extensions (numpy and friends) are built for macOS 14
+    # (otool minos, 0.9.2 dmgs, both architectures), so older Macs would open the app and fail later.
+    /usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion 14.0" "$APP/Contents/Info.plist"
 
     # The icon, a second time, as a compiled asset catalog. jpackage only knows about --icon, and a
     # bundle carrying just a .icns is drawn on a grey plate at 16 and 32 pixels by macOS 26: every

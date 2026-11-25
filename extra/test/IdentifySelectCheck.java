@@ -49,6 +49,14 @@ public final class IdentifySelectCheck {
         Directories.createPersistentDirs();
         Directories.createCacheDirs();
         AppInit.loadSpice();
+        run(false);
+        run(true); // Helioradial drawn as the warp surface mesh: a click must select there too
+        System.exit(failures == 0 ? 0 : 1);
+    }
+
+    private static void run(boolean threeD) throws Exception {
+        String label = threeD ? "3D Helioradial: " : "";
+        IdentifyHover.deselect();
         Display.setHelioradial3D(false);
         Display.setMapMode(MapMode.Helioradial);
         MapView mv = GLRenderer.getMapView();
@@ -56,41 +64,44 @@ public final class IdentifySelectCheck {
             System.out.println("SKIP: could not build a Helioradial view headless (got " + mv.mode() + ")");
             return;
         }
+        Position obs1 = observer(new JHVTime("2026-03-26T12:00:00"), 0.4);
+        Position obs2 = observer(new JHVTime("2026-03-26T18:00:00"), -0.4); // six hours later
+        if (threeD) {
+            mv = Helioradial3DView.build(obs1, 0);
+            expect(label + "the view is the 3D mesh", mv.rendersIn3D() && mv.mode() == MapMode.Helioradial);
+        }
         var ctor = Viewport.class.getDeclaredConstructor(int.class, int.class, int.class, int.class, int.class, int.class);
         ctor.setAccessible(true);
         Viewport vp = (Viewport) ctor.newInstance(0, 0, 0, 1000, 800, 800);
         boolean light = Identifier.Options.fromSettings().lightTime();
 
-        Position obs1 = observer(new JHVTime("2026-03-26T12:00:00"), 0.4);
-        Position obs2 = observer(new JHVTime("2026-03-26T18:00:00"), -0.4); // six hours later
         List<Identifier.Target> t1 = List.of(new Identifier.Target("t", obs1, null, null, 0, Double.POSITIVE_INFINITY));
         List<Identifier.Target> t2 = List.of(new Identifier.Target("t", obs2, null, null, 0, Double.POSITIVE_INFINITY));
         Bodies.Body mercury = Bodies.byName("Mercury");
         Vec3 d1 = Identifier.bodyDirection(mercury, obs1, light), d2 = Identifier.bodyDirection(mercury, obs2, light);
         double[] p1 = d1 == null ? null : IdentifyPins.locate(vp, mv, t1.getFirst(), d1);
         double[] p2 = d2 == null ? null : IdentifyPins.locate(vp, mv, t2.getFirst(), d2);
-        expect("Mercury is on the page at both times", p1 != null && p2 != null);
+        expect(label + "Mercury is on the page at both times", p1 != null && p2 != null);
         if (p1 == null || p2 == null) {
             System.exit(1);
             return;
         }
         System.out.println("  info Mercury at " + p1[0] + "," + p1[1] + " then " + p2[0] + "," + p2[1]);
-        expect("and it moved across the page", Math.hypot(p1[0] - p2[0], p1[1] - p2[1]) > 50);
+        expect(label + "and it moved across the page", Math.hypot(p1[0] - p2[0], p1[1] - p2[1]) > 50);
 
         IdentifyHover h = IdentifyHover.selectionForCheck();
-        expect("a click on empty space selects nothing", !h.clickSelect(vp, mv, 5, 5, t1) && !IdentifyHover.selected());
-        expect("a click on Mercury selects it", h.clickSelect(vp, mv, (int) Math.round(p1[0]), (int) Math.round(p1[1]), t1) && IdentifyHover.selected());
-        expect("the answer names Mercury", IdentifyHover.lastMatches().stream().anyMatch(m -> m.body().name().equals("Mercury")));
+        expect(label + "a click on empty space selects nothing", !h.clickSelect(vp, mv, 5, 5, t1) && !IdentifyHover.selected());
+        expect(label + "a click on Mercury selects it", h.clickSelect(vp, mv, (int) Math.round(p1[0]), (int) Math.round(p1[1]), t1) && IdentifyHover.selected());
+        expect(label + "the answer names Mercury", IdentifyHover.lastMatches().stream().anyMatch(m -> m.body().name().equals("Mercury")));
         double[] click = IdentifyHover.pointer();
 
         h.follow(vp, mv, t2);
         double[] now = IdentifyHover.pointer();
-        expect("still selected after the time change", IdentifyHover.selected());
-        expect("the answer moved with Mercury, not frozen at the click",
+        expect(label + "still selected after the time change", IdentifyHover.selected());
+        expect(label + "the answer moved with Mercury, not frozen at the click",
                 now != null && Math.hypot(now[0] - p2[0], now[1] - p2[1]) < 2 && Math.hypot(now[0] - click[0], now[1] - click[1]) > 50);
-        expect("it still names Mercury", IdentifyHover.lastMatches().stream().anyMatch(m -> m.body().name().equals("Mercury")));
+        expect(label + "it still names Mercury", IdentifyHover.lastMatches().stream().anyMatch(m -> m.body().name().equals("Mercury")));
 
-        expect("a click on empty space lets it go", h.clickSelect(vp, mv, 5, 5, t2) && !IdentifyHover.selected());
-        System.exit(failures == 0 ? 0 : 1);
+        expect(label + "a click on empty space lets it go", h.clickSelect(vp, mv, 5, 5, t2) && !IdentifyHover.selected());
     }
 }
