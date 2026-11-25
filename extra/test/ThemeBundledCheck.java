@@ -22,6 +22,7 @@ public final class ThemeBundledCheck {
     }
 
     public static void main(String[] args) throws Exception {
+        System.setProperty("user.home", java.nio.file.Files.createTempDirectory("themecheck").toString()); // not the real themes.json
         expect("the bundled file is on the classpath", ThemeBundledCheck.class.getResource("/themes/bundled.json") != null);
         for (Theme t : Theme.all())
             if (!t.id().startsWith("user-") && t.parentId() != null)
@@ -33,6 +34,10 @@ public final class ThemeBundledCheck {
         expect("an entry names its built-in and keeps the changed colour",
                 entry.getString("base").equals(parent.id()) && entry.getJSONObject("colors").getString("Accent").equals("#123456"));
         expect("the user theme is still not a built-in", !mine.builtIn());
+        Theme back = Theme.fromJson(entry);
+        expect("an entry parses back with its colour", back != null && back.id().equals("quiet-dusk") && back.overrides().get(Theme.Token.Accent).getRGB() == mine.overrides().get(Theme.Token.Accent).getRGB());
+        Theme twice = Theme.userTheme("user-user-x", "X", parent, Map.of());
+        expect("a doubled user- prefix is dropped too", new JSONObject(twice.toBundledJson()).getString("id").equals("x"));
         System.out.println(failures == 0 ? "ThemeBundledCheck: all ok" : "ThemeBundledCheck: " + failures + " FAILED");
         System.exit(failures == 0 ? 0 : 1);
     }

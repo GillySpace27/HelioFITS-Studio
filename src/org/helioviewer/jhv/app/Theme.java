@@ -591,8 +591,8 @@ public final class Theme {
     }
 
     public static List<Theme> all() {
+        loadBundled(); // first: a user theme may name a bundled one as its base
         load();
-        loadBundled();
         List<Theme> out = new ArrayList<>(BUILT_IN);
         out.addAll(bundled.values());
         out.addAll(user.values());
@@ -619,8 +619,9 @@ public final class Theme {
             for (Object o : arr)
                 if (o instanceof JSONObject jo) {
                     Theme t = fromJson(jo);
-                    if (t != null && !t.id.startsWith("user-"))
-                        bundled.put(t.id, t);
+                    if (t != null && !t.id.startsWith("user-") && !bundled.containsKey(t.id)
+                            && BUILT_IN.stream().noneMatch(b -> b.id.equals(t.id)))
+                        bundled.put(t.id, t); // a duplicate id would shadow, or be shadowed by, the first
                 }
         } catch (IOException | RuntimeException e) {
             Log.error("Could not read the bundled themes", e);
@@ -630,7 +631,7 @@ public final class Theme {
     /** This theme as an entry for resources/themes/bundled.json: a user theme's id without its "user-". */
     public String toBundledJson() {
         JSONObject jo = toJson();
-        jo.put("id", id.startsWith("user-") ? id.substring("user-".length()) : id);
+        jo.put("id", id.replaceFirst("^(user-)+", ""));
         return jo.toString(2);
     }
 
@@ -858,7 +859,7 @@ public final class Theme {
     }
 
     @Nullable
-    private static Theme fromJson(JSONObject jo) {
+    static Theme fromJson(JSONObject jo) { // package-private for ThemeBundledCheck
         try {
             String id = jo.getString("id").strip();
             String name = jo.getString("name").strip();
@@ -868,6 +869,8 @@ public final class Theme {
             for (Theme t : BUILT_IN)
                 if (t.id.equals(jo.getString("base")))
                     parent = t;
+            if (parent == null && bundled != null) // a user theme may derive from a bundled one
+                parent = bundled.get(jo.getString("base"));
             if (parent == null)
                 return null; // a user theme with no built-in under it has nothing to derive from
 

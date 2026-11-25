@@ -37,8 +37,8 @@ final class TourSamples {
             "aia_171_20250814T090009_512.fits",
             "aia_193_20250814T090004_512.fits",
             "aspiics_bt_20250814T090012_512.fits",
-            "lasco_c2_20250814T090005_512.fits",
-            "lasco_c3_20250814T085406_512.fits",
+            "lasco_c2_20250814T090005_north_512.fits",
+            "lasco_c3_20250814T085406_north_512.fits",
             "punch_cam_20250814T084800_1024.fits");
 
     static File folder() {

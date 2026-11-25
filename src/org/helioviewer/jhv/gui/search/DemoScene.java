@@ -25,7 +25,7 @@ import org.helioviewer.jhv.layers.Layers;
 /**
  * The demo scene (HS-10): a new session holding the bundled 2025-08-14 ~09:00 UTC frames of SDO/AIA
  * 171 and 193, Proba-3/ASPIICS, SOHO/LASCO C2 and C3 and PUNCH ({@link TourSamples#DEMO_NAMES}),
- * with RHEF on the AIA layer. Nothing to download, so it opens offline; it reads only files the jar carries.
+ * with RHEF on AIA 171 and the LASCO layers. Nothing to download, so it opens offline; it reads only files the jar carries.
  */
 public final class DemoScene {
 

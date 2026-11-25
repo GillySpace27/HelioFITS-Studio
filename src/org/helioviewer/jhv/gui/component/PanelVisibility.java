@@ -14,6 +14,9 @@ import org.helioviewer.jhv.app.Theme;
  * clamped so the header title keeps 4.5:1 (3.5:1 for the strong title) on the band and the band and stripe keep 3:1, which is
  * what lets one set of rules serve built-in and user themes alike. With the master switch off
  * every value here is the theme's own and the look is exactly what it was before.
+ *
+ * <p>The drop shadow ({@link #SHADOW}) is the exception: off by default, and a fixed black fade
+ * rather than a value computed from the theme.
  */
 public final class PanelVisibility {
 

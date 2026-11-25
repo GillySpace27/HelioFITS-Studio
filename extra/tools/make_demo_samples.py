@@ -15,8 +15,8 @@ from astropy.io import fits
 SAMPLES = [
     ('AIA20250814_0900_0171.fits', 1, 2, 'aia_171_20250814T090009_512.fits', [], ['BSCALE', 'BZERO', 'BLANK']),  # R_SUN, X0_MP set below
     ('AIA20250814_0900_0193.fits', 1, 2, 'aia_193_20250814T090004_512.fits', [], ['BSCALE', 'BZERO', 'BLANK']),
-    ('c2_22999194.fts', 0, 2, 'lasco_c2_20250814T090005_512.fits', [], []),
-    ('c3_32829445.fts', 0, 2, 'lasco_c3_20250814T085406_512.fits', [], []),
+    ('c2_22999194.fts', 0, 2, 'lasco_c2_20250814T090005_north_512.fits', [], []),
+    ('c3_32829445.fts', 0, 2, 'lasco_c3_20250814T085406_north_512.fits', [], []),
     ('PUNCH_L3_CAM_20250814084800_v0m.fits', 1, 4, 'punch_cam_20250814T084800_1024.fits', [], []),
     ('aspiics_bt_l3_20250814T090012_1340803F0006_v03.fits', 0, 4, 'aspiics_bt_20250814T090012_512.fits',
      [], ['X_IO', 'Y_IO']),  # occulter centre in pixels, convention unchecked: dropped, not guessed
