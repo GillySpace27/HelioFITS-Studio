@@ -88,6 +88,7 @@ public final class GraphGeometry {
             stripHeights[yAxisCount - 1] = Math.max(1, stripHeights[yAxisCount - 1] + availableForStrips - used); // rounding
             if (availableForStrips >= MIN_STRIP_HEIGHT * yAxisCount)
                 enforceMinimum(stripHeights, availableForStrips);
+            fitTotal(stripHeights, availableForStrips);
 
             int totalHeight = availableForStrips + totalSeparatorHeight;
             int width = size.width - (DrawConstants.GRAPH_LEFT_SPACE + DrawConstants.GRAPH_RIGHT_SPACE);
@@ -230,6 +231,25 @@ public final class GraphGeometry {
                 return layout;
         }
         return null;
+    }
+
+    // However the shares rounded, the panels end up filling the strip area exactly: never past it
+    private static void fitTotal(int[] heights, int total) {
+        int sum = 0;
+        for (int h : heights)
+            sum += h;
+        while (sum > total) {
+            int tallest = 0;
+            for (int i = 1; i < heights.length; i++)
+                if (heights[i] > heights[tallest])
+                    tallest = i;
+            if (heights[tallest] <= 1)
+                break;
+            heights[tallest]--;
+            sum--;
+        }
+        if (sum < total)
+            heights[heights.length - 1] += total - sum;
     }
 
     // Lift panels under the minimum, taking the height from the tallest ones so the total stays put

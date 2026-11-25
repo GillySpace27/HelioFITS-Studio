@@ -93,6 +93,18 @@ public final class StackedLayoutCheck {
         g.layout(layers);
         expect("lopsided weights still leave every panel the minimum", h(g, 0) >= 32 && h(g, 1) >= 32 && h(g, 2) >= 32);
 
+        // many panels in a short plot: the minimum cannot be honoured, but the panels must still fit inside it
+        Layer[] many = new Layer[12];
+        for (int i = 0; i < many.length; i++)
+            many[i] = new Layer();
+        many[0].setStackWeight(50);
+        GraphGeometry small = new GraphGeometry();
+        small.setSize(800, 300);
+        small.setStacked(true);
+        small.layout(List.of(many));
+        Rectangle last = small.getLayerLayouts().getLast().area();
+        expect("panels never extend past the plot area", last.y + last.height <= small.area().y + small.area().height);
+
         System.exit(failures > 0 ? 1 : 0);
     }
 }
