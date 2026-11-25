@@ -29,7 +29,7 @@ public final class ChunkRefusalCheck {
         expect("the report names the answer once", s != null && s.indexOf("No images found") >= 0 && s.indexOf("No images found") == s.lastIndexOf("No images found"));
 
         String mixed = ImageLayerLoader.refusalSummary(List.of("a", "b", "c", "d", "e"), 9);
-        expect("distinct answers are capped at three lines", mixed != null && mixed.contains("(and 2 other answers)"));
+        expect("distinct answers are capped at three lines", mixed != null && mixed.contains("(and 2 other answers)") && mixed.lines().filter(l -> l.length() == 1).count() == 3);
 
         if (failures > 0) {
             System.out.println("ChunkRefusalCheck: " + failures + " failed");
