@@ -58,6 +58,11 @@ public abstract class TimelineLayer {
             stackWeight = Math.clamp(weight, 0.05f, 100f);
     }
 
+    /** Height (px) this layer needs between the animation band and the plot, for rows that belong over the plot rather than in it. */
+    public int reservedTop() {
+        return 0;
+    }
+
     public void setEnabled(boolean _enabled) {
         enabled = _enabled;
     }

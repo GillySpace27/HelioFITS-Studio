@@ -27,6 +27,8 @@ public final class GraphGeometry {
     private Rectangle automationArea = new Rectangle();
     private int automationLanes;
     private boolean stacked;
+    private final java.util.Map<TimelineLayer, Rectangle> reservedAreas = new java.util.LinkedHashMap<>();
+    private int reservedTotal;
     private final ArrayList<LayerLayout> layerLayouts = new ArrayList<>();
     private final ArrayList<TimelineLayer> propagatedLayers = new ArrayList<>();
     private final List<LayerLayout> exposedLayerLayouts = Collections.unmodifiableList(layerLayouts);
@@ -72,6 +74,20 @@ public final class GraphGeometry {
                 Math.max(height - MIN_SHARED_HEIGHT, AutomationTimelineLayer.minBandHeight(automationLanes)));
         int top = DrawConstants.GRAPH_TOP_SPACE + bandH;
         height -= bandH;
+
+        // layers that ask for rows above the plot (event intervals) get them under the animation band
+        reservedAreas.clear();
+        int reservedY = top;
+        for (TimelineLayer layer : layers) {
+            int reserve = layer.isEnabled() ? layer.reservedTop() : 0;
+            if (reserve > 0) {
+                reservedAreas.put(layer, new Rectangle(DrawConstants.GRAPH_LEFT_SPACE, reservedY, 1, reserve));
+                reservedY += reserve;
+            }
+        }
+        reservedTotal = reservedY - top;
+        top = reservedY;
+        height -= reservedTotal;
 
         if (stacked && yAxisCount > 0) {
             int totalSeparatorHeight = STACKED_SEPARATOR * (yAxisCount - 1);
@@ -119,6 +135,13 @@ public final class GraphGeometry {
                 : new Rectangle(area.x, DrawConstants.GRAPH_TOP_SPACE, area.width, bandH);
     }
 
+    /** The rows reserved above the plot for a layer (see {@link TimelineLayer#reservedTop}), or null. */
+    @Nullable
+    public Rectangle reservedArea(TimelineLayer layer) {
+        Rectangle r = reservedAreas.get(layer);
+        return r == null ? null : new Rectangle(r.x, r.y, area.width, r.height);
+    }
+
     public boolean isStacked() {
         return stacked;
     }
@@ -126,14 +149,14 @@ public final class GraphGeometry {
     public int minimumHeight() {
         int band = automationLanes == 0 ? 0 : AutomationTimelineLayer.bandHeight(automationLanes);
         if (!stacked || layerLayouts.isEmpty())
-            return band == 0 ? MINIMUM_HEIGHT : Math.max(MINIMUM_HEIGHT, DrawConstants.GRAPH_TOP_SPACE
+            return band + reservedTotal == 0 ? MINIMUM_HEIGHT : Math.max(MINIMUM_HEIGHT, DrawConstants.GRAPH_TOP_SPACE
                     + DrawConstants.GRAPH_BOTTOM_SPACE + DrawConstants.GRAPH_BOTTOM_AXIS_SPACE * (propagatedLayers.size() + 1)
-                    + band + MIN_SHARED_HEIGHT);
+                    + band + reservedTotal + MIN_SHARED_HEIGHT);
 
         return DrawConstants.GRAPH_TOP_SPACE + DrawConstants.GRAPH_BOTTOM_SPACE
                 + DrawConstants.GRAPH_BOTTOM_AXIS_SPACE * (propagatedLayers.size() + 1)
                 + MINIMUM_STACKED_LAYER_HEIGHT * layerLayouts.size()
-                + STACKED_SEPARATOR * (layerLayouts.size() - 1) + band;
+                + STACKED_SEPARATOR * (layerLayouts.size() - 1) + band + reservedTotal;
     }
 
     public List<LayerLayout> getLayerLayouts() {

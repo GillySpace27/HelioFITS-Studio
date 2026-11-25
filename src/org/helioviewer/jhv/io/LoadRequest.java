@@ -11,6 +11,7 @@ import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.thread.EDTQueue;
 import org.helioviewer.jhv.thread.Task;
+import org.helioviewer.jhv.timelines.IntervalTimelineLayer;
 import org.helioviewer.jhv.timelines.Timelines;
 import org.helioviewer.jhv.timelines.band.BandImporter;
 
@@ -83,6 +84,15 @@ class LoadRequest {
                 APIRequest req = APIRequest.fromRequestJson(ji.getJSONObject(i));
                 EDTQueue.invokeAndWait(() -> ImageLayer.create(null).load(req));
             }
+        }
+
+        JSONArray jv = jo.optJSONArray("org.helioviewer.jhv.request.intervals");
+        if (jv != null) {
+            List<IntervalTimelineLayer> parsed = new java.util.ArrayList<>();
+            for (int i = 0; i < jv.length(); i++) // all of them first: a bad one must not leave the others added
+                parsed.add(IntervalTimelineLayer.fromJson(jv.getJSONObject(i)));
+            for (IntervalTimelineLayer layer : parsed)
+                EDTQueue.invokeAndWait(() -> Timelines.getLayers().add(layer));
         }
 
         JSONArray jt = jo.optJSONArray("org.helioviewer.jhv.request.timeline");

@@ -138,7 +138,7 @@ public class TimelineLayers extends AbstractTableModel {
         }
         // Band and Callisto rows come from the state; plugin rows belong to their active plugin.
         for (TimelineLayer layer : layers) {
-            if (!(layer instanceof Band) && !(layer instanceof RadioData))
+            if (!(layer instanceof Band) && !(layer instanceof RadioData) && !(layer instanceof IntervalTimelineLayer)) // the state is the authority for these
                 addUnique(restoredLayers, layer);
         }
         if (restoredLayers.stream().noneMatch(layer -> layer instanceof RadioData))
