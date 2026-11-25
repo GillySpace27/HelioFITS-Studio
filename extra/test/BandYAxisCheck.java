@@ -64,6 +64,13 @@ public final class BandYAxisCheck {
         Band back = (Band) Band.deserialize(saved);
         expect("the range survives a state round trip", near(back.yMin(), 60) && near(back.yMax(), 350) && !back.isAutoFit() && !back.isLogScale());
 
+        // one distinct value in view: Fit pads around it instead of falling back to the type's range
+        DrawController.setSelectedInterval(t0, t0 + 3 * hour / 2);
+        band.zoomToFitAxis();
+        expect("Fit on a single value brackets it", band.yMin() < 100 && band.yMax() > 100 && band.yMax() < 110);
+
+        DrawController.setSelectedInterval(t0, t0 + 10 * hour);
+
         band.setLogScale(true);
         expect("log scale turns auto-fit on and keeps a positive range", band.isLogScale() && band.isAutoFit() && band.yMin() > 0);
         expect("log refuses a range reaching zero", !band.setYRange(0, 10));

@@ -42,6 +42,8 @@ class BandOptions extends JPanel {
     private final JTextField maxField = new JTextField(7);
     private final JComboBox<String> scaleCombo = new JComboBox<>(new String[]{LINEAR, LOG});
     private boolean syncing;
+    private String shownMin = "";
+    private String shownMax = "";
 
     BandOptions(Band _band) {
         band = _band;
@@ -130,10 +132,13 @@ class BandOptions extends JPanel {
         if (syncing)
             return;
         try {
-            double min = Double.parseDouble(minField.getText().trim());
-            double max = Double.parseDouble(maxField.getText().trim());
-            if (minField.getText().equals(format(band.yMin())) && maxField.getText().equals(format(band.yMax())))
+            boolean minEdited = !minField.getText().equals(shownMin);
+            boolean maxEdited = !maxField.getText().equals(shownMax);
+            if (!minEdited && !maxEdited)
                 return; // untouched: a focus change must not switch Auto off
+            // the endpoint left alone keeps its exact value, not the rounded text shown for it
+            double min = minEdited ? Double.parseDouble(minField.getText().trim()) : band.yMin();
+            double max = maxEdited ? Double.parseDouble(maxField.getText().trim()) : band.yMax();
             if (band.setYRange(min, max))
                 return;
         } catch (NumberFormatException ignore) {
@@ -150,10 +155,14 @@ class BandOptions extends JPanel {
                 autoBox.setSelected(band.isAutoFit());
                 scaleCombo.setSelectedItem(band.isLogScale() ? LOG : LINEAR);
                 scaleCombo.setEnabled(!band.getBandType().isBarPlot());
-                if (!minField.isFocusOwner())
-                    minField.setText(format(band.yMin()));
-                if (!maxField.isFocusOwner())
-                    maxField.setText(format(band.yMax()));
+                if (!minField.isFocusOwner()) {
+                    shownMin = format(band.yMin());
+                    minField.setText(shownMin);
+                }
+                if (!maxField.isFocusOwner()) {
+                    shownMax = format(band.yMax());
+                    maxField.setText(shownMax);
+                }
             } finally {
                 syncing = false;
             }
@@ -161,7 +170,7 @@ class BandOptions extends JPanel {
     }
 
     private static String format(double v) {
-        return Double.isFinite(v) ? String.format("%.5g", v) : "";
+        return Double.isFinite(v) ? String.format(java.util.Locale.ROOT, "%.5g", v) : "";
     }
 
     private static JButton getDownloadButton(Band band) {
