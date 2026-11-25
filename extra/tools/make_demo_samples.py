@@ -15,15 +15,37 @@ from astropy.io import fits
 SAMPLES = [
     ('AIA20250814_0900_0171.fits', 1, 2, 'aia_171_20250814T090009_512.fits', [], ['BSCALE', 'BZERO', 'BLANK']),  # R_SUN, X0_MP set below
     ('AIA20250814_0900_0193.fits', 1, 2, 'aia_193_20250814T090004_512.fits', [], ['BSCALE', 'BZERO', 'BLANK']),
-    ('c2_22999194.fts', 0, 2, 'lasco_c2_20250814T090005_512.fits', [], []),
-    ('c3_32829445.fts', 0, 2, 'lasco_c3_20250814T085406_512.fits', [], []),
-    ('PUNCH_L3_CAM_20250814084800_v0m.fits', 1, 8, 'punch_cam_20250814T084800_512.fits', [], []),
+    ('c2_22999194.fts', 0, 2, 'lasco_c2_20250814T090005_north_512.fits', [], []),
+    ('c3_32829445.fts', 0, 2, 'lasco_c3_20250814T085406_north_512.fits', [], []),
+    ('PUNCH_L3_CAM_20250814084800_v0m.fits', 1, 4, 'punch_cam_20250814T084800_1024.fits', [], []),
     ('aspiics_bt_l3_20250814T090012_1340803F0006_v03.fits', 0, 4, 'aspiics_bt_20250814T090012_512.fits',
      [], ['X_IO', 'Y_IO']),  # occulter centre in pixels, convention unchecked: dropped, not guessed
 ]
 DROP = ('CHECKSUM', 'DATASUM', 'HEADSUM', 'ZIMAGE', 'ZBITPIX', 'ZNAXIS', 'ZNAXIS1', 'ZNAXIS2', 'ZTILE1', 'ZTILE2',
         'ZCMPTYPE', 'ZNAME1', 'ZVAL1', 'ZNAME2', 'ZVAL2', 'ZQUANTIZ', 'ZDITHER0', 'ZSIMPLE', 'ZEXTEND',
         'ZHECKSUM', 'ZDATASUM', 'ZPCOUNT', 'ZGCOUNT', 'PCOUNT', 'GCOUNT', 'EXTNAME')
+
+
+def square_up(data, hdr):
+    """Turn a LASCO frame about the Sun to the nearest multiple of 90 degrees of CROTA (176.5 -> 180), bilinear.
+
+    A frame turned a few degrees is drawn with nearest-neighbour texels, which moire against the screen grid;
+    a multiple of 90 is a pure flip. Studio reads the matrix [[cos a, -sin a], [sin a, cos a]] from CROTA = a, so
+    world = R(a) s (p - c) holds for old and new angle, giving p_in - c = R(a_new - a_old) (p_out - c).
+    """
+    from scipy.ndimage import map_coordinates
+    a = float(hdr['CROTA2'])
+    new = 90.0 * round(a / 90.0)
+    d = np.radians(new - a)
+    cx, cy = hdr['CRPIX1'] - 1, hdr['CRPIX2'] - 1  # 0-based
+    y, x = np.indices(data.shape, dtype=np.float64)
+    ox, oy = x - cx, y - cy
+    xi = cx + np.cos(d) * ox - np.sin(d) * oy
+    yi = cy + np.sin(d) * ox + np.cos(d) * oy
+    out = map_coordinates(data, [yi, xi], order=1, mode='constant', cval=0.0)
+    hdr['CROTA1'] = hdr['CROTA2'] = new
+    hdr['HISTORY'] = 'Turned %.3f degrees about the Sun to CROTA %g (bilinear) so Studio draws it without moire.' % (new - a, new)
+    return out
 
 
 def reduce(src, hdu, n, dst, pix, drop):
@@ -33,6 +55,8 @@ def reduce(src, hdu, n, dst, pix, drop):
     is_int = data.dtype.kind == 'i' and 'BSCALE' not in hdr
     data = data.astype(np.float64)
     data[~np.isfinite(data)] = np.nan  # ASPIICS L3 carries inf pixels, which wreck the display clip
+    if hdr.get('TELESCOP') == 'SOHO' and 'CROTA2' in hdr:
+        data = square_up(data, hdr)
     ny, nx = data.shape
     assert ny % n == 0 and nx % n == 0, (src, data.shape, n)
     with warnings.catch_warnings():
