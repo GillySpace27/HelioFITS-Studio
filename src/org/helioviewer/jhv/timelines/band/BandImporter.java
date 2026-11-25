@@ -40,7 +40,12 @@ public final class BandImporter {
         long[] dates = bands.getFirst().dates();
 
         EventQueue.invokeLater(() -> acceptData(bands));
-        return new long[]{dates[0], dates[dates.length - 1]};
+        long first = dates[0], last = dates[0];
+        for (long d : dates) { // CDF records are normally ascending, but do not rely on it
+            first = Math.min(first, d);
+            last = Math.max(last, d);
+        }
+        return new long[]{first, last};
     }
 
     private static void acceptData(List<BandData> data) {
