@@ -29,11 +29,9 @@ public final class BandImporter {
 
     public static void loadCdf(URI uri) throws Exception {
         List<BandData> bands = BandReaderCdf.read(uri);
-        if (bands.isEmpty())
-            return;
+        if (bands.isEmpty() || bands.getFirst().dates().length == 0)
+            throw new Exception("No timeline data found in " + uri.getPath());
         long[] dates = bands.getFirst().dates();
-        if (dates.length == 0)
-            return;
 
         EventQueue.invokeLater(() -> {
             acceptData(bands);

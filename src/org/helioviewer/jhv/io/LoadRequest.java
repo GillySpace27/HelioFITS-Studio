@@ -54,14 +54,18 @@ class LoadRequest {
 
     private record LoadRequestCDF(List<URI> uriList) implements Callable<Void> {
         @Override
-        public Void call() {
+        public Void call() throws Exception {
+            List<String> failed = new java.util.concurrent.CopyOnWriteArrayList<>();
             uriList.parallelStream().forEach(uri -> {
                 try {
                     BandImporter.loadCdf(uri);
                 } catch (Exception e) {
                     Log.warn(uri.toString(), e);
+                    failed.add(e.getMessage() == null ? uri.getPath() : e.getMessage());
                 }
             });
+            if (!failed.isEmpty()) // onFailureCDF shows it; the files that did load stay loaded
+                throw new Exception(String.join("\n", failed));
             return null;
         }
     }

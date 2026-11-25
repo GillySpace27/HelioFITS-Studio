@@ -65,6 +65,12 @@ public final class MainContentPanel extends JPanel {
         add(splitPane, BorderLayout.CENTER);
     }
 
+    /** Gives the picture back if the plugins pane was maximized over it; the pane itself stays. */
+    public void restoreIfMaximized() {
+        if (pluginMaximized)
+            restorePluginSize();
+    }
+
     // Adds a plug-in and the associated GUI to the container. The GUI will be displayed below the main component.
     // Presentation mode folds the plugins pane (timelines, SWEK) away without touching the
     // user's own "display.plugins" preference, so leaving the mode restores what they had.

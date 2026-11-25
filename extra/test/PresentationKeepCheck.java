@@ -41,14 +41,18 @@ public final class PresentationKeepCheck {
         expect("but floating palettes are, because hiding a window the user opened is the surprise",
                 fresh.palettes());
 
+        expect("the timelines pane is kept out of the box", fresh.timeline());
+
         PresentationMode.setFlag(PresentationMode.KEEP_LEFT, true);
         PresentationMode.setFlag(PresentationMode.KEEP_RIGHT, true);
+        PresentationMode.setFlag(PresentationMode.KEEP_TIMELINE, false);
         PresentationMode.setFlag(PresentationMode.KEEP_PALETTES, false);
 
         PresentationMode.Keep single = PresentationMode.keepFor(false);
         expect("on one screen the left sidebar setting is honoured", single.left());
         expect("so is the right one", single.right());
         expect("and so is hiding the floating palettes", !single.palettes());
+        expect("and hiding the timelines pane", !single.timeline());
 
         // On a second screen nothing is hidden: the main window stays on the presenter's screen
         // and the projector shows a mirror (Gilly, 2026-10-06), so every setting is overridden
@@ -57,6 +61,7 @@ public final class PresentationKeepCheck {
         expect("on two screens the left sidebar stays, whatever the setting", dual.left());
         expect("as does the right one", dual.right());
         expect("and the palettes, even with the setting turned off", dual.palettes());
+        expect("and the timelines pane, even with the setting turned off", dual.timeline());
 
         // A hand-edited or half-written settings file must not decide this by accident.
         Settings.setProperty(PresentationMode.KEEP_LEFT, "");

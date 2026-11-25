@@ -51,9 +51,13 @@ public final class FileDropCheck {
                 FileDropHandler.groupImages(dropped).stream().map(File::getName).toList().equals(List.of("a_0001.fits", "b_0002.fits", "c.fit")));
         expect("one dropped file stays a group of one", FileDropHandler.groupImages(List.of(new File("a.fits"))).size() == 1);
 
+        expect("a .cdf is a timeline file", FileDropHandler.isTimelineFile("imap_swapi.cdf"));
+        expect("a FITS file is not", !FileDropHandler.isTimelineFile("aia.fits"));
+
         String one = FileDropHandler.skippedMessage(List.of("notes.txt"));
         expect("one file skipped is named, singular", one.startsWith("This was not opened:") && one.contains("notes.txt"));
         expect("and the message says what is accepted", one.contains(".fits") && one.contains("folder"));
+        expect("and names the CDF timeline files", one.contains(".cdf"));
         List<String> many = new java.util.ArrayList<>();
         for (int i = 0; i < 12; i++)
             many.add("f" + i + ".txt");
