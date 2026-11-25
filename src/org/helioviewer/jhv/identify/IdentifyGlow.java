@@ -17,8 +17,11 @@ import org.helioviewer.jhv.display.Viewport;
 import org.helioviewer.jhv.math.Vec3;
 import org.helioviewer.jhv.movie.ExportMovie;
 import org.helioviewer.jhv.opengl.BufVertex;
+import org.helioviewer.jhv.layers.Layers;
+import org.helioviewer.jhv.opengl.GL;
 import org.helioviewer.jhv.opengl.GLRenderer;
 import org.helioviewer.jhv.opengl.GLSLLine;
+import org.helioviewer.jhv.opengl.GLSLWarp;
 import org.helioviewer.jhv.opengl.GLText;
 import org.helioviewer.jhv.opengl.Transform;
 
@@ -317,8 +320,15 @@ public final class IdentifyGlow {
         return out;
     }
 
-    /** One outline on the page: its colour, its points, its centre, and its tier (the hover pulse runs on {@link Tier#HOVER} only). */
-    record Ring(int[] rgb, List<double[]> points, double[] centre, Tier tier) {}
+    /**
+     * One outline on the page: its colour, its points, its centre, its tier (the hover pulse runs on {@link Tier#HOVER} only)
+     * and the image layer whose observer placed it, which sets where in the layer stack it is drawn.
+     */
+    record Ring(int[] rgb, List<double[]> points, double[] centre, Tier tier, @Nullable String layer) {
+        Ring(int[] rgb, List<double[]> points, double[] centre, Tier tier) {
+            this(rgb, points, centre, tier, null);
+        }
+    }
 
     /** A planet's symbol on the page: where, in what colour, whether it stands in for the ring, and whether it is the quiet size. */
     record Glyph(String text, int[] rgb, double[] centre, boolean replaces, boolean ambient) {}
@@ -363,27 +373,91 @@ public final class IdentifyGlow {
         return out;
     }
 
-    /** Draws the glow and the pulse, in the screen pass that recordings never capture. */
-    public static void render(Viewport full) {
-        if (!IdentifySettings.enabled() || ExportMovie.isRecording())
-            return;
+    /** The frame's scene, built once (by the first layer to ask or the final pass) and dropped when the final pass is done. */
+    private static final class Frame {
+        Scene scene;
+        Flags flags;
+        double phase;
+        double scale;
+        final Set<String> placed = new LinkedHashSet<>(); // layers whose rings went down in the stack already
+    }
+
+    private static final Frame FRAME = new Frame();
+
+    /** Builds the frame's scene if it is not built; false when nothing is to be drawn. */
+    private static boolean prepare() {
+        if (FRAME.scene != null)
+            return true;
+        if (!IdentifySettings.enabled() || ExportMovie.isRecording() || Layers.captureOnly != null)
+            return false;
         IdentifyHover.follow(Display.getActiveViewport(), GLRenderer.getMapView()); // a selected object moves with time and the view
         IdentifyHover.refresh(Display.getActiveViewport(), GLRenderer.getMapView()); // so does the answer under a pointer that stood still
         double phase = pulsePhase(System.currentTimeMillis(), STATE.pulseStart);
         Flags f = new Flags(IdentifySettings.glow(), IdentifySettings.pulse() && phase < 1, IdentifySettings.highlightAll(),
                 IdentifySettings.symbolsAlways(), IdentifySettings.symbolsInstead());
         if (!f.glow() && !f.pulse() && !f.all() && !f.always())
-            return;
+            return false;
         Viewport vp = Display.getActiveViewport(); // the scene the probes look through, as for the footer and pins
         MapView mv = GLRenderer.getMapView();
-        double scale = Display.pixelScale[1];
-        Scene scene = scene(vp, mv, IdentifyHover.targets(vp, mv), f, scale);
-        List<Ring> rings = scene.rings();
-        List<Glyph> glyphs = scene.glyphs();
-        boolean pulse = f.pulse();
-        if (rings.isEmpty() && glyphs.isEmpty())
-            return;
+        FRAME.scale = Display.pixelScale[1];
+        FRAME.scene = scene(vp, mv, IdentifyHover.targets(vp, mv), f, FRAME.scale);
+        FRAME.flags = f;
+        FRAME.phase = phase;
+        return true;
+    }
 
+    /**
+     * Draws the rings placed by {@code layer}'s observer right after that layer, so a ring sits
+     * in the stack with its imagery: an opaque layer above hides it, a translucent one lets it
+     * show through. Called by the layer loop on the GL thread; the final pass draws the rest.
+     */
+    public static void renderAfter(String layer, MapView mv, Viewport vp) {
+        if (vp != Display.getActiveViewport() || !prepare() || FRAME.placed.contains(layer))
+            return;
+        List<Ring> mine = new ArrayList<>();
+        for (Ring r : FRAME.scene.rings())
+            if (layer.equals(r.layer()))
+                mine.add(r);
+        if (mine.isEmpty())
+            return;
+        FRAME.placed.add(layer);
+        Viewport full = Display.fullViewport;
+        GL.glViewport(full.x, full.yGL, full.width, full.height);
+        GL.glDisable(GL.DEPTH_TEST); // the layer order is the occlusion here, not the depth buffer
+        GLSLWarp.disable(); // pixel coordinates, never warped
+        try {
+            drawRings(full, mine, FRAME.flags, FRAME.phase, FRAME.scale);
+        } finally {
+            GL.glEnable(GL.DEPTH_TEST);
+            GL.glViewport(vp.x, vp.yGL, vp.width, vp.height);
+            if (mv.isHelioradial())
+                GLSLWarp.enable(mv.scale(vp));
+        }
+    }
+
+    /** Draws what the layer loop did not (rings of no layer, symbols), in the screen pass that recordings never capture. */
+    public static void render(Viewport full) {
+        try {
+            if (!prepare())
+                return;
+            List<Ring> rest = new ArrayList<>();
+            for (Ring r : FRAME.scene.rings())
+                if (r.layer() == null || !FRAME.placed.contains(r.layer()))
+                    rest.add(r);
+            if (rest.isEmpty() && FRAME.scene.glyphs().isEmpty())
+                return;
+            drawRings(full, rest, FRAME.flags, FRAME.phase, FRAME.scale);
+            drawGlyphs(full, FRAME.scene.glyphs(), FRAME.scale);
+        } finally {
+            FRAME.scene = null;
+            FRAME.placed.clear();
+        }
+    }
+
+    private static void drawRings(Viewport full, List<Ring> rings, Flags f, double phase, double scale) {
+        if (rings.isEmpty())
+            return;
+        boolean pulse = f.pulse();
         // Bright for a moment when something new is reached, then steady; a selected object is steady throughout
         double boost = pulse ? 1 + 0.6 * (1 - phase) : 1;
         Map<Integer, List<Ring>> byColour = new LinkedHashMap<>();
@@ -428,7 +502,6 @@ public final class IdentifyGlow {
             Transform.popView();
             Transform.popProjection();
         }
-        drawGlyphs(full, glyphs, scale);
     }
 
     /**
@@ -497,9 +570,9 @@ public final class IdentifyGlow {
             if (o == null)
                 continue;
             double[] c = o.getFirst();
-            rings.add(new Ring(rgb, o.subList(1, o.size()), c, tier));
+            rings.add(new Ring(rgb, o.subList(1, o.size()), c, tier, target.name()));
             if (m.kind() == Kind.COMET && IdentifySettings.cometGlyph())
-                rings.addAll(cometGlyph(rgb, c, tier, scale, meanRadius(o.subList(1, o.size()), c)));
+                rings.addAll(cometGlyph(rgb, c, tier, scale, meanRadius(o.subList(1, o.size()), c), target.name()));
             if (wantSym)
                 glyphs.add(new Glyph(sym, rgb, c, false, tier == Tier.AMBIENT));
         }
@@ -528,9 +601,13 @@ public final class IdentifyGlow {
      * direction is fixed on the page, a symbol and not the comet's real tail.
      */
     static List<Ring> cometGlyph(int[] rgb, double[] c, Tier tier, double scale, double radius) {
+        return cometGlyph(rgb, c, tier, scale, radius, null);
+    }
+
+    static List<Ring> cometGlyph(int[] rgb, double[] c, Tier tier, double scale, double radius, @Nullable String layer) {
         List<Ring> out = new ArrayList<>();
         for (List<double[]> stroke : cometGlyphStrokes(c, scale, radius))
-            out.add(new Ring(rgb, stroke, c, tier));
+            out.add(new Ring(rgb, stroke, c, tier, layer));
         return out;
     }
 
