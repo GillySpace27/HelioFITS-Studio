@@ -126,6 +126,7 @@ public final class Band extends TimelineLayer {
         jo.put("fullResolution", fullResolution);
         jo.put("color", new JSONObject().put("r", graphColor.getRed()).put("g", graphColor.getGreen()).put("b", graphColor.getBlue()));
         jo.put("multicolor", multicolor);
+        jo.put("stackWeight", getStackWeight());
         jo.put("yLog", logScale);
         jo.put("yAuto", autoFit);
         jo.put("yMin", yAxis.start());
@@ -147,6 +148,7 @@ public final class Band extends TimelineLayer {
         }
         band.multicolor = band.hasLevelColors() && jo.optBoolean("multicolor", band.bandType.hasLevels());
         band.restoreAxis(jo);
+        band.setStackWeight((float) jo.optDouble("stackWeight", 1));
         return band;
     }
 
@@ -155,6 +157,7 @@ public final class Band extends TimelineLayer {
         graphColor = restored.graphColor;
         multicolor = restored.multicolor;
         autoFit = restored.autoFit;
+        setStackWeight(restored.getStackWeight());
         if (restored.logScale != logScale) {
             logScale = restored.logScale;
             dropData(); // values cached under the other scale's clip are not the same set

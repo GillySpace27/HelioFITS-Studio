@@ -40,12 +40,13 @@ import org.helioviewer.jhv.timelines.radio.RadioData;
 final class ChartDrawGraphPane extends JComponent implements MouseInputListener, MouseWheelListener, ComponentListener, DrawController.Listener {
 
     private enum DragMode {
-        MOVIELINE, CHART, TRIM, KEYFRAME, NODRAG
+        MOVIELINE, CHART, TRIM, KEYFRAME, RESIZE, NODRAG
     }
 
     private Point mousePressedPosition;
     private Point dragTargetPosition;
     @Nullable private AutomationTimelineLayer.Drag keyDrag; // live only between press and release on a lane
+    private int resizeGap = -1; // the stacked-panel gap a RESIZE drag holds
     private boolean trimDraggingEnd; // which trim handle an Option-drag is moving
 
     private BufferedImage screenImage;
@@ -298,6 +299,11 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
                     AutomationTimelineLayer.insertKeyAt(hit, p);
                 return;
             }
+            if (DrawController.getGeometry().separatorAt(p) >= 0) {
+                DrawController.getGeometry().equalizeStrips(); // double-click a gap: equal heights
+                DrawController.layoutChanged();
+                return;
+            }
             DrawController.resetAxis(p);
             return;
         }
@@ -345,7 +351,10 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
         }
         if (e.isPopupTrigger() && showInterpMenu(e))
             return;
-        if (e.isAltDown()) { // Option-drag trims the movie, like the top scrubber's ends
+        resizeGap = e.isAltDown() || e.isShiftDown() ? -1 : DrawController.getGeometry().separatorAt(p);
+        if (resizeGap >= 0) { // the gap between stacked panels: drag to resize them
+            dragMode = DragMode.RESIZE;
+        } else if (e.isAltDown()) { // Option-drag trims the movie, like the top scrubber's ends
             dragMode = DragMode.TRIM;
             trimDraggingEnd = nearerToTrimEnd(p.x);
             setTrimAt(p.x);
@@ -429,7 +438,7 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
                 if (keyDrag != null)
                     keyDrag.end();
             }
-            case NODRAG -> {}
+            case RESIZE, NODRAG -> {}
         }
         if (e.isPopupTrigger())
             showInterpMenu(e); // macOS delivers the popup trigger on press, X11 on release
@@ -453,6 +462,10 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
                 case KEYFRAME -> {
                     if (keyDrag != null)
                         keyDrag.update(p, !e.isShiftDown()); // Shift drops the snap to frame times
+                }
+                case RESIZE -> {
+                    DrawController.getGeometry().resizeStrips(resizeGap, p.y - mousePressedPosition.y);
+                    DrawController.layoutChanged();
                 }
                 case NODRAG -> {}
             }
@@ -480,6 +493,8 @@ final class ChartDrawGraphPane extends JComponent implements MouseInputListener,
             // Option held anywhere over the timeline: crop cursor, matching the top scrubber. The
             // same trim gesture (Option-drag) works here.
             setCursor(org.helioviewer.jhv.gui.component.TrimCursor.get());
+        } else if (geometry.separatorAt(mousePosition) >= 0) {
+            setCursor(Cursor.getPredefinedCursor(Cursor.N_RESIZE_CURSOR)); // drag to resize the panels either side
         } else if (overMovieLine(mousePosition)) {
             setCursor(Cursor.getPredefinedCursor(Cursor.E_RESIZE_CURSOR));
         } else if (AutomationTimelineLayer.hitTest(mousePosition) != null) {

@@ -16,6 +16,7 @@ public final class GraphGeometry {
     private static final int MINIMUM_HEIGHT = 50;
     private static final int MINIMUM_STACKED_LAYER_HEIGHT = 64;
     private static final int STACKED_SEPARATOR = 8;
+    private static final int MIN_STRIP_HEIGHT = 32;
     private static final int MIN_SHARED_HEIGHT = 30; // what the band leaves the HEK, coverage and curve layers
 
     private final Rectangle size = new Rectangle();
@@ -75,19 +76,29 @@ public final class GraphGeometry {
         if (stacked && yAxisCount > 0) {
             int totalSeparatorHeight = STACKED_SEPARATOR * (yAxisCount - 1);
             int availableForStrips = Math.max(yAxisCount, height - totalSeparatorHeight);
-            int stripHeight = Math.max(1, availableForStrips / yAxisCount);
+            double weightSum = 0;
+            for (AxisLayer axisLayer : axisLayers)
+                weightSum += axisLayer.layer.getStackWeight();
+            int[] stripHeights = new int[yAxisCount];
+            int used = 0;
+            for (int i = 0; i < yAxisCount; i++) {
+                stripHeights[i] = Math.max(1, (int) (availableForStrips * axisLayers.get(i).layer.getStackWeight() / weightSum));
+                used += stripHeights[i];
+            }
+            stripHeights[yAxisCount - 1] = Math.max(1, stripHeights[yAxisCount - 1] + availableForStrips - used); // rounding
 
-            int totalHeight = stripHeight * yAxisCount + totalSeparatorHeight;
+            int totalHeight = availableForStrips + totalSeparatorHeight;
             int width = size.width - (DrawConstants.GRAPH_LEFT_SPACE + DrawConstants.GRAPH_RIGHT_SPACE);
             area = new Rectangle(DrawConstants.GRAPH_LEFT_SPACE, top,
                     Math.max(1, width), Math.max(1, totalHeight));
 
             int y = top;
             int axisIndex = -1;
+            int strip = 0;
             for (AxisLayer axisLayer : axisLayers) {
-                Rectangle layerArea = new Rectangle(area.x, y, area.width, stripHeight);
+                Rectangle layerArea = new Rectangle(area.x, y, area.width, stripHeights[strip]);
                 layerLayouts.add(new LayerLayout(axisLayer.layer, axisLayer.yAxis, layerArea, axisIndex));
-                y += stripHeight + STACKED_SEPARATOR;
+                y += stripHeights[strip++] + STACKED_SEPARATOR;
                 axisIndex++;
             }
         } else {
@@ -217,6 +228,43 @@ public final class GraphGeometry {
                 return layout;
         }
         return null;
+    }
+
+    /** The gap between stacked panels i and i+1 under p (a few pixels of slack either side), or -1. */
+    public int separatorAt(Point p) {
+        if (!stacked || p.x < area.x || p.x > graphRight())
+            return -1;
+        for (int i = 0; i + 1 < layerLayouts.size(); i++) {
+            Rectangle r = layerLayouts.get(i).area;
+            int gapTop = r.y + r.height;
+            if (p.y >= gapTop - 3 && p.y <= gapTop + STACKED_SEPARATOR + 3)
+                return i;
+        }
+        return -1;
+    }
+
+    /**
+     * Drag the gap between stacked panels i and i+1 by dy pixels: one grows, the other shrinks by
+     * as much, and neither goes below a usable height. Weights stay proportional to pixel heights.
+     */
+    public void resizeStrips(int i, int dy) {
+        if (i < 0 || i + 1 >= layerLayouts.size())
+            return;
+        LayerLayout a = layerLayouts.get(i);
+        LayerLayout b = layerLayouts.get(i + 1);
+        int ha = a.area.height;
+        int hb = b.area.height;
+        dy = Math.clamp(dy, MIN_STRIP_HEIGHT - ha, hb - MIN_STRIP_HEIGHT);
+        if (dy == 0)
+            return;
+        a.layer.setStackWeight(a.layer.getStackWeight() * (ha + dy) / ha);
+        b.layer.setStackWeight(b.layer.getStackWeight() * (hb - dy) / hb);
+    }
+
+    /** Back to equal heights. */
+    public void equalizeStrips() {
+        for (LayerLayout layout : layerLayouts)
+            layout.layer.setStackWeight(1);
     }
 
     public YAxisHit yAxisHit(Point p) {

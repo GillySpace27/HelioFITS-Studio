@@ -169,8 +169,17 @@ public final class TimelinePanel extends JPanel {
                 predefinedCombo.setSelectedItem(null);
         });
 
+        JButton upButton = new JButton("\u25B2");
+        upButton.setToolTipText("Move the selected layer up (up the stacked plot)");
+        upButton.addActionListener(e -> moveSelected(-1));
+        JButton downButton = new JButton("\u25BC");
+        downButton.setToolTipText("Move the selected layer down (down the stacked plot)");
+        downButton.addActionListener(e -> moveSelected(1));
+
         JPanel leftButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
         leftButtonPanel.add(addLayerButton);
+        leftButtonPanel.add(upButton);
+        leftButtonPanel.add(downButton);
 
         JPanel rightButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
         rightButtonPanel.add(predefinedCombo);
@@ -276,6 +285,14 @@ public final class TimelinePanel extends JPanel {
         if (row < 0)
             return null;
         return grid.getValueAt(row, 0) instanceof TimelineLayer timeline ? timeline : null;
+    }
+
+    private void moveSelected(int delta) {
+        TimelineLayer layer = selectedLayer();
+        if (layer != null && layers.move(layer, delta)) {
+            int row = grid.getSelectedRow() + delta;
+            grid.getSelectionModel().setSelectionInterval(row, row);
+        }
     }
 
     private void selectExistingRow(int preferredRow) {
