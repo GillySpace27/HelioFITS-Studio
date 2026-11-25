@@ -18,8 +18,8 @@ public final class YAxis {
     private final float min;
     private final float max;
 
-    private final double scaledLowerLimit;
-    private final double scaledUpperLimit;
+    private double scaledLowerLimit;
+    private double scaledUpperLimit;
     private boolean highlighted = false;
 
     public YAxis(double _start, double _end, YAxisScale _scale) {
@@ -46,6 +46,15 @@ public final class YAxis {
     public void reset(double _start, double _end) {
         start = _start;
         end = _end;
+        // a range entered by hand or fitted to the data may lie outside the limits set at construction
+        double scaledStart = scale(start);
+        double scaledEnd = scale(end);
+        scaledLowerLimit = Math.min(scaledLowerLimit, Math.min(scaledStart, scaledEnd));
+        scaledUpperLimit = Math.max(scaledUpperLimit, Math.max(scaledStart, scaledEnd));
+    }
+
+    public boolean isLog() {
+        return scale instanceof YAxisLogScale;
     }
 
     public void setHighlighted(boolean _highlighted) {
@@ -122,7 +131,7 @@ public final class YAxis {
         return scale.scale(val);
     }
 
-    private double invScale(double val) {
+    public double invScale(double val) {
         return scale.invScale(val);
     }
 

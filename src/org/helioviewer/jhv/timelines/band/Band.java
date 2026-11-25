@@ -59,7 +59,7 @@ public final class Band extends TimelineLayer {
     private final boolean fullResolution;
     private final BandOptions optionsPanel = new BandOptions(this);
 
-    private final YAxis yAxis;
+    private YAxis yAxis; // replaced when the scale flips between linear and log
     private final int[] warnPixels;
     private final LatestWorker<GraphData> graphWorker = new LatestWorker<>(graphPool);
 
@@ -69,6 +69,8 @@ public final class Band extends TimelineLayer {
     private Color graphColor = bandColors.getNextColor();
     private PropagationModel propagationModel = new PropagationModel.Delay(0);
     private boolean multicolor;
+    private boolean autoFit; // y range follows the visible data
+    private boolean logScale;
 
     public Band(BandType _bandType) {
         this(_bandType, false);
@@ -78,10 +80,22 @@ public final class Band extends TimelineLayer {
         bandType = _bandType;
         fullResolution = _fullResolution;
         multicolor = bandType.hasLevels();
-        yAxis = new YAxis(bandType.getMin(), bandType.getMax(), YAxis.generateScale(bandType.getScale(), bandType.getUnitLabel()));
+        logScale = "logarithmic".equalsIgnoreCase(bandType.getScale());
+        yAxis = newAxis(logScale, bandType.getMin(), bandType.getMax());
         warnPixels = new int[bandType.getWarningLevels().length];
         requestCache = new RequestCache();
         bandCache = createBandCache();
+        optionsPanel.syncAxis(); // the panel is built in a field initializer, before there is a band to read
+    }
+
+    // The type's own range; a log axis cannot start at or below zero, so it gets 1 to 10 until data arrives
+    private double[] defaultRange(boolean log) {
+        return !log || bandType.getMin() > 0 ? new double[]{bandType.getMin(), bandType.getMax()} : new double[]{1, 10};
+    }
+
+    private YAxis newAxis(boolean log, double start, double end) {
+        String type = log ? "logarithmic" : "logarithmic".equalsIgnoreCase(bandType.getScale()) ? "linear" : bandType.getScale();
+        return new YAxis(start, end, YAxis.generateScale(type, bandType.getUnitLabel()));
     }
 
     private BandCache createBandCache() {
@@ -117,6 +131,10 @@ public final class Band extends TimelineLayer {
         jo.put("fullResolution", fullResolution);
         jo.put("color", new JSONObject().put("r", graphColor.getRed()).put("g", graphColor.getGreen()).put("b", graphColor.getBlue()));
         jo.put("multicolor", multicolor);
+        jo.put("yLog", logScale);
+        jo.put("yAuto", autoFit);
+        jo.put("yMin", yAxis.start());
+        jo.put("yMax", yAxis.end());
     }
 
     public static TimelineLayer deserialize(JSONObject jo) throws Exception { // has to be implemented for state
@@ -133,6 +151,7 @@ public final class Band extends TimelineLayer {
             band.setDataColor(new Color(r, g, b));
         }
         band.multicolor = band.hasLevelColors() && jo.optBoolean("multicolor", band.bandType.hasLevels());
+        band.restoreAxis(jo);
         return band;
     }
 
@@ -140,12 +159,34 @@ public final class Band extends TimelineLayer {
         enabled = restored.enabled;
         graphColor = restored.graphColor;
         multicolor = restored.multicolor;
+        autoFit = restored.autoFit;
+        if (restored.logScale != logScale) {
+            logScale = restored.logScale;
+            dropData(); // values cached under the other scale's clip are not the same set
+        }
+        yAxis = restored.yAxis;
+        optionsPanel.syncAxis();
+    }
+
+    // yLog/yAuto/yMin/yMax are absent from states saved before the controls existed: keep the type's defaults then
+    private void restoreAxis(JSONObject jo) {
+        boolean log = !bandType.isBarPlot() && jo.optBoolean("yLog", logScale);
+        double min = jo.optDouble("yMin", Double.NaN);
+        double max = jo.optDouble("yMax", Double.NaN);
+        boolean usable = min < max && Double.isFinite(min) && Double.isFinite(max) && (!log || min > 0);
+        logScale = log;
+        double[] range = defaultRange(log);
+        yAxis = usable ? newAxis(log, min, max) : newAxis(log, range[0], range[1]);
+        autoFit = jo.optBoolean("yAuto", false);
     }
 
     @Override
     public void resetAxis() {
-        yAxis.reset(bandType.getMin(), bandType.getMax());
+        autoFit = false;
+        double[] range = defaultRange(yAxis.isLog());
+        yAxis.reset(range[0], range[1]);
         updateGraph();
+        optionsPanel.syncAxis();
     }
 
     @Override
@@ -154,16 +195,92 @@ public final class Band extends TimelineLayer {
         long start = propagationModel.getObservationTime(timeAxis.start());
         long end = propagationModel.getObservationTime(timeAxis.end());
 
-        float[] bounds = bandCache.getBounds(start, end);
-        if (bounds[0] == bounds[1]) {
-            resetAxis();
-            return;
-        }
-
+        float[] bounds = bandCache.getBounds(start, end, yAxis.isLog());
         if (Float.isFinite(bounds[0]) && Float.isFinite(bounds[1])) {
-            yAxis.reset(bounds[0], bounds[1]);
+            fitToVisibleData(); // pads a flat line too, rather than falling back to the type's range
             updateGraph();
+            notifyStateChanged();
         }
+    }
+
+    public boolean isAutoFit() {
+        return autoFit;
+    }
+
+    /** While on, every redraw fits the y range to the data in view. */
+    public void setAutoFit(boolean _autoFit) {
+        autoFit = _autoFit;
+        updateGraph();
+        optionsPanel.syncAxis();
+        notifyStateChanged();
+    }
+
+    public boolean isLogScale() {
+        return logScale;
+    }
+
+    /** Linear or log y axis. The cached data is dropped and fetched again, and the range is fitted to the new data. */
+    public void setLogScale(boolean log) {
+        if (log == logScale || bandType.isBarPlot()) // bars hang from zero, which a log axis cannot show
+            return;
+        logScale = log;
+        autoFit = true;
+        double[] range = defaultRange(log);
+        yAxis = newAxis(log, range[0], range[1]);
+        dropData();
+        DrawController.layoutChanged(); // the layout holds the old axis
+        fetchData(DrawController.selectedAxis);
+        optionsPanel.syncAxis();
+        notifyStateChanged();
+    }
+
+    public double yMin() {
+        return yAxis.start();
+    }
+
+    public double yMax() {
+        return yAxis.end();
+    }
+
+    /** A range typed by the user. Turns auto-fit off; false when the range cannot be shown on this scale. */
+    public boolean setYRange(double min, double max) {
+        if (!(min < max) || !Double.isFinite(min) || !Double.isFinite(max) || (yAxis.isLog() && min <= 0))
+            return false;
+        autoFit = false;
+        yAxis.reset(min, max);
+        updateGraph();
+        optionsPanel.syncAxis();
+        notifyStateChanged();
+        return true;
+    }
+
+    // The data in view fills the axis, with a margin so extremes do not sit on the frame.
+    private void fitToVisibleData() {
+        TimeAxis timeAxis = DrawController.selectedAxis;
+        long start = propagationModel.getObservationTime(timeAxis.start());
+        long end = propagationModel.getObservationTime(timeAxis.end());
+        float[] b = bandCache.getBounds(start, end, yAxis.isLog());
+        if (!Float.isFinite(b[0]) || !Float.isFinite(b[1]))
+            return; // nothing in view: keep the range rather than collapse it
+        double lo = yAxis.scale(b[0]);
+        double hi = yAxis.scale(b[1]);
+        if (bandType.isBarPlot()) { // bars hang from zero
+            lo = Math.min(lo, 0);
+            hi = Math.max(hi, 0);
+        }
+        double pad = (hi - lo) * 0.05;
+        if (pad == 0)
+            pad = yAxis.isLog() ? 0.5 : Math.max(Math.abs(lo) * 0.05, 1e-3); // a flat line still needs a span
+        yAxis.reset(yAxis.invScale(lo - pad), yAxis.invScale(hi + pad));
+        optionsPanel.syncAxis();
+    }
+
+    private void dropData() {
+        graphWorker.invalidate();
+        graphData = EMPTY_GRAPH_DATA;
+        BandDownloads.stop(this);
+        requestCache = new RequestCache();
+        bandCache = createBandCache();
     }
 
     public BandType getBandType() {
@@ -318,6 +435,8 @@ public final class Band extends TimelineLayer {
             graphWorker.invalidate();
             return;
         }
+        if (autoFit)
+            fitToVisibleData();
         YAxis.Mapper yMapper = geometry.yMapper(yAxis, drawArea);
 
         BandType.WarningLevel[] wls = bandType.getWarningLevels();
@@ -484,8 +603,11 @@ public final class Band extends TimelineLayer {
     }
 
     @Override
-    public void yaxisChanged() {
+    public void yaxisChanged() { // the user dragged or scrolled the axis: they have taken over
+        autoFit = false;
+        notifyStateChanged(); // the range moved, so a saved state must follow
         updateGraph();
+        optionsPanel.syncAxis();
     }
 
     boolean addToCache(float[] values, long[] dates) {
