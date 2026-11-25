@@ -704,7 +704,7 @@ public final class CanvasKeys {
         // drawTextFloat takes the BASELINE of the first line, in physical pixels from the top. A bare 14
         // put the baseline 14 px down, so at a 2x display (28 px text) the top half was cropped.
         int margin = (int) (14 * Display.pixelScale[1]);
-        int ascent = GLText.floatTextSize(STATE.toast)[1];
+        int ascent = (int) GLText.floatTextSize(STATE.toast)[1];
         GLText.drawTextFloat(vp, List.of(STATE.toast), margin, margin + ascent);
     }
 
