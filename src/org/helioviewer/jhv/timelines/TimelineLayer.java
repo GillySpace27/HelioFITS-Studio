@@ -54,7 +54,8 @@ public abstract class TimelineLayer {
     }
 
     public void setStackWeight(float weight) {
-        stackWeight = Math.clamp(weight, 0.05f, 100f);
+        if (Float.isFinite(weight)) // NaN would collapse every panel
+            stackWeight = Math.clamp(weight, 0.05f, 100f);
     }
 
     public void setEnabled(boolean _enabled) {

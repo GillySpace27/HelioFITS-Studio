@@ -86,6 +86,8 @@ public final class GraphGeometry {
                 used += stripHeights[i];
             }
             stripHeights[yAxisCount - 1] = Math.max(1, stripHeights[yAxisCount - 1] + availableForStrips - used); // rounding
+            if (availableForStrips >= MIN_STRIP_HEIGHT * yAxisCount)
+                enforceMinimum(stripHeights, availableForStrips);
 
             int totalHeight = availableForStrips + totalSeparatorHeight;
             int width = size.width - (DrawConstants.GRAPH_LEFT_SPACE + DrawConstants.GRAPH_RIGHT_SPACE);
@@ -228,6 +230,26 @@ public final class GraphGeometry {
                 return layout;
         }
         return null;
+    }
+
+    // Lift panels under the minimum, taking the height from the tallest ones so the total stays put
+    private static void enforceMinimum(int[] heights, int total) {
+        for (int i = 0; i < heights.length; i++)
+            heights[i] = Math.max(heights[i], MIN_STRIP_HEIGHT);
+        int excess = 0;
+        for (int h : heights)
+            excess += h;
+        excess -= total;
+        while (excess > 0) {
+            int tallest = 0;
+            for (int i = 1; i < heights.length; i++)
+                if (heights[i] > heights[tallest])
+                    tallest = i;
+            if (heights[tallest] <= MIN_STRIP_HEIGHT)
+                break;
+            heights[tallest]--;
+            excess--;
+        }
     }
 
     /** The gap between stacked panels i and i+1 under p (a few pixels of slack either side), or -1. */

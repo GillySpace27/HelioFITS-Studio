@@ -68,12 +68,12 @@ public final class StackedLayoutCheck {
         int hb = h(g, 1), hc = h(g, 2);
         g.resizeStrips(1, 20);
         g.layout(layers);
-        expect("dragging a gap down grows the upper panel and shrinks the lower", h(g, 1) == hb + 20 && h(g, 2) == hc - 20 || Math.abs(h(g, 1) - (hb + 20)) <= 2);
+        expect("dragging a gap down grows the upper panel and shrinks the lower", Math.abs(h(g, 1) - (hb + 20)) <= 2 && Math.abs(h(g, 2) - (hc - 20)) <= 2);
         expect("the drag leaves the total unchanged", Math.abs(h(g, 0) + h(g, 1) + h(g, 2) - total) <= 1);
 
         g.resizeStrips(1, 10_000);
         g.layout(layers);
-        expect("a huge drag leaves the lower panel a usable height", h(g, 2) >= 30);
+        expect("a huge drag leaves the lower panel the 32 px minimum", h(g, 2) >= 32);
 
         Rectangle r = g.getLayerLayouts().get(0).area();
         expect("the gap below panel 0 is found as separator 0", g.separatorAt(new Point(r.x + 10, r.y + r.height + 4)) == 0);
@@ -81,7 +81,17 @@ public final class StackedLayoutCheck {
 
         g.equalizeStrips();
         g.layout(layers);
-        expect("equalize restores equal heights", Math.abs(h(g, 0) - h(g, 1)) <= 1);
+        expect("equalize restores equal heights", Math.abs(h(g, 0) - h(g, 1)) <= 1 && Math.abs(h(g, 1) - h(g, 2)) <= 3);
+
+        a.setStackWeight(Float.NaN);
+        g.layout(layers);
+        expect("a NaN weight is ignored", h(g, 0) >= 32);
+
+        a.setStackWeight(0.05f);
+        b.setStackWeight(0.05f);
+        c.setStackWeight(50);
+        g.layout(layers);
+        expect("lopsided weights still leave every panel the minimum", h(g, 0) >= 32 && h(g, 1) >= 32 && h(g, 2) >= 32);
 
         System.exit(failures > 0 ? 1 : 0);
     }
