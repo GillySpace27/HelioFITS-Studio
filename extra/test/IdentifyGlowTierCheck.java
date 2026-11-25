@@ -161,6 +161,7 @@ public final class IdentifyGlowTierCheck {
         IdentifyGlow.Ring mercuryHot = ringAt(hot, at);
         expect("under the pointer Mercury's ring is the hover tier, on the full ring size (about 7 px)", mercuryHot != null && mercuryHot.tier() == IdentifyGlow.Tier.HOVER
                 && atMost(meanRadius(mercuryHot), loud.minRadius()));
+        expect("a ring names the layer that placed it (its place in the layer stack)", mercuryHot != null && targets.getFirst().name().equals(mercuryHot.layer()));
         expect("it replaces its ambient copy: the same number of rings, one at Mercury", hot.rings().size() == calm.rings().size() && near(hot, at) == 1);
         expect("and only it is above ambient", hot.rings().stream().filter(r -> r.tier() != IdentifyGlow.Tier.AMBIENT).count() == 1);
 
