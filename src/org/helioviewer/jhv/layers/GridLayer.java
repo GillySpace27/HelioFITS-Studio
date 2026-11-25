@@ -351,8 +351,7 @@ public final class GridLayer extends AbstractLayer {
             Transform.popView();
         }
 
-        if (showEarth)
-            drawEarthCircles(vp, pixFactor, Sun.getEarth(viewpoint.time), mv.rendersIn3D(), mv.cameraWidth(vp), viewpoint.time);
+        drawEarthCircles(vp, pixFactor, Sun.getEarth(viewpoint.time), mv.rendersIn3D() && showEarth, mv.cameraWidth(vp), viewpoint.time);
         if (mv.isHelioradial() && mv.rendersIn3D())
             drawObserverPoint(vp, pixFactor, viewpoint, mv.cameraWidth(vp));
 
@@ -491,12 +490,20 @@ public final class GridLayer extends AbstractLayer {
         GL.glDisable(GL.DEPTH_TEST);
         planetPoints.renderPoints(factor);
         if (showPlanetNames)
-            drawPlanetNames(planetMarkers);
+            drawPlanetNames(vp, planetMarkers);
         GL.glEnable(GL.DEPTH_TEST);
     }
 
     /** Names offset outward along the radius, so the inner planets do not stack their labels. */
-    private void drawPlanetNames(java.util.List<org.helioviewer.jhv.layers.grid.PlanetMarkers.Marker> markers) {
+    private void drawPlanetNames(Viewport vp, java.util.List<org.helioviewer.jhv.layers.grid.PlanetMarkers.Marker> markers) {
+        // Facing the screen: the labels were laid in the scene's fixed XY plane, so any rotated 3D view
+        // showed them mirrored or edge-on. The axes come from the view's own matrices.
+        double[][] axes = ViewpointMarker.screenAxes(vp.width, vp.height);
+        if (axes == null)
+            return;
+        org.joml.Vector3f right = new org.joml.Vector3f((float) axes[0][0], (float) axes[0][1], (float) axes[0][2]);
+        org.joml.Vector3f up = new org.joml.Vector3f((float) axes[1][0], (float) axes[1][1], (float) axes[1][2]);
+        org.joml.Vector3f origin = new org.joml.Vector3f();
         SdfTextRenderer renderer = GLText.renderer();
         renderer.setColor(Colors.LightGrayFloat);
         float scale = (float) (textScale / renderer.getFontSize());
@@ -509,8 +516,8 @@ public final class GridLayer extends AbstractLayer {
             if (r <= 0)
                 continue;
             double off = 1.03;
-            renderer.draw(m.label(), (float) (p.x * off), (float) (p.y * off), (float) (p.z * off),
-                    (float) (r * scale));
+            origin.set((float) (p.x * off), (float) (p.y * off), (float) (p.z * off));
+            renderer.draw(m.label(), origin, right, up, (float) (r * scale));
         }
         renderer.end3DRendering();
         GL.glEnable(GL.CULL_FACE);
@@ -666,7 +673,7 @@ public final class GridLayer extends AbstractLayer {
         try {
             earthPoint.renderPoints(factor);
             if (showPlanetNames)
-                drawPlanetNames(java.util.List.of(m));
+                drawPlanetNames(vp, java.util.List.of(m));
         } finally {
             GL.glEnable(GL.DEPTH_TEST);
         }
