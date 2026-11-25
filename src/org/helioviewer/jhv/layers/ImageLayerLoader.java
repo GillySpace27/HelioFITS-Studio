@@ -86,7 +86,7 @@ final class ImageLayerLoader {
         loadFuture = Task.submitBackground("request", () -> {
                     List<APIRequest> parts = req.chunks();
                     if (parts.size() > 1)
-                        return loadChunks(req, parts, view -> EventQueue.invokeLater(() -> onPreview(view, gen)));
+                        return loadChunks(req, parts, gen, view -> EventQueue.invokeLater(() -> onPreview(view, gen)));
                     statusSink.accept("Querying server…");
                     URI uri = requestAPI(req.toJpipRequest());
                     if (uri == null)
@@ -524,12 +524,25 @@ final class ImageLayerLoader {
      * thinned 1000 frames.
      */
     @Nullable
-    private View loadChunks(APIRequest req, List<APIRequest> parts, Consumer<View> preview) throws Exception {
+    private View loadChunks(APIRequest req, List<APIRequest> parts, int gen, Consumer<View> preview) throws Exception {
+        List<String> refusals = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        try {
+            return loadChunks(req, parts, refusals, preview);
+        } finally {
+            // Also on a failure of a later piece: the earlier refusals are part of the story. A load
+            // that was cancelled or replaced has nothing to say.
+            String refused = gen == loadGeneration && !Thread.currentThread().isInterrupted() ? refusalSummary(refusals, parts.size()) : null;
+            if (refused != null)
+                Message.err("Error getting the data", refused);
+        }
+    }
+
+    @Nullable
+    private View loadChunks(APIRequest req, List<APIRequest> parts, List<String> refusals, Consumer<View> preview) throws Exception {
         ManyView movie = null;
         FrameBatch batch = null;
         ChunkLoading.Mode mode = ChunkLoading.current();
         java.util.List<java.util.concurrent.Future<URI>> queries = new java.util.ArrayList<>();
-        List<String> refusals = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
         if (mode == ChunkLoading.Mode.ALL) { // every query in flight at once
             java.util.concurrent.ExecutorService pool = org.helioviewer.jhv.thread.AppThread.createIdleExecutor("Chunk-Query", Math.min(parts.size(), org.helioviewer.jhv.thread.FetchGate.width()));
             for (APIRequest part : parts)
@@ -568,9 +581,6 @@ final class ImageLayerLoader {
         }
         if (batch != null)
             batch.flush();
-        String refused = refusalSummary(refusals, parts.size());
-        if (refused != null)
-            Message.err("Error getting the data", refused);
         return movie;
     }
 
@@ -690,11 +700,9 @@ final class ImageLayerLoader {
             return parseAPIResponse(JSONUtils.get(new URI(url)), refusals);
         } catch (SocketTimeoutException e) {
             Log.error("Socket timeout while requesting JPIP URL", e);
-            String text = "The server did not respond while loading the layer. Try again in a moment.";
-            if (refusals != null)
-                refusals.accept(text);
-            else
-                Message.err("Connection timed out", text, e);
+            // Never folded into the refusals: a timeout is not the server's answer, and the dialog
+            // wants the exception (MessageHandler drops an identical one still on screen).
+            Message.err("Connection timed out", "The server did not respond while loading the layer. Try again in a moment.", e);
         } catch (Exception e) {
             throw new Exception("Invalid response for " + url, e);
         }

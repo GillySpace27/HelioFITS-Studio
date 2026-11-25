@@ -26,7 +26,7 @@ public final class ChunkRefusalCheck {
         String s = ImageLayerLoader.refusalSummary(many, 300);
         expect("300 identical refusals are one report", s != null && s.lines().count() == 2);
         expect("the report counts the pieces", s != null && s.contains("300 of 300"));
-        expect("the report names the answer once", s != null && s.indexOf("No images found") == s.lastIndexOf("No images found"));
+        expect("the report names the answer once", s != null && s.indexOf("No images found") >= 0 && s.indexOf("No images found") == s.lastIndexOf("No images found"));
 
         String mixed = ImageLayerLoader.refusalSummary(List.of("a", "b", "c", "d", "e"), 9);
         expect("distinct answers are capped at three lines", mixed != null && mixed.contains("(and 2 other answers)"));

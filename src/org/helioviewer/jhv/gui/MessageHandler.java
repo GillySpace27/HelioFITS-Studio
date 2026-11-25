@@ -101,7 +101,7 @@ final class MessageHandler implements Message.Handler {
 
         // The same report while that report is still on screen or waiting for its turn adds
         // nothing, and each one is a modal the user must close by hand (issue 298).
-        String key = dedupeKey(title, msg);
+        String key = dedupeKey(title, msg, type, cause);
         if (!pending.add(key))
             return;
 
@@ -116,13 +116,9 @@ final class MessageHandler implements Message.Handler {
 
     private static final java.util.Set<String> pending = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
-    static String dedupeKey(String title, Object msg) {
-        return title + "\n" + Message.format(msg);
-    }
-
-    /** Whether a report with this title and text is on screen or queued. */
-    static boolean isPending(String title, Object msg) {
-        return pending.contains(dedupeKey(title, msg));
+    /** Type and cause are part of it: the same words as a warning and as an error are two reports, and the cause picks the dialog's guidance. */
+    static String dedupeKey(String title, Object msg, int type, @Nullable Throwable cause) {
+        return type + "\n" + (cause == null ? "" : cause.getClass().getName()) + "\n" + title + "\n" + Message.format(msg);
     }
 
     private static void present(String title, Object msg, int type, @Nullable Throwable cause) {
