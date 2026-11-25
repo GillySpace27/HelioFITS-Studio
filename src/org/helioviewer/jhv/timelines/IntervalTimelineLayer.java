@@ -42,11 +42,13 @@ public final class IntervalTimelineLayer extends TimelineLayer {
     private final List<Interval> intervals;
     private final List<String> lanes = new ArrayList<>(); // first appearance order
     private final Map<String, Color> colors = new LinkedHashMap<>();
+    private final Map<String, List<Interval>> byLane = new LinkedHashMap<>(); // so a repaint does not rescan every interval per lane
 
     public IntervalTimelineLayer(String _name, List<Interval> _intervals) {
-        name = _name;
+        name = _name.replace('<', '\u2039').replace('>', '\u203A'); // a name starting with <html> would be rendered as HTML in the layer table
         intervals = List.copyOf(_intervals);
         for (Interval i : intervals) {
+            byLane.computeIfAbsent(i.lane, k -> new ArrayList<>()).add(i);
             if (!colors.containsKey(i.lane)) {
                 colors.put(i.lane, PALETTE[lanes.size() % PALETTE.length]);
                 lanes.add(i.lane);
@@ -101,6 +103,17 @@ public final class IntervalTimelineLayer extends TimelineLayer {
         jo.put("intervals", ja);
     }
 
+    // The same request delivered twice must not stack a second copy of the layer
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof IntervalTimelineLayer other && name.equals(other.name) && intervals.equals(other.intervals);
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * name.hashCode() + intervals.hashCode();
+    }
+
     public List<Interval> getIntervals() {
         return intervals;
     }
@@ -133,8 +146,8 @@ public final class IntervalTimelineLayer extends TimelineLayer {
             g.fillRect(band.x, y, band.width, LANE_H);
             g.setColor(color);
             g.drawString(lane, Math.max(2, band.x - fm.stringWidth(lane) - 4), y + LANE_H - 3);
-            for (Interval i : intervals) {
-                if (!i.lane.equals(lane) || i.end < timeAxis.start() || i.start > timeAxis.end())
+            for (Interval i : byLane.get(lane)) {
+                if (i.end < timeAxis.start() || i.start > timeAxis.end())
                     continue;
                 int x1 = Math.max(band.x, mapper.toPixel(i.start));
                 int x2 = Math.min(band.x + band.width, mapper.toPixel(i.end));
@@ -155,11 +168,14 @@ public final class IntervalTimelineLayer extends TimelineLayer {
     @Nullable
     @Override
     public String getStringValue(long ts) {
+        StringBuilder sb = null; // every interval that holds the time, when events overlap
         for (Interval i : intervals) {
-            if (ts >= i.start && ts <= i.end)
-                return i.lane + (i.label.isEmpty() ? "" : " " + i.label);
+            if (ts >= i.start && ts <= i.end) {
+                sb = sb == null ? new StringBuilder() : sb.append(", ");
+                sb.append(i.lane).append(i.label.isEmpty() ? "" : " " + i.label);
+            }
         }
-        return null;
+        return sb == null ? null : sb.toString();
     }
 
     @Override

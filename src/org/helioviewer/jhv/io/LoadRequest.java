@@ -88,10 +88,11 @@ class LoadRequest {
 
         JSONArray jv = jo.optJSONArray("org.helioviewer.jhv.request.intervals");
         if (jv != null) {
-            for (int i = 0; i < jv.length(); i++) {
-                IntervalTimelineLayer layer = IntervalTimelineLayer.fromJson(jv.getJSONObject(i));
+            List<IntervalTimelineLayer> parsed = new java.util.ArrayList<>();
+            for (int i = 0; i < jv.length(); i++) // all of them first: a bad one must not leave the others added
+                parsed.add(IntervalTimelineLayer.fromJson(jv.getJSONObject(i)));
+            for (IntervalTimelineLayer layer : parsed)
                 EDTQueue.invokeAndWait(() -> Timelines.getLayers().add(layer));
-            }
         }
 
         JSONArray jt = jo.optJSONArray("org.helioviewer.jhv.request.timeline");

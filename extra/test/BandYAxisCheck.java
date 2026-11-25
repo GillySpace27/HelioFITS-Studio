@@ -51,7 +51,7 @@ public final class BandYAxisCheck {
 
         expect("a typed range is accepted", band.setYRange(50, 400));
         expect("a typed range sets the axis and turns auto-fit off", band.yMin() == 50 && band.yMax() == 400 && !band.isAutoFit());
-        expect("an inverted range is refused", !band.setYRange(5, 1) && band.yMin() == 50);
+        expect("an inverted range is refused and changes nothing", !band.setYRange(5, 1) && band.yMin() == 50 && band.yMax() == 400 && !band.isAutoFit());
 
         band.yaxisChanged();
         band.setAutoFit(true);
@@ -73,7 +73,8 @@ public final class BandYAxisCheck {
 
         band.setLogScale(true);
         expect("log scale turns auto-fit on and keeps a positive range", band.isLogScale() && band.isAutoFit() && band.yMin() > 0);
-        expect("log refuses a range reaching zero", !band.setYRange(0, 10));
+        double logMin = band.yMin(), logMax = band.yMax();
+        expect("log refuses a range reaching zero and changes nothing", !band.setYRange(0, 10) && band.yMin() == logMin && band.yMax() == logMax);
         expect("log accepts a positive range", band.setYRange(1, 1000) && band.yMin() == 1);
         JSONObject savedLog = new JSONObject();
         band.serialize(savedLog);

@@ -58,6 +58,11 @@ public final class IntervalTimelineLayerCheck {
         expect("the layer reserves rows", band != null && band.height == layer.reservedTop() && layer.reservedTop() > 0);
         expect("the rows end where the plot begins", band != null && band.y + band.height <= g.area().y);
 
+        expect("the same request read twice is an equal layer, so it is not added twice",
+                IntervalTimelineLayer.fromJson(new JSONObject(REQUEST)).equals(layer));
+        expect("overlapping events are all named in the readout", layer.getStringValue(java.time.Instant.parse("2026-04-24T06:00:00Z").toEpochMilli()).equals("ICME 1"));
+        expect("a name cannot open an HTML tag", !IntervalTimelineLayer.fromJson(new JSONObject("{\"name\": \"<html><img src=x>\", \"intervals\": []}")).getName().contains("<"));
+
         layer.setEnabled(false);
         g.layout(List.of(layer));
         expect("a hidden layer gives the space back", g.reservedArea(layer) == null);
