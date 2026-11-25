@@ -1091,6 +1091,8 @@ public final class MainFrame {
         else
             eastWrap.setVisible(keepRight && eastWasVisible);
         northTransport.setVisible(visible);
+        if (!visible && keepTimeline)
+            mainContentPanel.restoreIfMaximized(); // a maximized pane would cover the picture the audience came for
         mainContentPanel.setPluginsVisible(visible || keepTimeline);
         centerPanel.revalidate();
         mainFrame.validate(); // push the new bounds down to the canvas synchronously
