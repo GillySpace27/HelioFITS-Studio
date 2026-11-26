@@ -65,6 +65,14 @@ class ChartDrawIntervalPane extends JComponent implements MouseListener, MouseMo
 
         addMouseListener(this);
         addMouseMotionListener(this);
+        setToolTipText("Drag the window sideways to pan in time, up or down to zoom (up zooms in). Scroll to zoom.");
+        addMouseWheelListener(e -> {
+            IntervalGeometry geometry = intervalGeometry();
+            if (e.getX() < DrawConstants.GRAPH_LEFT_SPACE || e.getX() > geometry.availableRight())
+                return;
+            long anchor = geometry.containsSelected(e.getPoint()) ? geometry.timeAt(e.getX()) : geometry.timeAt(geometry.selectedMiddle());
+            zoomSelectedInterval(anchor, Math.exp(e.getPreciseWheelRotation() * 0.1)); // wheel down widens
+        });
     }
 
     @Override
@@ -350,6 +358,27 @@ class ChartDrawIntervalPane extends JComponent implements MouseListener, MouseMo
         }
     }
 
+    // Like a DAW's timeline scrubber: drag the window sideways to pan, up or down to zoom. The two
+    // work together: the time under the pointer stays under it while the window scales around it.
+    private static final double ZOOM_PER_PIXEL = 0.01; // e-folds of window width per pixel dragged
+
+    /** Scale the selected window by factor (above 1 widens it) about the given time. */
+    private static void zoomSelectedInterval(long anchor, double factor) {
+        TimeAxis sel = DrawController.selectedAxis;
+        long start = (long) (anchor - (anchor - sel.start()) * factor);
+        long end = (long) (anchor + (sel.end() - anchor) * factor);
+        DrawController.setSelectedInterval(start, end);
+    }
+
+    private void dragSelectedInterval(Point now, IntervalGeometry geometry) {
+        if (mousePressed == null)
+            return;
+        int dy = now.y - mousePressed.y; // down is positive
+        if (dy != 0)
+            zoomSelectedInterval(geometry.timeAt(mousePressed.x), Math.exp(-dy * ZOOM_PER_PIXEL)); // up zooms in
+        moveSelectedInterval(now, intervalGeometry());
+    }
+
     // Mouse Listener
 
     @Override
@@ -401,7 +430,7 @@ class ChartDrawIntervalPane extends JComponent implements MouseListener, MouseMo
     public void mouseReleased(MouseEvent e) {
         Point p = e.getPoint();
         if (draggingInterval) {
-            moveSelectedInterval(p, intervalGeometry());
+            dragSelectedInterval(p, intervalGeometry());
             updateCursor(p);
         }
         draggingInterval = false;
@@ -413,7 +442,7 @@ class ChartDrawIntervalPane extends JComponent implements MouseListener, MouseMo
     @Override
     public void mouseDragged(MouseEvent e) {
         if (draggingInterval) {
-            moveSelectedInterval(e.getPoint(), intervalGeometry());
+            dragSelectedInterval(e.getPoint(), intervalGeometry());
         }
     }
 
