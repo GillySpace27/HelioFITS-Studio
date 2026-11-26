@@ -95,7 +95,21 @@ class BandOptions extends JPanel {
 
         // The buoy switches are the 3D scene's, shared by every row: shown here so the row and its dot are set up together
         c.gridy = 3;
-        add(org.helioviewer.jhv.layers.selector.GridLayerOptions.buoyControls(), c);
+        // Built when first shown, not here: this panel is made while its Band is still being constructed,
+        // and the controls reach into the layer lists (CI: bandType null in BandYAxisCheck and ImapSourceCheck)
+        JPanel buoys = new JPanel(new java.awt.BorderLayout()) {
+            private boolean built;
+
+            @Override
+            public void addNotify() {
+                super.addNotify();
+                if (!built) {
+                    built = true;
+                    add(org.helioviewer.jhv.layers.selector.GridLayerOptions.buoyControls(), java.awt.BorderLayout.CENTER);
+                }
+            }
+        };
+        add(buoys, c);
     }
 
     private static final String AUTO = "Spacecraft: automatic", NONE = "Spacecraft: none (no buoy)", NONE_KEY = "none";
