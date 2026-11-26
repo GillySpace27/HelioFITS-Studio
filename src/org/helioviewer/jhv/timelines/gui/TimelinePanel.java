@@ -48,7 +48,6 @@ public final class TimelinePanel extends JPanel {
     private static final int ICON_WIDTH = 12;
     private static final String PREDEFINED_PLACEHOLDER = "Predefined";
 
-    private static final int NUMBEROFVISIBLEROWS = 6;
 
     private final TimelineTable grid;
     private final TimelineLayers layers;
@@ -129,7 +128,7 @@ public final class TimelinePanel extends JPanel {
 
         grid = new TimelineTable(model);
 
-        JScrollPane jsp = new JScrollPane(grid, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        jsp = new JScrollPane(grid, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         UIGlobals.themed(jsp, c -> c.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UIGlobals.separator())));
         UIGlobals.themed(jsp.getViewport(), c -> c.setBackground(grid.getBackground()));
 
@@ -288,7 +287,10 @@ public final class TimelinePanel extends JPanel {
             }
         });
 
-        jsp.setPreferredSize(new Dimension(-1, grid.getRowHeight() * NUMBEROFVISIBLEROWS + 1));
+        // Every row shows, as in the layer lists: a list that scrolls hides layers behind a bar. The
+        // section grows with the list; the sidebar's own scrollbar deals with a tall stack.
+        fitRows();
+        layers.addTableModelListener(e -> fitRows());
 
         gc.gridy = 1;
         optionsPanelWrapper = new JPanel(new BorderLayout());
@@ -320,6 +322,14 @@ public final class TimelinePanel extends JPanel {
         int row = Math.min(preferredRow, rowCount - 1);
         grid.getSelectionModel().setSelectionInterval(row, row);
         refreshSelectedOptionsPanel();
+    }
+
+    private JScrollPane jsp;
+
+    private void fitRows() {
+        jsp.setPreferredSize(new Dimension(-1, grid.getRowHeight() * Math.max(grid.getRowCount(), 1) + 1));
+        jsp.revalidate();
+        revalidate();
     }
 
     private static void setRowHover(String key) {

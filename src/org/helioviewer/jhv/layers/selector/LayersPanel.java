@@ -224,6 +224,9 @@ public final class LayersPanel extends JPanel {
         grid.getColumnModel().getColumn(TIME_COL).setCellRenderer(new CellRenderer.Time());
         int timeWidth = SwingUtilities.computeStringWidth(grid.getFontMetrics(CellRenderer.Time.font), "2000-01-01T12:00:00.000");
         grid.getColumnModel().getColumn(TIME_COL).setMinWidth(timeWidth);
+        this.kind = kind;
+        this.timeWidth = timeWidth;
+        fitTimeColumn();
 
         grid.getColumnModel().getColumn(FILTER_COL).setCellRenderer(new CellRenderer.Filtered());
         grid.getColumnModel().getColumn(FILTER_COL).setPreferredWidth(ICON_WIDTH + 2);
@@ -243,6 +246,7 @@ public final class LayersPanel extends JPanel {
         });
 
         model.addTableModelListener(e -> {
+            fitTimeColumn();
             // Adding or removing a layer changes how tall the list wants to be, so refit unless
             // the user has taken the height over with the drag handle. A wholesale reload (session
             // restore) arrives as an UPDATE spanning every row rather than as inserts, and it
@@ -464,6 +468,32 @@ public final class LayersPanel extends JPanel {
     @Override
     public Dimension getMaximumSize() {
         return new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
+    }
+
+    private Layer.Kind kind;
+    private int timeWidth;
+
+    /**
+     * Overlay, camera and scene lists have times for few of their rows, and often none: the time
+     * column reserved its full width regardless and their names were cut to "Connec...". Those
+     * lists give it the room only while a row has a time to show. Image lists always do.
+     */
+    private void fitTimeColumn() {
+        if (kind == null || kind == Layer.Kind.IMAGE)
+            return;
+        boolean any = false;
+        for (int r = 0; r < grid.getRowCount() && !any; r++)
+            if (grid.getValueAt(r, TIME_COL) instanceof Layer layer) {
+                String t = layer.getTimeString();
+                any = t != null && !t.isBlank();
+            }
+        var col = grid.getColumnModel().getColumn(TIME_COL);
+        int w = any ? timeWidth : 0;
+        if (col.getMinWidth() == w && col.getMaxWidth() == (any ? Integer.MAX_VALUE : 0))
+            return;
+        col.setMinWidth(w);
+        col.setMaxWidth(any ? Integer.MAX_VALUE : 0);
+        col.setPreferredWidth(w);
     }
 
     public void showAllRows() {
