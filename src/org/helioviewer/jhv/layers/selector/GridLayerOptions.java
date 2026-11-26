@@ -77,6 +77,35 @@ public final class GridLayerOptions extends JPanel {
         return new GridLayerOptions().planetSection(layer);
     }
 
+    /** The data-source buoys' controls, for the 3D Scene pane. */
+    public static JPanel buoyControls(GridLayer layer) {
+        return new GridLayerOptions().buoySection(layer.getBuoys());
+    }
+
+    private JPanel buoySection(org.helioviewer.jhv.layers.grid.DataBuoys b) {
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints c = new GridBagConstraints();
+        c.anchor = GridBagConstraints.LINE_START;
+        c.gridx = 0;
+        c.gridy = 0;
+        JCheckBox show = createToggle("Show buoys", b.isShow(), v -> { b.setShow(v); org.helioviewer.jhv.display.DisplayController.display(); });
+        show.setToolTipText("A ring in the 3D scene at the place each timeline row's spacecraft was, in the row's line colour. Pick the spacecraft on the row if it is guessed wrong.");
+        panel.add(show, c);
+        c.gridy = 1;
+        JCheckBox labels = createToggle("Always show names", b.isAlwaysLabels(), v -> { b.setAlwaysLabels(v); org.helioviewer.jhv.display.DisplayController.display(); });
+        labels.setToolTipText("Off: a short code beside each ring, the full name and the rows it feeds when the pointer is on it.");
+        panel.add(labels, c);
+        c.gridy = 2;
+        JCheckBox halo = createToggle("Halo on spacecraft models", b.isModelHalo(), v -> { b.setModelHalo(v); org.helioviewer.jhv.display.DisplayController.display(); });
+        halo.setToolTipText("Where a model layer is placed at the spacecraft, a larger ring around the model replaces the small ring. Off: the small ring everywhere.");
+        panel.add(halo, c);
+        c.gridy = 3;
+        JCheckBox trails = createToggle("Trails", b.isTrails(), v -> { b.setTrails(v); org.helioviewer.jhv.display.DisplayController.display(); });
+        trails.setToolTipText("The spacecraft's path over the movie's time span, in the row's colour.");
+        panel.add(trails, c);
+        return panel;
+    }
+
     private JPanel gridSection(GridLayer layer) {
         JPanel panel = new JPanel(new GridBagLayout());
         GridBagConstraints c = new GridBagConstraints();

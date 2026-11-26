@@ -95,6 +95,7 @@ public final class GridLayer extends AbstractLayer {
     private boolean showPlanets = false;
     // Earth is its own switch, independent of the planets and of the grid: one dot at Earth's true place.
     private boolean showEarth = true;
+    private final org.helioviewer.jhv.layers.grid.DataBuoys buoys = new org.helioviewer.jhv.layers.grid.DataBuoys();
     private boolean showPlanetOrbits = true;
     private boolean showPlanetNames = true;
     private double planetOrbitAlpha = 0.5;
@@ -249,6 +250,7 @@ public final class GridLayer extends AbstractLayer {
         jo.put("celestialLineScale", celestialLineScale);
         jo.put("showPlanets", showPlanets);
         jo.put("showEarth", showEarth);
+        buoys.serialize(jo);
         jo.put("viewpointMarker", observerStyle.name());
         jo.put("viewpointMarkerColor", observerColor.name());
         jo.put("showPlanetOrbits", showPlanetOrbits);
@@ -302,6 +304,7 @@ public final class GridLayer extends AbstractLayer {
         celestialLineScale = Math.clamp(jo.optDouble("celestialLineScale", celestialLineScale), 0.25, 4);
         showPlanets = jo.optBoolean("showPlanets", showPlanets);
         showEarth = jo.optBoolean("showEarth", showEarth);
+        buoys.deserialize(jo);
         observerStyle = ViewpointMarker.Style.parse(jo.optString("viewpointMarker", observerStyle.name()), observerStyle);
         observerColor = Colors.parse(jo.optString("viewpointMarkerColor", observerColor.name()), observerColor);
         showPlanetOrbits = jo.optBoolean("showPlanetOrbits", showPlanetOrbits);
@@ -357,6 +360,8 @@ public final class GridLayer extends AbstractLayer {
 
         if (showPlanets)
             drawPlanets(vp, pixFactor, viewpoint, mv.cameraWidth(vp));
+        if (mv.rendersIn3D())
+            buoys.render(mv, vp, pixFactor);
         if (showThomson)
             drawThomsonSphere(mv, vp, viewpoint);
         if (showCelestial)
@@ -729,6 +734,7 @@ public final class GridLayer extends AbstractLayer {
         observerPoint.init();
         observerGlyph.init();
         planetPoints.init();
+        buoys.init();
         planetOrbitLine.init();
         thomsonLine.init();
         eclipticLine.init();
@@ -756,6 +762,7 @@ public final class GridLayer extends AbstractLayer {
         observerPoint.dispose();
         observerGlyph.dispose();
         planetPoints.dispose();
+        buoys.dispose();
         planetOrbitLine.dispose();
         thomsonLine.dispose();
         eclipticLine.dispose();
@@ -1042,6 +1049,10 @@ public final class GridLayer extends AbstractLayer {
     public void setViewpointMarkerColor(Colors c) {
         observerColor = c;
         DisplayController.display();
+    }
+
+    public org.helioviewer.jhv.layers.grid.DataBuoys getBuoys() {
+        return buoys;
     }
 
     public boolean isShowEarth() {
