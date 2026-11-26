@@ -214,6 +214,16 @@ public final class TimelinePanel extends JPanel {
         grid.setIntercellSpacing(new Dimension(0, 0));
         grid.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
 
+        // Drag a row by its grip to reorder, as in the layer lists; the order is the stacked-plot order
+        grid.setDragEnabled(true);
+        grid.setDropMode(javax.swing.DropMode.INSERT_ROWS);
+        grid.setTransferHandler(new org.helioviewer.jhv.layers.selector.TableRowTransferHandler(grid, () -> pressedOnHandle));
+        layers.setOnReorder(row -> grid.getSelectionModel().setSelectionInterval(row, row));
+
+        grid.getColumnModel().getColumn(TimelineLayers.HANDLE_COLUMN).setCellRenderer(new org.helioviewer.jhv.layers.selector.CellRenderer.Handle());
+        grid.getColumnModel().getColumn(TimelineLayers.HANDLE_COLUMN).setPreferredWidth(ICON_WIDTH + 12); // room for the selected row's arrow
+        grid.getColumnModel().getColumn(TimelineLayers.HANDLE_COLUMN).setMaxWidth(ICON_WIDTH + 12);
+
         grid.getColumnModel().getColumn(TimelineLayers.ENABLED_COLUMN).setCellRenderer(new CellRenderer.Enabled());
         grid.getColumnModel().getColumn(TimelineLayers.ENABLED_COLUMN).setPreferredWidth(ICON_WIDTH + 8);
         grid.getColumnModel().getColumn(TimelineLayers.ENABLED_COLUMN).setMinWidth(ICON_WIDTH + 8);
@@ -252,6 +262,11 @@ public final class TimelinePanel extends JPanel {
             }
         });
         grid.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                pressedOnHandle = grid.columnAtPoint(e.getPoint()) == TimelineLayers.HANDLE_COLUMN;
+            }
+
             @Override
             public void mouseExited(MouseEvent e) {
                 setRowHover(null);
@@ -325,6 +340,7 @@ public final class TimelinePanel extends JPanel {
     }
 
     private JScrollPane jsp;
+    private boolean pressedOnHandle; // a drag counts only if it began on the grip
 
     private void fitRows() {
         jsp.setPreferredSize(new Dimension(-1, grid.getRowHeight() * Math.max(grid.getRowCount(), 1) + 1));
