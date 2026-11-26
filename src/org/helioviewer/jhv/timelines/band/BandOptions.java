@@ -129,16 +129,34 @@ class BandOptions extends JPanel {
             var craft = band.getSpacecraft();
             String target = craft == null ? null : craft.target();
             boolean has = target != null && org.helioviewer.jhv.layers.ObserverModels.hasModel(target);
-            model.setEnabled(has);
+            boolean offered = target != null && !has && org.helioviewer.jhv.layers.ObserverModels.offeredSource(target) != null;
+            model.setEnabled(has || offered);
             model.setSelected(has && org.helioviewer.jhv.layers.ObserverModels.isShown(target));
             model.setToolTipText(target == null ? "This row has no spacecraft"
                     : has ? "Show " + target + " in the 3D scene, at its position"
+                    : offered ? "Download the " + target + " model from its maintainers (asks first), then show it"
                     : "No 3D model is listed for " + target + " (the dot and ring still mark it)");
         };
         model.addActionListener(e -> {
             var craft = band.getSpacecraft();
-            if (craft != null)
-                org.helioviewer.jhv.layers.ObserverModels.toggle(craft.target(), sync);
+            if (craft == null)
+                return;
+            String target = craft.target();
+            if (!org.helioviewer.jhv.layers.ObserverModels.hasModel(target) && org.helioviewer.jhv.layers.ObserverModels.offeredSource(target) != null) {
+                // Not bundled: no licence to redistribute it. Fetching it is the user's own import, so ask first.
+                String source = org.helioviewer.jhv.layers.ObserverModels.offeredSource(target);
+                int ok = javax.swing.JOptionPane.showConfirmDialog(model, "Download the " + target + " model from\n" + source
+                        + "\ninto your models folder?\nIt is the maintainers' file, not bundled with Studio: check their terms before sharing it.",
+                        "Import " + target + " model", javax.swing.JOptionPane.OK_CANCEL_OPTION);
+                if (ok != javax.swing.JOptionPane.OK_OPTION) {
+                    sync.run();
+                    return;
+                }
+                org.helioviewer.jhv.layers.ObserverModels.importOffered(target,
+                        () -> org.helioviewer.jhv.layers.ObserverModels.toggle(target, sync));
+                return;
+            }
+            org.helioviewer.jhv.layers.ObserverModels.toggle(target, sync);
         });
         picker.addActionListener(e -> sync.run()); // a new spacecraft changes what the switch means
         syncRef[0] = sync;
