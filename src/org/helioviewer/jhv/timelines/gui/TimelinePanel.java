@@ -54,6 +54,7 @@ public final class TimelinePanel extends JPanel {
     private final JPanel optionsPanelWrapper;
     private final JComboBox<String> predefinedCombo;
     private Map<String, List<BandType>> predefinedGroups = Map.of();
+    private Map<String, org.json.JSONArray> userPresets = Map.of();
     private boolean updatingPredefinedGroup;
 
     private static class TimelineTable extends JTable implements Interfaces.LazyComponent {
@@ -368,13 +369,40 @@ public final class TimelinePanel extends JPanel {
         repaint();
     }
 
-    private void loadPredefinedGroup(String groupName) {
+    /** Loads a preset by name: the catalogue's, or one the user saved with the Timeline Manager. */
+    public void loadPredefinedGroup(String groupName) {
         List<BandType> bandTypes = predefinedGroups.get(groupName);
-        if (bandTypes == null)
+        if (bandTypes == null) {
+            org.json.JSONArray saved = userPresets.get(groupName);
+            if (saved == null)
+                return;
+            layers.replaceBandsWith(org.helioviewer.jhv.timelines.band.BandPresets.restore(saved));
+            selectFirstBand();
             return;
+        }
 
         layers.replaceBands(bandTypes);
         selectFirstBand();
+    }
+
+    /** The catalogue's own preset names, which the manager lists but does not change. */
+    public List<String> builtInPresetNames() {
+        return List.copyOf(predefinedGroups.keySet());
+    }
+
+    /** Reads the user's saved presets again and shows them in the Predefined list after the catalogue's. */
+    public void refreshUserPresets() {
+        userPresets = org.helioviewer.jhv.timelines.band.BandPresets.load();
+        rebuildPresetCombo();
+    }
+
+    private void rebuildPresetCombo() {
+        java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>(predefinedGroups.keySet());
+        names.addAll(userPresets.keySet());
+        updatingPredefinedGroup = true;
+        predefinedCombo.setModel(new DefaultComboBoxModel<>(names.toArray(String[]::new)));
+        predefinedCombo.setSelectedItem(null);
+        updatingPredefinedGroup = false;
     }
 
     private void selectFirstBand() {
@@ -389,10 +417,8 @@ public final class TimelinePanel extends JPanel {
 
     public void setPredefinedGroups(Map<String, List<BandType>> groups) {
         predefinedGroups = groups;
-        updatingPredefinedGroup = true;
-        predefinedCombo.setModel(new DefaultComboBoxModel<>(groups.keySet().toArray(String[]::new)));
-        predefinedCombo.setSelectedItem(null);
-        updatingPredefinedGroup = false;
+        userPresets = org.helioviewer.jhv.timelines.band.BandPresets.load();
+        rebuildPresetCombo();
     }
 
 }

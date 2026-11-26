@@ -143,6 +143,9 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - View > Reset View
   -
   - `resetCamera`
+* - View > View from Earth
+  - 3D views: put the camera at Earth, 1 au out
+  - `viewFromEarth`
 * - View > Separate Multiview Zoom
   -
   - `separateMultiviewZoom`
@@ -486,6 +489,9 @@ Every command HelioFITS Studio has, as the menus, Help > Search Controls and the
 * - Managers > 3D Model Manager...
   - Spacecraft models to download, preview and add to the scene at their real positions
   - `modelManager`
+* - Managers > Timeline Manager...
+  - The timeline presets: load the catalogue's, save the current rows as your own, rename or delete them
+  - `timelineManager`
 * - Managers > Theme Manager...
   - Pick, customize and save interface themes (View > Theme is the quick picker)
   - `themeManager`
@@ -505,9 +511,6 @@ These are run by scripts and Search Controls rather than from a menu; the argume
 * - Command
   - What it does
   - Id
-* - 3D views: put the camera at Earth, 1 au out
-  - No arguments
-  - `viewFromEarth`
 * - Show the movie frame with this number (0 is the first)
   - Arguments: `frame`
   - `seekFrame`

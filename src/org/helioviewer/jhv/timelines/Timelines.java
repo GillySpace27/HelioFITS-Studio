@@ -35,6 +35,10 @@ public class Timelines implements Interfaces.MainContentPanelPlugin {
         layers.add(new BodiesTimelineLayer()); // when the Moon and planets are in a field (docs/identify.md)
     }
 
+    public static org.helioviewer.jhv.timelines.gui.TimelinePanel getPanel() {
+        return timelinePanel;
+    }
+
     public static TimelineLayers getLayers() {
         return layers;
     }

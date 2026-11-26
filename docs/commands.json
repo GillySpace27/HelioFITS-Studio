@@ -1937,6 +1937,24 @@
         "type": "object",
         "properties": {}
       },
+      "name": "timelineManager",
+      "description": "The timeline presets: load the catalogue's, save the current rows as your own, rename or delete them",
+      "annotations": {
+        "destructiveHint": false,
+        "readOnlyHint": true
+      },
+      "x-effect": "ui"
+    },
+    {
+      "outputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "inputSchema": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {}
+      },
       "name": "themeManager",
       "description": "Pick, customize and save interface themes (View > Theme is the quick picker)",
       "annotations": {

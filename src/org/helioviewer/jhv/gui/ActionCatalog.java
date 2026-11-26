@@ -256,6 +256,8 @@ public final class ActionCatalog {
             }
         }, "Managers/3D Model Manager...",
                 "Spacecraft models to download, preview and add to the scene at their real positions");
+        put("timelineManager", new org.helioviewer.jhv.gui.dialog.TimelineManager.Open(), "Managers/Timeline Manager...",
+                "The timeline presets: load the catalogue's, save the current rows as your own, rename or delete them");
         put("themeManager", new AbstractAction("Theme Manager...") {
             @Override
             public void actionPerformed(java.awt.event.ActionEvent e) {

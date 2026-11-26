@@ -199,6 +199,16 @@ public class TimelineLayers extends AbstractTableModel implements org.helioviewe
         replaceAll(replacement);
     }
 
+    /** The rows become {@code bands} (restored from a saved preset); layers that are not rows stay. */
+    public void replaceBandsWith(List<? extends TimelineLayer> bands) {
+        ArrayList<TimelineLayer> replacement = new ArrayList<>();
+        for (TimelineLayer layer : layers)
+            if (!(layer instanceof Band))
+                replacement.add(layer);
+        replacement.addAll(bands);
+        replaceAll(replacement);
+    }
+
     private void replaceAll(List<TimelineLayer> replacement) {
         HashSet<TimelineLayer> retained = new HashSet<>(replacement);
         for (TimelineLayer layer : layers) {

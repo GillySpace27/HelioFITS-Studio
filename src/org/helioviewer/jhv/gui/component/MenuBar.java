@@ -465,6 +465,7 @@ public final class MenuBar extends JMenuBar {
         catalogItem(managersMenu, "templates"); // HS-25: what a scene loads
         catalogItem(managersMenu, "study"); // what a scene exports
         catalogItem(managersMenu, "cacheManager");
+        catalogItem(managersMenu, "timelineManager");
         catalogItem(managersMenu, "modelManager");
         catalogItem(managersMenu, "taskManager");
         catalogItem(managersMenu, "activityWindow");
