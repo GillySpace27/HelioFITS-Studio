@@ -247,8 +247,15 @@ public final class ImapSourceCheck {
         expect("a 30-day MAG view posts the zoom-in status", statuses.contains("Zoom in to load IMAP MAG (max 14 days)"));
         expect("a refused view starts no download", !magBand.isDownloading());
         DrawController.setSelectedInterval(jan1, jan1 + 5 * DAY);
+        int listingsBefore = listingCalls.get();
         magBand.fetchData(DrawController.selectedAxis);
-        expect("zooming in afterwards loads: the refused view had reserved nothing", magBand.isDownloading());
+        // the offline fetchers finish in microseconds, so isDownloading() alone can already be false:
+        // the request counts as started if it was active or reached the MAG listing, which only a reservation can do
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        while (!magBand.isDownloading() && listingCalls.get() == listingsBefore && System.nanoTime() < deadline)
+            Thread.sleep(10);
+        expect("zooming in afterwards loads: the refused view had reserved nothing",
+                magBand.isDownloading() || listingCalls.get() > listingsBefore);
         expect("zooming in clears the status", !statuses.isEmpty() && statuses.getLast().isEmpty());
 
         System.exit(failures > 0 ? 1 : 0);
