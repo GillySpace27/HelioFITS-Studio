@@ -1,6 +1,7 @@
 package org.helioviewer.jhv.layers;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.List;
 import java.util.Locale;
 
@@ -126,10 +127,35 @@ public final class ObserverModels {
             for (ModelAssets.Entry e : entries)
                 if (target.equals(e.target()) && !"Earth".equals(e.target()))
                     return new Match(e, target);
+            // A model the user imported under the spacecraft's name (the offer below makes one)
+            for (ModelAssets.Entry e : entries)
+                if (e.origin() == ModelAssets.Origin.IMPORTED && target.equalsIgnoreCase(e.name()))
+                    return new Match(e, target);
         } catch (IOException e) {
             // no registry: no model
         }
         return null;
+    }
+
+    // Models the registry cannot bundle (no licence to redistribute) but the user may fetch for themselves
+    private static final java.util.Map<String, String> OFFERED = java.util.Map.of(
+            "IMAP", "https://www.jhuapl.edu/sites/default/files/2024-03/IMAP_2.83.glb");
+
+    /** The address a model for this spacecraft can be imported from, or null. */
+    @Nullable
+    public static String offeredSource(String target) {
+        return OFFERED.get(target);
+    }
+
+    /** Download the offered model into the user's imports, as Import from URL would; then {@code done}. */
+    public static void importOffered(String target, Runnable done) {
+        String source = OFFERED.get(target);
+        if (source == null) {
+            done.run();
+            return;
+        }
+        Task.submitBackground(target, () -> ModelAssets.importUrl(URI.create(source), target, got -> {}, () -> false),
+                entry -> done.run(), "Could not download the " + target + " model");
     }
 
     public static boolean hasModel(String target) {
