@@ -81,6 +81,7 @@ public final class DrawController implements Interfaces.LazyComponent, Interface
         jo.put("selectedAxis", js);
         jo.put("locked", locked);
         jo.put("stacked", geometry.isStacked());
+        jo.put("exportFriendly", org.helioviewer.jhv.gui.UIGlobals.isTimelineExport());
     }
 
     public static void loadState(JSONObject jo) {
@@ -93,6 +94,7 @@ public final class DrawController implements Interfaces.LazyComponent, Interface
         }
         optionsPanel.setLocked(jo.optBoolean("locked", false));
         optionsPanel.setStacked(jo.optBoolean("stacked", false));
+        optionsPanel.setExportFriendly(jo.optBoolean("exportFriendly", false));
     }
 
     public static JPanel getOptionsPanel() {

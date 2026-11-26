@@ -274,6 +274,11 @@ public final class MenuBar extends JMenuBar {
         JCheckBoxMenuItem white = new JCheckBoxMenuItem("Use White Background");
         white.addItemListener(e -> {
             Display.whiteBackground = white.getState();
+            if (UIGlobals.isTimelineExport()) { // the timelines follow the canvas
+                UIGlobals.timelineColors(Theme.current());
+                UIGlobals.refreshThemed();
+                org.helioviewer.jhv.timelines.draw.DrawController.drawRequest();
+            }
             DisplayController.display();
         });
         viewMenu.add(white);
