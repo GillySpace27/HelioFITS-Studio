@@ -14,6 +14,9 @@ import org.helioviewer.jhv.app.Theme;
  * clamped so the header title keeps 4.5:1 (3.5:1 for the strong title) on the band and the band and stripe keep 3:1, which is
  * what lets one set of rules serve built-in and user themes alike. With the master switch off
  * every value here is the theme's own and the look is exactly what it was before.
+ *
+ * <p>The drop shadow ({@link #SHADOW}) is the exception: off by default, and a fixed black fade
+ * rather than a value computed from the theme.
  */
 public final class PanelVisibility {
 
@@ -27,6 +30,7 @@ public final class PanelVisibility {
     public static final String STRIPE = "ui.visibility.stripe";
     public static final String NUMBERS = "ui.visibility.numbers";
     public static final String HOVER = "ui.visibility.hover";
+    public static final String SHADOW = "ui.visibility.shadow";
     public static final String SCROLLBAR = "ui.visibility.scrollbar";
 
     /** The scroll bar width Studio has always had, and the narrowest the slider offers. */
@@ -73,6 +77,16 @@ public final class PanelVisibility {
 
     public static boolean hover() {
         return on(HOVER);
+    }
+
+    /** A soft shadow under each top-level header, so a section lifts off the panel behind it. Off until ticked, unlike the rest. */
+    public static boolean shadow() {
+        return enabled() && "true".equals(Settings.getProperty(SHADOW));
+    }
+
+    /** Rows the shadow takes under a top-level header, 0 when there is none. */
+    public static int shadowHeight() {
+        return shadow() ? 5 : 0;
     }
 
     /** Width of the sidebars' and palettes' scroll bars in pixels: wide enough to grab for those who scroll by dragging. */

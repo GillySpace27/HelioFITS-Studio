@@ -89,7 +89,7 @@ class CollapsiblePaneButton extends JToggleButton {
     void restyle() {
         Theme theme = Theme.current();
         setForeground(PanelVisibility.headerText(theme, PanelVisibility.headerFill(theme, child)));
-        setBorder(BorderFactory.createEmptyBorder(0, child ? 2 : 2 + PanelVisibility.stripeWidth() + (PanelVisibility.stripe() ? 5 : 0), 0, 0));
+        setBorder(BorderFactory.createEmptyBorder(0, child ? 2 : 2 + PanelVisibility.stripeWidth() + (PanelVisibility.stripe() ? 5 : 0), child ? 0 : PanelVisibility.shadowHeight(), 0));
         revalidate();
         repaint();
     }
@@ -135,17 +135,26 @@ class CollapsiblePaneButton extends JToggleButton {
         Color fill = PanelVisibility.headerFill(theme, child);
         if (PanelVisibility.hover() && getModel().isRollover())
             fill = PanelVisibility.hoverFill(theme, fill);
+        int sh = child ? 0 : PanelVisibility.shadowHeight();
+        int band = h - sh; // the rows the band itself takes; a shadow, when there is one, is under them
         g.setColor(fill);
-        g.fillRect(0, 0, getWidth(), h - 1);
+        g.fillRect(0, 0, getWidth(), band - 1);
         if (!child && PanelVisibility.stripe()) {
             g.setColor(PanelVisibility.stripeColor(theme, fill));
-            g.fillRect(2, 0, PanelVisibility.stripeWidth(), h - 1); // inset: band colour shows to its left, so it reads as a stripe in the band, not a gap in it
+            g.fillRect(2, 0, PanelVisibility.stripeWidth(), band - 1); // inset: band colour shows to its left, so it reads as a stripe in the band, not a gap in it
         }
         // A hairline of the panel colour along the bottom. Six collapsed sections sit directly on
         // top of one another, and at one fill with no gap they paint as a single slab with titles
         // written on it rather than as six bands. The groove is what makes them read as separate.
         g.setColor(Theme.current().get(Theme.Token.Background));
-        g.fillRect(0, h - 1, getWidth(), 1);
+        g.fillRect(0, band - 1, getWidth(), 1);
+        if (sh > 0) {
+            g.fillRect(0, band, getWidth(), sh);
+            for (int i = 0; i < sh; i++) { // darkest against the band, fading out
+                g.setColor(new Color(0, 0, 0, Math.round(110 * (sh - i) / (float) (sh + 1))));
+                g.fillRect(0, band + i, getWidth(), 1);
+            }
+        }
         java.awt.FontMetrics fm = getFontMetrics(getFont());
         boolean over = badge != null && getText() != null && getText().startsWith(badge);
         java.awt.Rectangle box = badgeBox(fm, over);

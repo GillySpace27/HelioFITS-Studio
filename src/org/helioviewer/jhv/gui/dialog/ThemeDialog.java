@@ -191,6 +191,7 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
                 {PanelVisibility.NUMBERS, "Number the sections", "Put L1, L2 (left) and R1, R2 (right) in front of each top-level title, in the order they appear: Ctrl+N and Alt+N reach them (Option+N and Shift+Option+N on a Mac)."},
                 {org.helioviewer.jhv.gui.component.PanelKeyHint.KEY, "Box the numbers while Ctrl, Option or Shift+Option is held", "Hold Option (Ctrl on Windows and Linux) for the left sidebar's numbers, Shift+Option (Alt) for the right one's; shown even when numbering is off."},
                 {PanelVisibility.HOVER, "Highlight a header under the pointer", "So a header reads as something to click."},
+                {PanelVisibility.SHADOW, "Drop shadow under each section", "A soft shadow under every top-level header, so the section lifts off the panel behind it."},
         };
         javax.swing.JCheckBox master = new javax.swing.JCheckBox("Easier to find panels", PanelVisibility.enabled());
         master.setToolTipText("Off restores the look from before these options existed.");
@@ -231,7 +232,7 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
                 c.insets = new Insets(0, 28, 0, 6);
                 box.add(preset, c);
             }
-            javax.swing.JCheckBox sub = new javax.swing.JCheckBox(o[1], !"false".equals(Settings.getProperty(o[0])));
+            javax.swing.JCheckBox sub = new javax.swing.JCheckBox(o[1], PanelVisibility.SHADOW.equals(o[0]) ? "true".equals(Settings.getProperty(o[0])) : !"false".equals(Settings.getProperty(o[0])));
             sub.setToolTipText(o[2]);
             sub.setEnabled(master.isSelected());
             boolean part = java.util.Arrays.asList(PanelVisibility.HEADER_PARTS).contains(o[0]);
@@ -301,6 +302,13 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
                 delete();
             }
         };
+        AbstractAction asBuiltIn = new AbstractAction("Copy as built-in") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                copyAsBuiltIn();
+            }
+        };
+        asBuiltIn.putValue(javax.swing.Action.SHORT_DESCRIPTION, "For the owner: put this theme on the clipboard as an entry for resources/themes/bundled.json, so the next build ships it with the built-in themes");
         AbstractAction use = new AbstractAction("Use") {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -328,6 +336,7 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
         panel.add(saveButton, ButtonPanel.OTHER_BUTTON);
         panel.add(deriveButton, ButtonPanel.OTHER_BUTTON);
         panel.add(deleteButton, ButtonPanel.OTHER_BUTTON);
+        panel.add(new JButton(asBuiltIn), ButtonPanel.OTHER_BUTTON);
         panel.add(closeButton, ButtonPanel.CANCEL_BUTTON);
         return panel;
     }
@@ -473,6 +482,18 @@ public final class ThemeDialog extends StandardDialog implements Interfaces.Show
         Theme parent = parent();
         Theme c = Theme.userTheme(Theme.idFor(name), name, parent, statedByHand());
         return Theme.userTheme(c.id(), name, parent, c.overrides());
+    }
+
+    /** The working colours as a bundled-theme entry on the clipboard; the owner pastes it into resources/themes/bundled.json. */
+    private void copyAsBuiltIn() {
+        Theme c = candidate();
+        if (c == null) {
+            javax.swing.JOptionPane.showMessageDialog(this, "Give the theme a name first.", "Copy as built-in", javax.swing.JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new java.awt.datatransfer.StringSelection(c.toBundledJson()), null);
+        javax.swing.JOptionPane.showMessageDialog(this, "\"" + c.name() + "\" is on the clipboard.\nAdd it to the \"themes\" list in resources/themes/bundled.json and rebuild;"
+                + "\nit then ships with the built-in themes.", "Copy as built-in", javax.swing.JOptionPane.INFORMATION_MESSAGE);
     }
 
     /** Put the working colours on, exactly as picked. Writes nothing; Save does that. */
