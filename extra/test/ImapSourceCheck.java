@@ -1,5 +1,6 @@
 package org.helioviewer.jhv.timelines.band;
 
+import java.awt.EventQueue;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -13,6 +14,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
@@ -44,8 +47,8 @@ public final class ImapSourceCheck {
     private static final int GAP_FROM = 600;
     private static final int GAP_TO = 610;
 
-    private static final Set<String> badFiles = new HashSet<>();
-    private static final List<String> asked = new ArrayList<>();
+    private static final Set<String> badFiles = ConcurrentHashMap.newKeySet();
+    private static final List<String> asked = new CopyOnWriteArrayList<>(); // appended by download threads
     private static final AtomicInteger listingCalls = new AtomicInteger();
     private static boolean listingDown;
     private static String cohoText = "";
@@ -239,19 +242,37 @@ public final class ImapSourceCheck {
                 .equals(ImapSource.refusal(mag.getBaseUrl(), jan1, jan1 + span14 + 1)));
         expect("proton, alpha and merged files have no cap", ImapSource.refusal("imap:swapi-proton#" + SPEED, jan1, jan1 + 400 * DAY) == null
                 && ImapSource.refusal("imap:coho-hr#B_R", jan1, jan1 + 400 * DAY) == null);
-        List<String> statuses = new ArrayList<>();
+        List<String> statuses = new CopyOnWriteArrayList<>(); // the status sink runs on download threads
         ImapCatalog.setStatusSink(statuses::add);
         Band magBand = new Band(mag, false);
         DrawController.setSelectedInterval(jan1, jan1 + 30 * DAY);
-        magBand.fetchData(DrawController.selectedAxis);
+        onEdt(() -> magBand.fetchData(DrawController.selectedAxis));
         expect("a 30-day MAG view posts the zoom-in status", statuses.contains("Zoom in to load IMAP MAG (max 14 days)"));
-        expect("a refused view starts no download", !magBand.isDownloading());
+        expect("a refused view starts no download", !downloading(magBand));
         DrawController.setSelectedInterval(jan1, jan1 + 5 * DAY);
-        magBand.fetchData(DrawController.selectedAxis);
-        expect("zooming in afterwards loads: the refused view had reserved nothing", magBand.isDownloading());
+        int listingsBefore = listingCalls.get();
+        onEdt(() -> magBand.fetchData(DrawController.selectedAxis));
+        // the offline fetchers finish in microseconds, so isDownloading() alone can already be false:
+        // the request counts as started if it was active or reached the MAG listing, which only a reservation can do
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        while (!downloading(magBand) && listingCalls.get() == listingsBefore && System.nanoTime() < deadline)
+            Thread.sleep(10);
+        expect("zooming in afterwards loads: the refused view had reserved nothing",
+                downloading(magBand) || listingCalls.get() > listingsBefore);
         expect("zooming in clears the status", !statuses.isEmpty() && statuses.getLast().isEmpty());
 
         System.exit(failures > 0 ? 1 : 0);
+    }
+
+    // BandDownloads keeps plain collections that the app touches only on the event thread; so does this check
+    private static void onEdt(Runnable r) throws Exception {
+        EventQueue.invokeAndWait(r);
+    }
+
+    private static boolean downloading(Band band) throws Exception {
+        boolean[] ret = new boolean[1];
+        EventQueue.invokeAndWait(() -> ret[0] = band.isDownloading());
+        return ret[0];
     }
 
     private static boolean has(BandData d, long t, float v) {
