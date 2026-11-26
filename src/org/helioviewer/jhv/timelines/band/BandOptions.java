@@ -92,6 +92,24 @@ class BandOptions extends JPanel {
         // Which spacecraft the 3D buoy for this row sits at: guessed from the name until picked.
         c.gridy = 2;
         add(spacecraftPicker(band), c);
+
+        // The buoy switches are the 3D scene's, shared by every row: shown here so the row and its dot are set up together
+        c.gridy = 3;
+        // Built when first shown, not here: this panel is made while its Band is still being constructed,
+        // and the controls reach into the layer lists (CI: bandType null in BandYAxisCheck and ImapSourceCheck)
+        JPanel buoys = new JPanel(new java.awt.BorderLayout()) {
+            private boolean built;
+
+            @Override
+            public void addNotify() {
+                super.addNotify();
+                if (!built) {
+                    built = true;
+                    add(org.helioviewer.jhv.layers.selector.GridLayerOptions.buoyControls(), java.awt.BorderLayout.CENTER);
+                }
+            }
+        };
+        add(buoys, c);
     }
 
     private static final String AUTO = "Spacecraft: automatic", NONE = "Spacecraft: none (no buoy)", NONE_KEY = "none";
@@ -109,7 +127,7 @@ class BandOptions extends JPanel {
             box.setSelectedItem(NONE);
         else
             craft.stream().filter(k -> k.key().equals(key)).findFirst().ifPresent(k -> box.setSelectedItem(k.target()));
-        box.setToolTipText("Where this row's buoy sits in the 3D scene (3D Scene, Data sources)");
+        box.setToolTipText("Where this row's buoy sits in the 3D scene");
         box.addActionListener(e -> {
             String sel = (String) box.getSelectedItem();
             if (AUTO.equals(sel))

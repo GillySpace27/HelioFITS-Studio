@@ -177,13 +177,8 @@ public final class SceneSizePanel extends JPanel {
                 return;
             bound[0] = grid;
             holder.removeAll();
-            if (grid != null) {
-                JPanel both = new JPanel();
-                both.setLayout(new javax.swing.BoxLayout(both, javax.swing.BoxLayout.PAGE_AXIS));
-                both.add(new CollapsiblePane("Planets", GridLayerOptions.planetControls(grid), false, true, Buttons.track));
-                both.add(new CollapsiblePane("Data sources", GridLayerOptions.buoyControls(grid), false, true));
-                holder.add(both);
-            }
+            if (grid != null)
+                holder.add(new CollapsiblePane("Planets", GridLayerOptions.planetControls(grid), false, true, Buttons.track));
             holder.revalidate();
             holder.repaint();
         };
