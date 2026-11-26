@@ -12,6 +12,7 @@ import javax.swing.JCheckBox;
 import javax.swing.JColorChooser;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import org.helioviewer.jhv.gui.component.JHVSlider;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.Timer;
@@ -66,6 +67,11 @@ public final class CometLayerOptions extends JPanel {
         span.addChangeListener(e -> layer.setOrbitSpanDays((Integer) span.getValue()));
         JLabel spanLabel = new JLabel("days");
 
+        JHVSlider width = scale(layer.orbitWidth(), layer::setOrbitWidth);
+        width.setToolTipText("The orbit line's width, as the planets' orbits");
+        JHVSlider size = scale(layer.dotScale(), layer::setDotScale);
+        size.setToolTipText("The position dot's size, as the planets' markers");
+
         JPanel row = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
         row.add(colour);
         row.add(rings);
@@ -78,6 +84,12 @@ public final class CometLayerOptions extends JPanel {
         row3d.add(spanLabel);
         row3d.add(position);
 
+        JPanel rowSize = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
+        rowSize.add(new JLabel("Orbit width"));
+        rowSize.add(width);
+        rowSize.add(new JLabel("Marker size"));
+        rowSize.add(size);
+
         GridBagConstraints c = new GridBagConstraints();
         c.gridx = 0;
         c.weightx = 1;
@@ -88,6 +100,8 @@ public final class CometLayerOptions extends JPanel {
         c.gridy = 1;
         add(row3d, c);
         c.gridy = 2;
+        add(rowSize, c);
+        c.gridy = 3;
         add(status, c);
         updateStatus(layer);
 
@@ -102,6 +116,12 @@ public final class CometLayerOptions extends JPanel {
             else
                 refresh.stop();
         });
+    }
+
+    private static JHVSlider scale(double initial, java.util.function.DoubleConsumer setter) {
+        JHVSlider s = new JHVSlider((int) (CometLayer.SCALE_MIN * 100), (int) (CometLayer.SCALE_MAX * 100), (int) Math.round(initial * 100));
+        s.addChangeListener(e -> setter.accept(s.getValue() / 100.));
+        return s;
     }
 
     private void updateStatus(CometLayer layer) {

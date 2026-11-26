@@ -63,6 +63,8 @@ public final class CometLayerCheck {
         CometLayer layer = new CometLayer(c, new int[]{12, 34, 56});
         layer.setShowRings(false);
         layer.setLightTime(false);
+        layer.setOrbitWidth(2.5);
+        layer.setDotScale(9);
         JSONObject jo = new JSONObject();
         layer.serialize(jo);
         CometLayer back = read(new JSONObject(jo.toString()));
@@ -70,6 +72,7 @@ public final class CometLayerCheck {
         int[] rgb = back.rgb();
         expect(rgb[0] == 12 && rgb[1] == 34 && rgb[2] == 56, "its colour comes back (" + CometStyle.hex(rgb) + ")");
         expect(!back.showRings() && !back.lightTime(), "the rings and light-time switches come back off");
+        expect(back.orbitWidth() == 2.5 && back.dotScale() == CometLayer.SCALE_MAX, "the orbit width comes back, the marker size clamped to the top of its range (" + back.orbitWidth() + ", " + back.dotScale() + ")");
         expect(back.getName().equals("C/2025 R3 (PANSTARRS)"), "its name is the comet's label (" + back.getName() + ")");
     }
 
