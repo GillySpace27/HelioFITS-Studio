@@ -26,7 +26,7 @@ public class BandType {
     private final boolean isXRSB;
     private final List<String> groups;
 
-    private record Level(double min, double max, Color color) {}
+    record Level(double min, double max, Color color) {}
 
     record WarningLevel(String label, double value, Color color) {}
 
@@ -121,6 +121,10 @@ public class BandType {
 
     long getBarWidth() {
         return barWidth;
+    }
+
+    Level[] levels() {
+        return levels.clone();
     }
 
     boolean hasLevels() {
