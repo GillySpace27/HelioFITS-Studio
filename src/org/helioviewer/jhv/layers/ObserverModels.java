@@ -114,9 +114,43 @@ public final class ObserverModels {
         return null;
     }
 
+    // ---- a timeline row's spacecraft, by the name the ephemeris takes ----
+
+    /** The registry entry for a spacecraft target ("Parker Solar Probe", "STEREO Behind"), or null. */
+    @Nullable
+    private static Match matchTarget(String target) {
+        try {
+            List<ModelAssets.Entry> entries = ModelAssets.entries();
+            if (target.startsWith("STEREO"))
+                return byId("stereo", target, entries);
+            for (ModelAssets.Entry e : entries)
+                if (target.equals(e.target()) && !"Earth".equals(e.target()))
+                    return new Match(e, target);
+        } catch (IOException e) {
+            // no registry: no model
+        }
+        return null;
+    }
+
+    public static boolean hasModel(String target) {
+        return matchTarget(target) != null;
+    }
+
+    public static boolean isShown(String target) {
+        return shown(target) != null;
+    }
+
+    /** Add the model for a spacecraft at its position, or remove it when shown; then {@code done}. */
+    public static void toggle(String target, Runnable done) {
+        toggle(matchTarget(target), done);
+    }
+
     /** Add the layer's spacecraft model at its position, or remove it when shown; then {@code done}. */
     public static void toggle(ImageLayer layer, Runnable done) {
-        Match m = match(layer);
+        toggle(match(layer), done);
+    }
+
+    private static void toggle(@Nullable Match m, Runnable done) {
         if (m == null) {
             done.run();
             return;

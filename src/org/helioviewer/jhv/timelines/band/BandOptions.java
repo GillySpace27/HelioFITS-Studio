@@ -91,7 +91,7 @@ class BandOptions extends JPanel {
 
         // Which spacecraft the 3D buoy for this row sits at: guessed from the name until picked.
         c.gridy = 2;
-        add(spacecraftPicker(band), c);
+        add(spacecraftRow(band), c);
 
         // The buoy switches are the 3D scene's, shared by every row: shown here so the row and its dot are set up together
         c.gridy = 3;
@@ -110,6 +110,41 @@ class BandOptions extends JPanel {
             }
         };
         add(buoys, c);
+    }
+
+    // The spacecraft picker, and beside it a switch that puts the craft's 3D model at its position
+    private static JPanel spacecraftRow(Band band) {
+        // sync runs when the row is shown, not while the Band is still being constructed (its name is not set yet)
+        Runnable[] syncRef = new Runnable[1];
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0)) {
+            @Override
+            public void addNotify() {
+                super.addNotify();
+                syncRef[0].run();
+            }
+        };
+        JComboBox<String> picker = spacecraftPicker(band);
+        javax.swing.JToggleButton model = new javax.swing.JToggleButton("Show model");
+        Runnable sync = () -> {
+            var craft = band.getSpacecraft();
+            String target = craft == null ? null : craft.target();
+            boolean has = target != null && org.helioviewer.jhv.layers.ObserverModels.hasModel(target);
+            model.setEnabled(has);
+            model.setSelected(has && org.helioviewer.jhv.layers.ObserverModels.isShown(target));
+            model.setToolTipText(target == null ? "This row has no spacecraft"
+                    : has ? "Show " + target + " in the 3D scene, at its position"
+                    : "No 3D model is listed for " + target + " (the dot and ring still mark it)");
+        };
+        model.addActionListener(e -> {
+            var craft = band.getSpacecraft();
+            if (craft != null)
+                org.helioviewer.jhv.layers.ObserverModels.toggle(craft.target(), sync);
+        });
+        picker.addActionListener(e -> sync.run()); // a new spacecraft changes what the switch means
+        syncRef[0] = sync;
+        row.add(picker);
+        row.add(model);
+        return row;
     }
 
     private static final String AUTO = "Spacecraft: automatic", NONE = "Spacecraft: none (no buoy)", NONE_KEY = "none";
