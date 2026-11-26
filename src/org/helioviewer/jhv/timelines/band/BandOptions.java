@@ -88,6 +88,38 @@ class BandOptions extends JPanel {
         c.gridwidth = 3;
         c.anchor = GridBagConstraints.LINE_START;
         add(yAxisRow(), c);
+
+        // Which spacecraft the 3D buoy for this row sits at: guessed from the name until picked.
+        c.gridy = 2;
+        add(spacecraftPicker(band), c);
+    }
+
+    private static final String AUTO = "Spacecraft: automatic", NONE = "Spacecraft: none (no buoy)", NONE_KEY = "none";
+
+    private static JComboBox<String> spacecraftPicker(Band band) {
+        java.util.List<org.helioviewer.jhv.layers.grid.DataBuoys.Craft> craft = java.util.List.of(org.helioviewer.jhv.layers.grid.DataBuoys.craft());
+        JComboBox<String> box = new JComboBox<>();
+        box.addItem(AUTO);
+        craft.forEach(k -> box.addItem(k.target()));
+        box.addItem(NONE);
+        String key = band.getSpacecraftKey();
+        if (key == null)
+            box.setSelectedItem(AUTO);
+        else if (NONE_KEY.equals(key))
+            box.setSelectedItem(NONE);
+        else
+            craft.stream().filter(k -> k.key().equals(key)).findFirst().ifPresent(k -> box.setSelectedItem(k.target()));
+        box.setToolTipText("Where this row's buoy sits in the 3D scene (3D Scene, Data sources)");
+        box.addActionListener(e -> {
+            String sel = (String) box.getSelectedItem();
+            if (AUTO.equals(sel))
+                band.setSpacecraftKey(null);
+            else if (NONE.equals(sel))
+                band.setSpacecraftKey(NONE_KEY);
+            else
+                craft.stream().filter(k -> k.target().equals(sel)).findFirst().ifPresent(k -> band.setSpacecraftKey(k.key()));
+        });
+        return box;
     }
 
     private JPanel yAxisRow() {

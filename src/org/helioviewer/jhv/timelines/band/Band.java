@@ -69,6 +69,8 @@ public final class Band extends TimelineLayer {
     private Color graphColor = bandColors.getNextColor();
     private PropagationModel propagationModel = new PropagationModel.Delay(0);
     private boolean multicolor;
+    @Nullable
+    private String spacecraftKey; // the buoy's spacecraft, picked on the row; null infers it from the name
     private boolean autoFit; // y range follows the visible data
     private boolean logScale;
     private boolean imapRefused; // the status line shows the IMAP zoom-in message for this band
@@ -132,6 +134,8 @@ public final class Band extends TimelineLayer {
         jo.put("fullResolution", fullResolution);
         jo.put("color", new JSONObject().put("r", graphColor.getRed()).put("g", graphColor.getGreen()).put("b", graphColor.getBlue()));
         jo.put("multicolor", multicolor);
+        if (spacecraftKey != null)
+            jo.put("spacecraft", spacecraftKey);
         jo.put("stackWeight", getStackWeight());
         jo.put("yLog", logScale);
         jo.put("yAuto", autoFit);
@@ -153,6 +157,7 @@ public final class Band extends TimelineLayer {
             band.setDataColor(new Color(r, g, b));
         }
         band.multicolor = band.hasLevelColors() && jo.optBoolean("multicolor", band.bandType.hasLevels());
+        band.spacecraftKey = jo.optString("spacecraft", null);
         band.restoreAxis(jo);
         band.setStackWeight((float) jo.optDouble("stackWeight", 1));
         return band;
@@ -162,6 +167,7 @@ public final class Band extends TimelineLayer {
         enabled = restored.enabled;
         graphColor = restored.graphColor;
         multicolor = restored.multicolor;
+        spacecraftKey = restored.spacecraftKey;
         autoFit = restored.autoFit;
         setStackWeight(restored.getStackWeight());
         if (restored.logScale != logScale) {
@@ -649,6 +655,26 @@ public final class Band extends TimelineLayer {
     @Override
     public long getObservationTime(long ts) {
         return propagationModel.getObservationTime(ts);
+    }
+
+    /** The spacecraft this row's data came from, for its buoy in the 3D scene: the pick, else a guess from the name. */
+    @Nullable
+    public org.helioviewer.jhv.layers.grid.DataBuoys.Craft getSpacecraft() {
+        if (spacecraftKey != null)
+            return org.helioviewer.jhv.layers.grid.DataBuoys.byKey(spacecraftKey);
+        return org.helioviewer.jhv.layers.grid.DataBuoys.infer(getName() + " " + bandType.getName());
+    }
+
+    @Nullable
+    String getSpacecraftKey() {
+        return spacecraftKey;
+    }
+
+    /** Null means automatic; "none" means this row has no buoy. */
+    void setSpacecraftKey(@Nullable String key) {
+        spacecraftKey = key;
+        org.helioviewer.jhv.display.DisplayController.display();
+        notifyStateChanged();
     }
 
     void setPropagationModel(PropagationModel _propagationModel) {
