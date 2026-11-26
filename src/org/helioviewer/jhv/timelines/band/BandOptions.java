@@ -66,6 +66,9 @@ class BandOptions extends JPanel {
             }
         });
         add(pickColor, c);
+        JButton levels = new JButton("Colour levels…");
+        levels.setToolTipText("Draw the line in different colours over value ranges (the speed rows start with slow, intermediate and fast)");
+        levels.addActionListener(e -> BandLevelsDialog.show(band));
 
         c.gridx = 1;
         c.anchor = GridBagConstraints.LINE_START;
@@ -110,6 +113,8 @@ class BandOptions extends JPanel {
             }
         };
         add(buoys, c);
+        c.gridy = 4;
+        add(levels, c);
     }
 
     // The spacecraft picker, and beside it a switch that puts the craft's 3D model at its position

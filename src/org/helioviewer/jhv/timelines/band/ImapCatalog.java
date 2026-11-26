@@ -147,7 +147,21 @@ public final class ImapCatalog {
                 put("range", new JSONArray().put(s.min).put(s.max)).
                 put("scale", s.scale).
                 put("groups", new JSONArray().put(s.group));
+        if ("km/s".equals(s.unit) && s.min > 0) // speeds only: the field components change sign, so thresholds mean nothing there
+            jo.put("levels", speedLevels());
         return new BandType(jo);
+    }
+
+    /**
+     * The starting colour levels of a solar wind speed row, as the ACE rows of the remote catalogue have
+     * theirs: slow, intermediate and fast. The 400 and 600 km/s edges are a common rule of thumb,
+     * an estimate and not an instrument fact; the Colour levels button on the row changes them.
+     */
+    private static JSONArray speedLevels() {
+        return new JSONArray().
+                put(new JSONObject().put("range", new JSONArray().put(-Double.MAX_VALUE).put(400)).put("color", "#4E79A7")).
+                put(new JSONObject().put("range", new JSONArray().put(400).put(600)).put("color", "#59A14F")).
+                put(new JSONObject().put("range", new JSONArray().put(600).put("infinity")).put("color", "#ED4D4E"));
     }
 
     // ---- public API for the UI

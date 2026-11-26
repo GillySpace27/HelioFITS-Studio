@@ -9,6 +9,7 @@ import java.awt.Stroke;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Path2D;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.function.LongUnaryOperator;
@@ -69,6 +70,7 @@ public final class Band extends TimelineLayer {
     private Color graphColor = bandColors.getNextColor();
     private PropagationModel propagationModel = new PropagationModel.Delay(0);
     private boolean multicolor;
+    private volatile BandType.Level[] levels; // the type's colour levels until the user edits them
     @Nullable
     private String spacecraftKey; // the buoy's spacecraft, picked on the row; null infers it from the name
     private boolean autoFit; // y range follows the visible data
@@ -82,7 +84,8 @@ public final class Band extends TimelineLayer {
     public Band(BandType _bandType, boolean _fullResolution) {
         bandType = _bandType;
         fullResolution = _fullResolution;
-        multicolor = bandType.hasLevels();
+        levels = bandType.levels();
+        multicolor = levels.length > 0;
         logScale = "logarithmic".equalsIgnoreCase(bandType.getScale());
         yAxis = newAxis(logScale, bandType.getMin(), bandType.getMax());
         warnPixels = new int[bandType.getWarningLevels().length];
@@ -134,6 +137,12 @@ public final class Band extends TimelineLayer {
         jo.put("fullResolution", fullResolution);
         jo.put("color", new JSONObject().put("r", graphColor.getRed()).put("g", graphColor.getGreen()).put("b", graphColor.getBlue()));
         jo.put("multicolor", multicolor);
+        if (!Arrays.equals(levels, bandType.levels())) { // only an edited set is written; the type's own come from its JSON
+            JSONArray ja = new JSONArray();
+            for (BandType.Level l : levels)
+                ja.put(new JSONObject().put("min", l.min()).put("max", l.max()).put("color", String.format("#%06X", l.color().getRGB() & 0xFFFFFF)));
+            jo.put("levels", ja);
+        }
         if (spacecraftKey != null)
             jo.put("spacecraft", spacecraftKey);
         jo.put("stackWeight", getStackWeight());
@@ -156,7 +165,20 @@ public final class Band extends TimelineLayer {
             int b = Math.clamp(jcolor.optInt("b", 0), 0, 255);
             band.setDataColor(new Color(r, g, b));
         }
-        band.multicolor = band.hasLevelColors() && jo.optBoolean("multicolor", band.bandType.hasLevels());
+        JSONArray jl = jo.optJSONArray("levels");
+        if (jl != null) {
+            ArrayList<BandType.Level> list = new ArrayList<>();
+            for (int i = 0; i < jl.length(); i++) {
+                JSONObject l = jl.optJSONObject(i);
+                if (l != null && l.has("min") && l.has("max"))
+                    try {
+                        list.add(new BandType.Level(l.getDouble("min"), l.getDouble("max"), Colors.parseColor(l.optString("color", "#000000"))));
+                    } catch (NumberFormatException ignored) { // a damaged level is dropped, the rest stay
+                    }
+            }
+            band.levels = list.toArray(BandType.Level[]::new);
+        }
+        band.multicolor = band.hasLevelColors() && jo.optBoolean("multicolor", band.hasLevelColors());
         band.spacecraftKey = jo.optString("spacecraft", null);
         band.restoreAxis(jo);
         band.setStackWeight((float) jo.optDouble("stackWeight", 1));
@@ -167,6 +189,7 @@ public final class Band extends TimelineLayer {
         enabled = restored.enabled;
         graphColor = restored.graphColor;
         multicolor = restored.multicolor;
+        levels = restored.levels;
         spacecraftKey = restored.spacecraftKey;
         autoFit = restored.autoFit;
         setStackWeight(restored.getStackWeight());
@@ -327,7 +350,31 @@ public final class Band extends TimelineLayer {
     }
 
     public boolean hasLevelColors() {
-        return bandType.hasLevels();
+        return levels.length > 0;
+    }
+
+    /** The colour of {@code value}: the first level that holds it, or null. */
+    Color levelColor(double value) {
+        for (BandType.Level l : levels)
+            if (value >= l.min() && value <= l.max())
+                return l.color();
+        return null;
+    }
+
+    BandType.Level[] levels() {
+        return levels.clone();
+    }
+
+    BandType.Level[] defaultLevels() {
+        return bandType.levels();
+    }
+
+    /** Replaces the colour levels; an empty set turns the colouring off. */
+    void setLevels(BandType.Level[] set) {
+        levels = set.clone();
+        multicolor = levels.length > 0;
+        updateGraph();
+        notifyStateChanged();
     }
 
     public boolean hasWarningLevels() {
@@ -412,7 +459,7 @@ public final class Band extends TimelineLayer {
             float[] vals = line.values;
             Color pathColor = null;
             for (int i = 0; i < xp.length - 1; i++) {
-                Color segmentColor = vals != null ? bandType.getLevelColor(vals[i]) : null;
+                Color segmentColor = vals != null ? levelColor(vals[i]) : null;
                 if (segmentColor == null)
                     segmentColor = graphColor;
                 if (!segmentColor.equals(pathColor)) {
@@ -497,7 +544,7 @@ public final class Band extends TimelineLayer {
                 int valueY = yMapper.dataToPixel(dv.value);
                 int top = Math.min(valueY, baselineY);
                 int bottom = Math.max(valueY, baselineY);
-                Color levelColor = useMulticolor ? bandType.getLevelColor(dv.value) : null;
+                Color levelColor = useMulticolor ? levelColor(dv.value) : null;
                 bars.add(new Bar(left, top, right, bottom, levelColor));
             }
         }
