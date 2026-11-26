@@ -23,6 +23,7 @@ class DrawControllerOptions extends JPanel {
     private final JComboBox<ZoomItem> zoomCombo;
     private final JToggleButton lockButton;
     private final JToggleButton stackedButton;
+    private final JToggleButton exportButton;
     private final JLabel statusLabel;
 
     private enum ZOOM {
@@ -82,6 +83,15 @@ class DrawControllerOptions extends JPanel {
         endpointsButton.setSelected(DrawController.isShowMovieEndpoints());
         endpointsButton.addActionListener(e -> DrawController.setShowMovieEndpoints(endpointsButton.isSelected()));
 
+        // The timelines pane and its header take the canvas's background, so a screenshot or movie frame of both matches.
+        exportButton = Buttons.flatToggle("Export");
+        exportButton.setToolTipText("Export friendly: the timelines pane and its header use the canvas's background (black, or white with View > Use White Background)");
+        exportButton.setSelected(org.helioviewer.jhv.gui.UIGlobals.isTimelineExport());
+        exportButton.addActionListener(e -> {
+            org.helioviewer.jhv.gui.UIGlobals.setTimelineExport(exportButton.isSelected());
+            DrawController.drawRequest();
+        });
+
         // Global vertical extent of every timeline bar.
         JSlider barSlider = new JSlider(2, 24, DrawConstants.getBarHeight());
         barSlider.setPreferredSize(new Dimension(70, barSlider.getPreferredSize().height));
@@ -97,6 +107,7 @@ class DrawControllerOptions extends JPanel {
         togglePanel.add(fitButton);
         togglePanel.add(lockButton);
         togglePanel.add(endpointsButton);
+        togglePanel.add(exportButton);
         togglePanel.add(new JLabel("↕"));
         togglePanel.add(barSlider);
 
@@ -152,6 +163,11 @@ class DrawControllerOptions extends JPanel {
     void setStacked(boolean stacked) {
         if (stackedButton.isSelected() != stacked)
             stackedButton.doClick();
+    }
+
+    void setExportFriendly(boolean on) {
+        if (exportButton.isSelected() != on)
+            exportButton.doClick();
     }
 
     void setStatus(String status) {

@@ -130,7 +130,7 @@ public final class TimelinePanel extends JPanel {
 
         jsp = new JScrollPane(grid, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         UIGlobals.themed(jsp, c -> c.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UIGlobals.separator())));
-        UIGlobals.themed(jsp.getViewport(), c -> c.setBackground(grid.getBackground()));
+        UIGlobals.themed(jsp.getViewport(), c -> c.setBackground(UIGlobals.timelineExportBackground() != null ? UIGlobals.timelineExportBackground() : grid.getBackground()));
 
         JButton addLayerButton = Buttons.flat(Buttons.newLayer);
         addLayerButton.setText("New Layer");
