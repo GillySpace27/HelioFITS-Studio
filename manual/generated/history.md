@@ -2,10 +2,11 @@
 
 # Revision history
 
-## HelioFITS Studio 0.9.3 (unreleased)
+## HelioFITS Studio 0.9.4 (unreleased)
 
-### New
-- Timelines: an IMAP (NASA SPDF) catalog, available at once with no server: merged hourly field, speed, density and temperature, SWAPI 1-minute proton and alpha plasma, and MAG 1-minute means (heavy; at most 14 days visible), plus an IMAP solar wind stack and a data-credit line when an IMAP band is selected.
+0.9.4 contains everything prepared as 0.9.3, which was never released on its own (its snapshot is the branch `claude/release-0.9.3-cut`), followed by the work added after it.
+
+### New (prepared as 0.9.3)
 - Opening an export record (.hfrec) on a computer where its local files are not at the recorded paths now finds them in the FITS library by their SHA-256 and replays from the library's copies; the notes in the replay window say how many were found.
 
 - The 3D Scene pane gains a switch for all 3D layers at once, an Add layer menu (comet, 3D model, point cloud), and the planet controls, moved there from the grid layer. Each spacecraft model has its own Track (orbit line, span in days) and Field of view toggles, like the comets.
@@ -17,9 +18,13 @@
 - Image Layers: a layer's options have foldable sub-sections.
 - Identify: a second-line toggle, Boldness sliders (they work live), and a comet glyph (the ring plus a tail) that scales with exports.
 - The PUNCH dialog offers version v0m in the version picker.
-- Install with Homebrew: `brew tap GillySpace27/tap`, then `brew install hfstudio`. A Homebrew install shows no update dialog; brew owns updates. Builds before 0.9.3 look for the old cask name (heliofits-studio) when they check for updates.
+- Install with Homebrew: `brew tap GillySpace27/tap`, then `brew install hfstudio`. A Homebrew install shows no update dialog; brew owns updates. Builds before 0.9.4 look for the old cask name (heliofits-studio) when they check for updates.
 
-### Changes
+- Help > Open Demo Scene looks better: the coronagraph frames share one colour table, RHEF is on the LASCO frames, the LASCO frames are turned to exact north-up so they no longer moire, and the PUNCH mosaic is four times as sharp (the samples grow from 1.6 to 2.2 MB).
+- Theme Manager > Visibility has a "Drop shadow under each section" option (off until ticked), and Copy as built-in puts a theme on the clipboard as an entry for resources/themes/bundled.json, which the program loads with the built-in themes.
+- Settings > Storage has an optional size cap for the download cache ("Keep at most N GB"; blank is no limit, the default). Over the cap the oldest files go first, except any file a saved session names (the states folder, Open Recent and Recovery snapshots), so offline session restore keeps working; the FITS library's moves list is never removed, and if a session cannot be read nothing is deleted. It runs when you Apply and once per launch.
+
+### Changes (prepared as 0.9.3)
 - The comet list's Show in scene button is now a Show in 3D scene toggle: switching it off turns the comet layer off and keeps it, with its settings.
 - HelioFITS Core moves to pyHelioFITS 10892f0 (from 864b2362): looking files up by hash (`record.locate`), a verdict for every frame of a movie, the Windows socket fix, and a golden set of four records. A release now runs that golden set against the pinned Core (`release/replay.sh`) and stops if a pixel digest drifts.
 - Session open: a session opens at its own framing, and the PUNCH and MLSO dialogs adopt the master time.
@@ -27,12 +32,27 @@
 - The activity sampler runs at 1 Hz when idle (10 Hz while busy).
 - Studio polish: the filter row, planet style, sidebar glyphs and layer selection.
 
-### Fixes
+### Fixes (prepared as 0.9.3)
 - Annotations drawn off the solar disk now appear in the plane of the sky; a one-time hint explains Shift.
 - CCOR2 images: null pixels (NO_DITHER float images) decode as NaN instead of a value.
 - Regression fixes: the scroll wheel, 3D image stacking, frame rate, the Identify crop and the Earth button. Track lists pass the wheel up to the sidebar.
 - The planet controls in the 3D Scene pane follow the grid layer that a session load swaps in; comet Position Angle is measured at the Sun, not at the comet.
 - Linux package: the bundled Core console scripts (hfcore, heliofits-mcp) run from any folder.
+
+### New in 0.9.4
+- Timelines: an IMAP (NASA SPDF) catalog, available at once with no server: merged hourly field, speed, density and temperature, SWAPI 1-minute proton and alpha plasma, and MAG 1-minute means (heavy; at most 14 days visible), plus an IMAP solar wind stack and a data-credit line when an IMAP band is selected.
+- Timelines are rows you can manage: a Timeline Manager under Managers, drag handles to reorder rows, stacked panels you can reorder and resize, event-interval lanes above the plot, and a scrubber that pans sideways and zooms up and down like a DAW. The timeline list shows every row.
+- Timeline bands: auto-fit y range, typed y minimum and maximum, a linear or log switch, colour levels on rows, and defaults for the IMAP speeds.
+- Dropping a .cdf opens timeline layers (several CDFs dropped together select the union of their time ranges), and presentation mode keeps the timelines pane.
+- Buoys: each timeline row marks its spacecraft in the 3D scene (close spacecraft merge into one chip, and rows and buoys light together), the row's options hold the controls, and a row can show the spacecraft model at its position. IMAP gets its ephemeris from Horizons, and Show model can import the APL model from its address. Timelines export in a friendlier form.
+- 3D Scene Planets: an Earth toggle that hides only the dot, a viewpoint marker with its own style (also in the Viewpoint palette), and labels that face the screen.
+- Comet orbit width and marker size sliders.
+- Identify draws each ring in its layer's place in the stack.
+
+### Fixes in 0.9.4
+- A refused chunked request no longer opens a flood of error dialogs (issue 298).
+- The readout text at the top of the canvas is no longer cropped.
+- Layer lists no longer cut overlay names.
 
 ## HelioFITS Studio 0.9.2 (unreleased)
 
@@ -51,8 +71,6 @@
 
 - Settings > General > Local API now has three levels for what a script or assistant may do without asking: allow everything, ask before removing from the scene (the default, as before, now also before it overwrites an export or a saved session), or ask before every change. After the question has come up three times in two minutes, its dialog offers to approve that caller's commands for a number of minutes you choose; whole-scene discards (new or opened session, quit, revert, close) are still asked every time, and each command it lets through is logged.
 
-- Help > Open Demo Scene looks better: the coronagraph frames share one colour table, RHEF is on the LASCO frames, the LASCO frames are turned to exact north-up so they no longer moire, and the PUNCH mosaic is four times as sharp (the samples grow from 1.6 to 2.2 MB).
-- Theme Manager > Visibility has a "Drop shadow under each section" option (off until ticked), and Copy as built-in puts a theme on the clipboard as an entry for resources/themes/bundled.json, which the program loads with the built-in themes.
 
 ### Fixes
 - Stars sit on their own pixels: in Orthographic and Helioradial in 3D the Stars overlay was placed with the wrong formula off the Sun line (35 arcsec at 4 degrees in both angles, about 100 arcsec at 5.6 degrees, more further out) and, in 3D Helioradial, on the plane of sky instead of the surface the corona is drawn on. They are now placed where the imagery shows the same direction, in the frame of the active image layer, Helioradial (flat) draws them too, and orbiting the camera no longer turns them away from the imagery; the star under the pointer and its Highlight All ring follow.
