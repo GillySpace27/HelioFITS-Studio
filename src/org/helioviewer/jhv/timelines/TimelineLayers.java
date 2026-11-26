@@ -17,14 +17,15 @@ import org.helioviewer.jhv.timelines.draw.TimeAxis;
 import org.helioviewer.jhv.timelines.radio.RadioData;
 
 @SuppressWarnings("serial")
-public class TimelineLayers extends AbstractTableModel {
+public class TimelineLayers extends AbstractTableModel implements org.helioviewer.jhv.layers.selector.Reorderable {
 
-    public static final int ENABLED_COLUMN = 0;
-    public static final int TITLE_COLUMN = 1;
-    public static final int LOADING_COLUMN = 2;
-    public static final int APPEARANCE_COLUMN = 3;
-    public static final int REMOVE_COLUMN = 4;
-    public static final int COLUMN_COUNT = 5;
+    public static final int HANDLE_COLUMN = 0; // the grip: the only place a row is picked up to reorder it
+    public static final int ENABLED_COLUMN = 1;
+    public static final int TITLE_COLUMN = 2;
+    public static final int LOADING_COLUMN = 3;
+    public static final int APPEARANCE_COLUMN = 4;
+    public static final int REMOVE_COLUMN = 5;
+    public static final int COLUMN_COUNT = 6;
 
     private static final ArrayList<TimelineLayer> layers = new ArrayList<>();
     private static final List<TimelineLayer> extLayers = Collections.unmodifiableList(layers);
@@ -117,6 +118,43 @@ public class TimelineLayers extends AbstractTableModel {
         DrawController.layoutChanged();
     }
 
+    /** Move a layer up (negative) or down (positive) the list, which is also its order in the stacked plot. */
+    public boolean move(TimelineLayer tl, int delta) {
+        int row = layers.indexOf(tl);
+        int to = row + delta;
+        if (row < 0 || to < 0 || to >= layers.size())
+            return false;
+        layers.remove(row);
+        layers.add(to, tl);
+        fireTableRowsUpdated(Math.min(row, to), Math.max(row, to));
+        DrawController.layoutChanged();
+        return true;
+    }
+
+    private java.util.function.IntConsumer onReorder = row -> {};
+
+    /** Told the row a dragged layer landed on, so the list can keep it selected. */
+    public void setOnReorder(java.util.function.IntConsumer consumer) {
+        onReorder = consumer;
+    }
+
+    /** Drag and drop: lift the row at fromIndex and drop it at the insertion index toIndex. */
+    @Override
+    public void reorder(int fromIndex, int toIndex) {
+        if (fromIndex < 0 || fromIndex >= layers.size())
+            return;
+        int target = Math.clamp(toIndex, 0, layers.size());
+        if (fromIndex < target)
+            target--; // the insertion index counts the row being lifted
+        if (fromIndex == target)
+            return;
+        TimelineLayer tl = layers.remove(fromIndex);
+        layers.add(target, tl);
+        fireTableRowsUpdated(Math.min(fromIndex, target), Math.max(fromIndex, target));
+        DrawController.layoutChanged();
+        onReorder.accept(target);
+    }
+
     public void restore(List<TimelineLayer> newLayers) {
         ArrayList<TimelineLayer> restoredLayers = new ArrayList<>();
         for (TimelineLayer newLayer : newLayers) {
@@ -125,7 +163,7 @@ public class TimelineLayers extends AbstractTableModel {
         }
         // Band and Callisto rows come from the state; plugin rows belong to their active plugin.
         for (TimelineLayer layer : layers) {
-            if (!(layer instanceof Band) && !(layer instanceof RadioData))
+            if (!(layer instanceof Band) && !(layer instanceof RadioData) && !(layer instanceof IntervalTimelineLayer)) // the state is the authority for these
                 addUnique(restoredLayers, layer);
         }
         if (restoredLayers.stream().noneMatch(layer -> layer instanceof RadioData))
@@ -158,6 +196,16 @@ public class TimelineLayers extends AbstractTableModel {
                 .distinct()
                 .map(type -> existingBands.computeIfAbsent(type, Band::new))
                 .forEach(replacement::add);
+        replaceAll(replacement);
+    }
+
+    /** The rows become {@code bands} (restored from a saved preset); layers that are not rows stay. */
+    public void replaceBandsWith(List<? extends TimelineLayer> bands) {
+        ArrayList<TimelineLayer> replacement = new ArrayList<>();
+        for (TimelineLayer layer : layers)
+            if (!(layer instanceof Band))
+                replacement.add(layer);
+        replacement.addAll(bands);
         replaceAll(replacement);
     }
 

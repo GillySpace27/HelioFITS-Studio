@@ -28,17 +28,24 @@ public final class BandImporter {
     }
 
     public static void loadCdf(URI uri) throws Exception {
-        List<BandData> bands = BandReaderCdf.read(uri);
-        if (bands.isEmpty())
-            return;
-        long[] dates = bands.getFirst().dates();
-        if (dates.length == 0)
-            return;
+        long[] range = loadCdfRange(uri);
+        EventQueue.invokeLater(() -> DrawController.setSelectedInterval(range[0], range[1]));
+    }
 
-        EventQueue.invokeLater(() -> {
-            acceptData(bands);
-            DrawController.setSelectedInterval(dates[0], dates[dates.length - 1]);
-        });
+    /** Adds the file's bands and returns its {first, last} time; the caller picks the selected interval. */
+    public static long[] loadCdfRange(URI uri) throws Exception {
+        List<BandData> bands = BandReaderCdf.read(uri);
+        if (bands.isEmpty() || bands.getFirst().dates().length == 0)
+            throw new Exception("No timeline data found in " + uri.getPath());
+        long[] dates = bands.getFirst().dates();
+
+        EventQueue.invokeLater(() -> acceptData(bands));
+        long first = dates[0], last = dates[0];
+        for (long d : dates) { // CDF records are normally ascending, but do not rely on it
+            first = Math.min(first, d);
+            last = Math.max(last, d);
+        }
+        return new long[]{first, last};
     }
 
     private static void acceptData(List<BandData> data) {

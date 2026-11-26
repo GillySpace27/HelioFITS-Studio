@@ -9,9 +9,11 @@ import javax.swing.JCheckBox;
 import javax.swing.JPanel;
 
 import org.helioviewer.jhv.display.DisplayController;
+import org.helioviewer.jhv.layers.GridLayer;
 import org.helioviewer.jhv.layers.Layer;
 import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.layers.ViewpointLayer;
+import org.helioviewer.jhv.layers.selector.GridLayerOptions;
 import org.helioviewer.jhv.layers.selector.ViewpointLayerOptionsPanel;
 
 /**
@@ -42,6 +44,8 @@ final class CameraPaletteContent {
     private static ViewpointLayer boundLayer;
     @Nullable
     private static ViewpointLayerOptionsPanel options;
+    // The viewpoint marker's controls: the grid layer draws the marker, so they are bound to it
+    private static final JPanel markerHolder = new JPanel(new BorderLayout());
 
     static Component build() {
         if (built) {
@@ -63,6 +67,9 @@ final class CameraPaletteContent {
             DisplayController.render(1);
         });
         panel.add(cameraOn, BorderLayout.PAGE_START);
+        markerHolder.setOpaque(false);
+        markerHolder.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
+        panel.add(markerHolder, BorderLayout.PAGE_END);
         refresh();
         return panel;
     }
@@ -82,6 +89,20 @@ final class CameraPaletteContent {
             panel.revalidate();
             panel.repaint();
         }
+        GridLayer grid = null;
+        for (Layer l : Layers.getLayers())
+            if (l instanceof GridLayer g) {
+                grid = g;
+                break;
+            }
+        if (grid != markerHolder.getClientProperty("grid")) { // the layer the controls are bound to
+            markerHolder.putClientProperty("grid", grid);
+            markerHolder.removeAll();
+            if (grid != null)
+                markerHolder.add(GridLayerOptions.viewpointMarkerControls(grid), BorderLayout.CENTER);
+            markerHolder.revalidate();
+            markerHolder.repaint();
+        }
         boolean on = layer != null && layer.isEnabled();
         cameraOn.setEnabled(layer != null);
         if (cameraOn.isSelected() != on) {
@@ -98,13 +119,13 @@ final class CameraPaletteContent {
         Layers.addListener(new Layers.Listener() {
             @Override
             public void layerAdded(int index, Layer layer) {
-                if (layer instanceof ViewpointLayer)
+                if (layer instanceof ViewpointLayer || layer instanceof GridLayer)
                     refresh();
             }
 
             @Override
             public void layerRemoved(int index, Layer layer) {
-                if (layer instanceof ViewpointLayer)
+                if (layer instanceof ViewpointLayer || layer instanceof GridLayer)
                     refresh();
             }
 

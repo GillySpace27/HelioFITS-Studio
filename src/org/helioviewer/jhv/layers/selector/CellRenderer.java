@@ -22,7 +22,7 @@ import org.helioviewer.jhv.layers.Layers;
 import org.helioviewer.jhv.view.View;
 
 @SuppressWarnings("serial")
-class CellRenderer {
+public class CellRenderer {
 
     /**
      * A row's background, tinted by what the layer's data actually is.
@@ -94,7 +94,7 @@ class CellRenderer {
      * large arrow on its right, in the selection foreground so they stand out against the tint
      * in both themes. Sizes come from the row height, so they follow UIScale.
      */
-    static final class Handle extends DefaultTableCellRenderer {
+    public static final class Handle extends DefaultTableCellRenderer {
 
         private boolean selected;
         private boolean layer;
@@ -102,7 +102,7 @@ class CellRenderer {
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
             selected = isSelected;
-            layer = value instanceof Layer;
+            layer = value instanceof Layer || value instanceof org.helioviewer.jhv.timelines.TimelineLayer;
             setText(null);
             setBorder(null);
             setToolTipText(layer ? "Drag to reorder: the order is the draw order" : null);

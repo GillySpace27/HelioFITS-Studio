@@ -1,6 +1,7 @@
 package org.helioviewer.jhv.layers;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.List;
 import java.util.Locale;
 
@@ -114,9 +115,68 @@ public final class ObserverModels {
         return null;
     }
 
+    // ---- a timeline row's spacecraft, by the name the ephemeris takes ----
+
+    /** The registry entry for a spacecraft target ("Parker Solar Probe", "STEREO Behind"), or null. */
+    @Nullable
+    private static Match matchTarget(String target) {
+        try {
+            List<ModelAssets.Entry> entries = ModelAssets.entries();
+            if (target.startsWith("STEREO"))
+                return byId("stereo", target, entries);
+            for (ModelAssets.Entry e : entries)
+                if (target.equals(e.target()) && !"Earth".equals(e.target()))
+                    return new Match(e, target);
+            // A model the user imported under the spacecraft's name (the offer below makes one)
+            for (ModelAssets.Entry e : entries)
+                if (e.origin() == ModelAssets.Origin.IMPORTED && target.equalsIgnoreCase(e.name()))
+                    return new Match(e, target);
+        } catch (IOException e) {
+            // no registry: no model
+        }
+        return null;
+    }
+
+    // Models the registry cannot bundle (no licence to redistribute) but the user may fetch for themselves
+    private static final java.util.Map<String, String> OFFERED = java.util.Map.of(
+            "IMAP", "https://www.jhuapl.edu/sites/default/files/2024-03/IMAP_2.83.glb");
+
+    /** The address a model for this spacecraft can be imported from, or null. */
+    @Nullable
+    public static String offeredSource(String target) {
+        return OFFERED.get(target);
+    }
+
+    /** Download the offered model into the user's imports, as Import from URL would; then {@code done}. */
+    public static void importOffered(String target, Runnable done) {
+        String source = OFFERED.get(target);
+        if (source == null) {
+            done.run();
+            return;
+        }
+        Task.submitBackground(target, () -> ModelAssets.importUrl(URI.create(source), target, got -> {}, () -> false),
+                entry -> done.run(), "Could not download the " + target + " model");
+    }
+
+    public static boolean hasModel(String target) {
+        return matchTarget(target) != null;
+    }
+
+    public static boolean isShown(String target) {
+        return shown(target) != null;
+    }
+
+    /** Add the model for a spacecraft at its position, or remove it when shown; then {@code done}. */
+    public static void toggle(String target, Runnable done) {
+        toggle(matchTarget(target), done);
+    }
+
     /** Add the layer's spacecraft model at its position, or remove it when shown; then {@code done}. */
     public static void toggle(ImageLayer layer, Runnable done) {
-        Match m = match(layer);
+        toggle(match(layer), done);
+    }
+
+    private static void toggle(@Nullable Match m, Runnable done) {
         if (m == null) {
             done.run();
             return;

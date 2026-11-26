@@ -45,6 +45,26 @@ public final class PlanetMarkers {
         }
     }
 
+    /** Earth alone, placed as {@link #positions} places it, without paying for the other seven; null if unplaceable. */
+    @Nullable
+    public static Marker earth(JHVTime time, boolean followSolarRotation) {
+        SpaceObject body = SpaceObject.get("Earth");
+        if (body == null)
+            return null;
+        double[] v = hci(body, time);
+        if (v != null)
+            return new Marker(body, toDisplay(v, placementOffset(time, followSolarRotation)), body.getColor());
+        // The ephemeris cannot place it: Sun.getEarth has a fallback orbit, in the display frame already.
+        Position p = org.helioviewer.jhv.astronomy.Sun.getEarth(time);
+        double c = p.distance * Math.cos(p.lat);
+        return new Marker(body, new Vec3(c * Math.sin(p.lon), p.distance * Math.sin(p.lat), c * Math.cos(p.lon)), body.getColor());
+    }
+
+    /** True for the marker the grid layer draws as the Earth dot, so the planet loop leaves it out. */
+    public static boolean isEarth(Marker m) {
+        return "Earth".equals(m.label());
+    }
+
     public static List<SpaceObject> bodies() {
         List<SpaceObject> list = new ArrayList<>(NAMES.length);
         for (String name : NAMES) {

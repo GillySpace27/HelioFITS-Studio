@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Full history, but only this commit's files: the build records `git rev-list --count
           # HEAD` as the revision, which a shallow clone reports as 1. The files are what make the
@@ -90,7 +90,7 @@ jobs:
           "$RUNNER_TEMP/core-moved/bin/hfcore" --version
           "$RUNNER_TEMP/core-moved/bin/heliofits-mcp" --help
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: package-linux-evidence
@@ -99,7 +99,7 @@ jobs:
             app-linux-pkg.log
             app-linux-pkg.out
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: package-linux
           path: HFStudio-*-linux.tar.gz
@@ -110,7 +110,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           filter: blob:none
@@ -142,7 +142,7 @@ jobs:
 
       # Handed over before the launch checks, which unpack natives as the program starts, so the
       # signed zip holds exactly what the push zip would.
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: github.event_name != 'push'
         with:
           name: unsigned-windows-app
@@ -172,7 +172,7 @@ jobs:
           grep -E 'OpenJPEG .* loaded from .*HFStudio' app-windows-pkg.log \
             || { echo "::error::no JPEG 2000 file was decoded by the bundled OpenJPEG"; exit 1; }
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: package-windows-evidence
@@ -181,7 +181,7 @@ jobs:
             app-windows-pkg.log
             app-windows-pkg.out
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: github.event_name == 'push'
         with:
           name: package-windows
@@ -205,14 +205,14 @@ jobs:
       contents: read
       id-token: write   # the token azure/login trades for access to the signing account
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           sparse-checkout: |
             VERSION
             release/package-app.sh
           sparse-checkout-cone-mode: false
 
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: unsigned-windows-app
           path: pkg-out/HFStudio
@@ -265,7 +265,7 @@ jobs:
         shell: bash
         run: release/package-app.sh windows archive
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: package-windows
           path: HFStudio-*-windows.zip
@@ -280,7 +280,7 @@ jobs:
     runs-on: macos-26-intel   # the longest-lived Intel label; see checks.yml
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           filter: blob:none
@@ -352,7 +352,7 @@ jobs:
         if: env.HAS_MAC2 == 'true'
         run: python3 extra/launch-pixels.py shot-macos-intel.png 1500
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: package-macos-intel-evidence
@@ -372,7 +372,7 @@ jobs:
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: package-*   # the two packages, plus their evidence, which is harmless here
           merge-multiple: true

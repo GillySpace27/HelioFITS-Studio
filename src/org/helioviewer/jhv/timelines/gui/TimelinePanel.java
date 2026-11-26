@@ -37,6 +37,7 @@ import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.TableValue;
 import org.helioviewer.jhv.timelines.TimelineLayer;
 import org.helioviewer.jhv.timelines.TimelineLayers;
+import org.helioviewer.jhv.layers.grid.DataBuoys;
 import org.helioviewer.jhv.timelines.band.Band;
 import org.helioviewer.jhv.timelines.band.BandType;
 import org.helioviewer.jhv.timelines.draw.DrawController;
@@ -47,13 +48,13 @@ public final class TimelinePanel extends JPanel {
     private static final int ICON_WIDTH = 12;
     private static final String PREDEFINED_PLACEHOLDER = "Predefined";
 
-    private static final int NUMBEROFVISIBLEROWS = 6;
 
     private final TimelineTable grid;
     private final TimelineLayers layers;
     private final JPanel optionsPanelWrapper;
     private final JComboBox<String> predefinedCombo;
     private Map<String, List<BandType>> predefinedGroups = Map.of();
+    private Map<String, org.json.JSONArray> userPresets = Map.of();
     private boolean updatingPredefinedGroup;
 
     private static class TimelineTable extends JTable implements Interfaces.LazyComponent {
@@ -128,9 +129,9 @@ public final class TimelinePanel extends JPanel {
 
         grid = new TimelineTable(model);
 
-        JScrollPane jsp = new JScrollPane(grid, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        jsp = new JScrollPane(grid, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         UIGlobals.themed(jsp, c -> c.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UIGlobals.separator())));
-        UIGlobals.themed(jsp.getViewport(), c -> c.setBackground(grid.getBackground()));
+        UIGlobals.themed(jsp.getViewport(), c -> c.setBackground(UIGlobals.timelineExportBackground() != null ? UIGlobals.timelineExportBackground() : grid.getBackground()));
 
         JButton addLayerButton = Buttons.flat(Buttons.newLayer);
         addLayerButton.setText("New Layer");
@@ -169,8 +170,17 @@ public final class TimelinePanel extends JPanel {
                 predefinedCombo.setSelectedItem(null);
         });
 
+        JButton upButton = new JButton("\u25B2");
+        upButton.setToolTipText("Move the selected layer up (up the stacked plot)");
+        upButton.addActionListener(e -> moveSelected(-1));
+        JButton downButton = new JButton("\u25BC");
+        downButton.setToolTipText("Move the selected layer down (down the stacked plot)");
+        downButton.addActionListener(e -> moveSelected(1));
+
         JPanel leftButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
         leftButtonPanel.add(addLayerButton);
+        leftButtonPanel.add(upButton);
+        leftButtonPanel.add(downButton);
 
         JPanel rightButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
         rightButtonPanel.add(predefinedCombo);
@@ -205,6 +215,16 @@ public final class TimelinePanel extends JPanel {
         grid.setIntercellSpacing(new Dimension(0, 0));
         grid.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
 
+        // Drag a row by its grip to reorder, as in the layer lists; the order is the stacked-plot order
+        grid.setDragEnabled(true);
+        grid.setDropMode(javax.swing.DropMode.INSERT_ROWS);
+        grid.setTransferHandler(new org.helioviewer.jhv.layers.selector.TableRowTransferHandler(grid, () -> pressedOnHandle));
+        layers.setOnReorder(row -> grid.getSelectionModel().setSelectionInterval(row, row));
+
+        grid.getColumnModel().getColumn(TimelineLayers.HANDLE_COLUMN).setCellRenderer(new org.helioviewer.jhv.layers.selector.CellRenderer.Handle());
+        grid.getColumnModel().getColumn(TimelineLayers.HANDLE_COLUMN).setPreferredWidth(ICON_WIDTH + 12); // room for the selected row's arrow
+        grid.getColumnModel().getColumn(TimelineLayers.HANDLE_COLUMN).setMaxWidth(ICON_WIDTH + 12);
+
         grid.getColumnModel().getColumn(TimelineLayers.ENABLED_COLUMN).setCellRenderer(new CellRenderer.Enabled());
         grid.getColumnModel().getColumn(TimelineLayers.ENABLED_COLUMN).setPreferredWidth(ICON_WIDTH + 8);
         grid.getColumnModel().getColumn(TimelineLayers.ENABLED_COLUMN).setMinWidth(ICON_WIDTH + 8);
@@ -232,7 +252,27 @@ public final class TimelinePanel extends JPanel {
                 refreshSelectedOptionsPanel();
         });
 
+        // The 3D scene's buoys and these rows light each other: the row under the pointer names its spacecraft, a buoy under the pointer lights its rows
+        DataBuoys.LISTENERS.add(grid::repaint);
+        grid.addMouseMotionListener(new MouseAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                TableValue v = TableValue.tableValueAtPoint(grid, e.getPoint());
+                var craft = v != null && v.value instanceof Band band ? band.getSpacecraft() : null;
+                setRowHover(craft == null ? null : craft.key());
+            }
+        });
         grid.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                pressedOnHandle = grid.columnAtPoint(e.getPoint()) == TimelineLayers.HANDLE_COLUMN;
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                setRowHover(null);
+            }
+
             @Override
             public void mouseClicked(MouseEvent e) {
                 TableValue v = TableValue.tableValueAtPoint(grid, e.getPoint());
@@ -263,7 +303,10 @@ public final class TimelinePanel extends JPanel {
             }
         });
 
-        jsp.setPreferredSize(new Dimension(-1, grid.getRowHeight() * NUMBEROFVISIBLEROWS + 1));
+        // Every row shows, as in the layer lists: a list that scrolls hides layers behind a bar. The
+        // section grows with the list; the sidebar's own scrollbar deals with a tall stack.
+        fitRows();
+        layers.addTableModelListener(e -> fitRows());
 
         gc.gridy = 1;
         optionsPanelWrapper = new JPanel(new BorderLayout());
@@ -278,6 +321,14 @@ public final class TimelinePanel extends JPanel {
         return grid.getValueAt(row, 0) instanceof TimelineLayer timeline ? timeline : null;
     }
 
+    private void moveSelected(int delta) {
+        TimelineLayer layer = selectedLayer();
+        if (layer != null && layers.move(layer, delta)) {
+            int row = grid.getSelectedRow() + delta;
+            grid.getSelectionModel().setSelectionInterval(row, row);
+        }
+    }
+
     private void selectExistingRow(int preferredRow) {
         int rowCount = grid.getRowCount();
         if (rowCount == 0) {
@@ -287,6 +338,20 @@ public final class TimelinePanel extends JPanel {
         int row = Math.min(preferredRow, rowCount - 1);
         grid.getSelectionModel().setSelectionInterval(row, row);
         refreshSelectedOptionsPanel();
+    }
+
+    private JScrollPane jsp;
+    private boolean pressedOnHandle; // a drag counts only if it began on the grip
+
+    private void fitRows() {
+        jsp.setPreferredSize(new Dimension(-1, grid.getRowHeight() * Math.max(grid.getRowCount(), 1) + 1));
+        jsp.revalidate();
+        revalidate();
+    }
+
+    private static void setRowHover(String key) {
+        if (!java.util.Objects.equals(DataBuoys.ROW_HOVER.getAndSet(key), key))
+            org.helioviewer.jhv.display.DisplayController.display();
     }
 
     private void refreshSelectedOptionsPanel() {
@@ -304,13 +369,40 @@ public final class TimelinePanel extends JPanel {
         repaint();
     }
 
-    private void loadPredefinedGroup(String groupName) {
+    /** Loads a preset by name: the catalogue's, or one the user saved with the Timeline Manager. */
+    public void loadPredefinedGroup(String groupName) {
         List<BandType> bandTypes = predefinedGroups.get(groupName);
-        if (bandTypes == null)
+        if (bandTypes == null) {
+            org.json.JSONArray saved = userPresets.get(groupName);
+            if (saved == null)
+                return;
+            layers.replaceBandsWith(org.helioviewer.jhv.timelines.band.BandPresets.restore(saved));
+            selectFirstBand();
             return;
+        }
 
         layers.replaceBands(bandTypes);
         selectFirstBand();
+    }
+
+    /** The catalogue's own preset names, which the manager lists but does not change. */
+    public List<String> builtInPresetNames() {
+        return List.copyOf(predefinedGroups.keySet());
+    }
+
+    /** Reads the user's saved presets again and shows them in the Predefined list after the catalogue's. */
+    public void refreshUserPresets() {
+        userPresets = org.helioviewer.jhv.timelines.band.BandPresets.load();
+        rebuildPresetCombo();
+    }
+
+    private void rebuildPresetCombo() {
+        java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>(predefinedGroups.keySet());
+        names.addAll(userPresets.keySet());
+        updatingPredefinedGroup = true;
+        predefinedCombo.setModel(new DefaultComboBoxModel<>(names.toArray(String[]::new)));
+        predefinedCombo.setSelectedItem(null);
+        updatingPredefinedGroup = false;
     }
 
     private void selectFirstBand() {
@@ -325,10 +417,8 @@ public final class TimelinePanel extends JPanel {
 
     public void setPredefinedGroups(Map<String, List<BandType>> groups) {
         predefinedGroups = groups;
-        updatingPredefinedGroup = true;
-        predefinedCombo.setModel(new DefaultComboBoxModel<>(groups.keySet().toArray(String[]::new)));
-        predefinedCombo.setSelectedItem(null);
-        updatingPredefinedGroup = false;
+        userPresets = org.helioviewer.jhv.timelines.band.BandPresets.load();
+        rebuildPresetCombo();
     }
 
 }

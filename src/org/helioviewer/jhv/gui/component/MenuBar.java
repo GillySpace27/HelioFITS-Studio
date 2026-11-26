@@ -274,6 +274,11 @@ public final class MenuBar extends JMenuBar {
         JCheckBoxMenuItem white = new JCheckBoxMenuItem("Use White Background");
         white.addItemListener(e -> {
             Display.whiteBackground = white.getState();
+            if (UIGlobals.isTimelineExport()) { // the timelines follow the canvas
+                UIGlobals.timelineColors(Theme.current());
+                UIGlobals.refreshThemed();
+                org.helioviewer.jhv.timelines.draw.DrawController.drawRequest();
+            }
             DisplayController.display();
         });
         viewMenu.add(white);
@@ -460,6 +465,7 @@ public final class MenuBar extends JMenuBar {
         catalogItem(managersMenu, "templates"); // HS-25: what a scene loads
         catalogItem(managersMenu, "study"); // what a scene exports
         catalogItem(managersMenu, "cacheManager");
+        catalogItem(managersMenu, "timelineManager");
         catalogItem(managersMenu, "modelManager");
         catalogItem(managersMenu, "taskManager");
         catalogItem(managersMenu, "activityWindow");
@@ -556,6 +562,8 @@ public final class MenuBar extends JMenuBar {
                 "Leave the layer list up over the slide, so the talk can be driven without leaving the mode"));
         menu.add(keepItem("Right sidebar", PresentationMode.KEEP_RIGHT, false,
                 "Leave the docked palettes up over the slide"));
+        menu.add(keepItem("Timelines", PresentationMode.KEEP_TIMELINE, true,
+                "Leave the timelines pane up under the picture. Off, it is hidden while presenting and comes back afterwards"));
         menu.add(keepItem("Floating palettes", PresentationMode.KEEP_PALETTES, true,
                 "Windowed palettes stay on screen. Off, they are hidden while presenting and come back afterwards"));
         return menu;

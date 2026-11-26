@@ -1067,6 +1067,7 @@ public final class MainFrame {
      *
      * @param keepLeft  leave the left sidebar up even while the rest goes away
      * @param keepRight the same for the right one
+     * @param keepTimeline leave the timelines pane at the bottom up
      *
      * <p>The right sidebar was missing from this list entirely, which is why it did not close in
      * presentation mode: this method predates it and adding eastWrap to the window did not add it
@@ -1077,7 +1078,8 @@ public final class MainFrame {
      * right sidebar says whether it holds anything, so showing it unconditionally would leave an
      * empty rail behind after a talk. PresentationMode hands back what it saw on the way in.
      */
-    static void setChromeVisible(boolean visible, boolean keepLeft, boolean keepRight, boolean eastWasVisible) {
+    static void setChromeVisible(boolean visible, boolean keepLeft, boolean keepRight, boolean keepTimeline,
+                                 boolean eastWasVisible) {
         toolBarPanel.setVisible(visible);
         statusPanel.setVisible(visible);
         westWrap.setVisible(visible || keepLeft);
@@ -1089,7 +1091,9 @@ public final class MainFrame {
         else
             eastWrap.setVisible(keepRight && eastWasVisible);
         northTransport.setVisible(visible);
-        mainContentPanel.setPluginsVisible(visible);
+        if (!visible && keepTimeline)
+            mainContentPanel.restoreIfMaximized(); // a maximized pane would cover the picture the audience came for
+        mainContentPanel.setPluginsVisible(visible || keepTimeline);
         centerPanel.revalidate();
         mainFrame.validate(); // push the new bounds down to the canvas synchronously
         centerPanel.repaint();

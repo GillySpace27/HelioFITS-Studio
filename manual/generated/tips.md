@@ -74,3 +74,5 @@ The Tip of the Day collection (Help > Tip of the Day...), all on one page.
 
 **What is still running.** The spinner at the bottom left turns while anything downloads, loads or computes, and becomes a check when everything has landed. Click it for the Task Manager: the running work, anything that did not land, and the export queue.
 
+**IMAP solar wind timelines.** The New Timeline Layer list has an IMAP (NASA SPDF) group that needs no HAPI server: hourly merged field, speed, density and temperature, SWAPI 1-minute plasma, and MAG 1-minute means (zoom in to 14 days or less). The predefined list has an IMAP solar wind stack.
+

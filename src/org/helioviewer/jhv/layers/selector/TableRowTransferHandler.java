@@ -20,7 +20,7 @@ import org.helioviewer.jhv.display.DisplayController;
 import org.helioviewer.jhv.gui.UIGlobals;
 // Handles DnD row reordering
 @SuppressWarnings("serial")
-class TableRowTransferHandler extends TransferHandler {
+public class TableRowTransferHandler extends TransferHandler {
 
     private final JTable grid;
     private BufferedImage image;
@@ -28,7 +28,7 @@ class TableRowTransferHandler extends TransferHandler {
 
     private final java.util.function.BooleanSupplier fromGrip;
 
-    TableRowTransferHandler(JTable table, java.util.function.BooleanSupplier _fromGrip) {
+    public TableRowTransferHandler(JTable table, java.util.function.BooleanSupplier _fromGrip) {
         grid = table;
         fromGrip = _fromGrip;
     }
@@ -63,7 +63,8 @@ class TableRowTransferHandler extends TransferHandler {
             return null;
 
         // Any layer, not only an image one: every list is in draw order and every list drags.
-        if (!(grid.getModel().getValueAt(row, 0) instanceof org.helioviewer.jhv.layers.Layer))
+        Object value = grid.getModel().getValueAt(row, 0);
+        if (!(value instanceof org.helioviewer.jhv.layers.Layer) && !(value instanceof org.helioviewer.jhv.timelines.TimelineLayer))
             return null;
 
         createImageOfRow(row);

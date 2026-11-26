@@ -47,6 +47,22 @@ public abstract class TimelineLayer {
      */
     public void deleted() {}
 
+    private float stackWeight = 1; // share of the stacked plot's height, relative to the other panels
+
+    public float getStackWeight() {
+        return stackWeight;
+    }
+
+    public void setStackWeight(float weight) {
+        if (Float.isFinite(weight)) // NaN would collapse every panel
+            stackWeight = Math.clamp(weight, 0.05f, 100f);
+    }
+
+    /** Height (px) this layer needs between the animation band and the plot, for rows that belong over the plot rather than in it. */
+    public int reservedTop() {
+        return 0;
+    }
+
     public void setEnabled(boolean _enabled) {
         enabled = _enabled;
     }

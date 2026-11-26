@@ -63,6 +63,7 @@ final class FileDropHandler extends DropTargetAdapter {
 
         List<File> clouds = new ArrayList<>();
         List<File> images = new ArrayList<>();
+        List<java.net.URI> timelineFiles = new ArrayList<>();
         List<String> skipped = new ArrayList<>();
         for (File f : files) {
             String n = f.getName().toLowerCase(Locale.ROOT);
@@ -77,7 +78,9 @@ final class FileDropHandler extends DropTargetAdapter {
                     skipped.add(f.getName() + " (a folder with no image files directly inside)");
                 else
                     SwingUtilities.invokeLater(() -> offerFolder(f, inside));
-            } else if (n.endsWith(".json") || n.endsWith(".json.gz"))
+            } else if (isTimelineFile(n))
+                timelineFiles.add(f.toURI()); // a CDF opens as timeline layers, all of one drop together
+            else if (n.endsWith(".json") || n.endsWith(".json.gz"))
                 clouds.add(f);
             else if (n.endsWith(".jhv") || org.helioviewer.jhv.app.state.SessionArchive.isArchiveName(n))
                 Commands.loadState(f.toURI()); // a .data.zip carries its session inside it
@@ -93,6 +96,8 @@ final class FileDropHandler extends DropTargetAdapter {
             Layers.add(layer);
             clouds.forEach(f -> layer.load(f.toURI())); // all into the one layer, a time series
         }
+        if (!timelineFiles.isEmpty())
+            org.helioviewer.jhv.io.Load.cdf(timelineFiles); // reports its own errors and shows "Loading..."
         if (!images.isEmpty()) {
             List<File> group = groupImages(images);
             SwingUtilities.invokeLater(() -> offerImages(group.size() == 1 ? group.get(0).getName() : "the dropped files", group));
@@ -122,6 +127,11 @@ final class FileDropHandler extends DropTargetAdapter {
         return out;
     }
 
+    /** Whether a dropped file name is a timeline data file (a CDF). Pure, for the check. */
+    static boolean isTimelineFile(String lowerName) {
+        return lowerName.endsWith(".cdf");
+    }
+
     /** What the skipped-files message says. Pure, for the check. */
     static String skippedMessage(List<String> names) {
         int shown = Math.min(names.size(), 8);
@@ -131,7 +141,7 @@ final class FileDropHandler extends DropTargetAdapter {
         if (names.size() > shown)
             text.append("    and ").append(names.size() - shown).append(" more\n");
         return text.append("\nDrop FITS (.fits, .fit, .fts, .fz, also gzipped), JPEG 2000 (.jp2, .jpx), PNG, JPEG\n")
-                .append("or ZIP images, a folder of them, a .jhv session, or point-cloud .json.").toString();
+                .append("or ZIP images, a folder of them, a .jhv session, point-cloud .json, or a .cdf timeline file.").toString();
     }
 
     private static void offerFolder(File dir, List<File> inside) {

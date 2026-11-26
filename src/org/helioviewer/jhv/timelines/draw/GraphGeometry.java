@@ -16,6 +16,7 @@ public final class GraphGeometry {
     private static final int MINIMUM_HEIGHT = 50;
     private static final int MINIMUM_STACKED_LAYER_HEIGHT = 64;
     private static final int STACKED_SEPARATOR = 8;
+    private static final int MIN_STRIP_HEIGHT = 32;
     private static final int MIN_SHARED_HEIGHT = 30; // what the band leaves the HEK, coverage and curve layers
 
     private final Rectangle size = new Rectangle();
@@ -26,6 +27,8 @@ public final class GraphGeometry {
     private Rectangle automationArea = new Rectangle();
     private int automationLanes;
     private boolean stacked;
+    private final java.util.Map<TimelineLayer, Rectangle> reservedAreas = new java.util.LinkedHashMap<>();
+    private int reservedTotal;
     private final ArrayList<LayerLayout> layerLayouts = new ArrayList<>();
     private final ArrayList<TimelineLayer> propagatedLayers = new ArrayList<>();
     private final List<LayerLayout> exposedLayerLayouts = Collections.unmodifiableList(layerLayouts);
@@ -72,22 +75,49 @@ public final class GraphGeometry {
         int top = DrawConstants.GRAPH_TOP_SPACE + bandH;
         height -= bandH;
 
+        // layers that ask for rows above the plot (event intervals) get them under the animation band
+        reservedAreas.clear();
+        int reservedY = top;
+        for (TimelineLayer layer : layers) {
+            int reserve = layer.isEnabled() ? layer.reservedTop() : 0;
+            if (reserve > 0) {
+                reservedAreas.put(layer, new Rectangle(DrawConstants.GRAPH_LEFT_SPACE, reservedY, 1, reserve));
+                reservedY += reserve;
+            }
+        }
+        reservedTotal = reservedY - top;
+        top = reservedY;
+        height -= reservedTotal;
+
         if (stacked && yAxisCount > 0) {
             int totalSeparatorHeight = STACKED_SEPARATOR * (yAxisCount - 1);
             int availableForStrips = Math.max(yAxisCount, height - totalSeparatorHeight);
-            int stripHeight = Math.max(1, availableForStrips / yAxisCount);
+            double weightSum = 0;
+            for (AxisLayer axisLayer : axisLayers)
+                weightSum += axisLayer.layer.getStackWeight();
+            int[] stripHeights = new int[yAxisCount];
+            int used = 0;
+            for (int i = 0; i < yAxisCount; i++) {
+                stripHeights[i] = Math.max(1, (int) (availableForStrips * axisLayers.get(i).layer.getStackWeight() / weightSum));
+                used += stripHeights[i];
+            }
+            stripHeights[yAxisCount - 1] = Math.max(1, stripHeights[yAxisCount - 1] + availableForStrips - used); // rounding
+            if (availableForStrips >= MIN_STRIP_HEIGHT * yAxisCount)
+                enforceMinimum(stripHeights, availableForStrips);
+            fitTotal(stripHeights, availableForStrips);
 
-            int totalHeight = stripHeight * yAxisCount + totalSeparatorHeight;
+            int totalHeight = availableForStrips + totalSeparatorHeight;
             int width = size.width - (DrawConstants.GRAPH_LEFT_SPACE + DrawConstants.GRAPH_RIGHT_SPACE);
             area = new Rectangle(DrawConstants.GRAPH_LEFT_SPACE, top,
                     Math.max(1, width), Math.max(1, totalHeight));
 
             int y = top;
             int axisIndex = -1;
+            int strip = 0;
             for (AxisLayer axisLayer : axisLayers) {
-                Rectangle layerArea = new Rectangle(area.x, y, area.width, stripHeight);
+                Rectangle layerArea = new Rectangle(area.x, y, area.width, stripHeights[strip]);
                 layerLayouts.add(new LayerLayout(axisLayer.layer, axisLayer.yAxis, layerArea, axisIndex));
-                y += stripHeight + STACKED_SEPARATOR;
+                y += stripHeights[strip++] + STACKED_SEPARATOR;
                 axisIndex++;
             }
         } else {
@@ -105,6 +135,13 @@ public final class GraphGeometry {
                 : new Rectangle(area.x, DrawConstants.GRAPH_TOP_SPACE, area.width, bandH);
     }
 
+    /** The rows reserved above the plot for a layer (see {@link TimelineLayer#reservedTop}), or null. */
+    @Nullable
+    public Rectangle reservedArea(TimelineLayer layer) {
+        Rectangle r = reservedAreas.get(layer);
+        return r == null ? null : new Rectangle(r.x, r.y, area.width, r.height);
+    }
+
     public boolean isStacked() {
         return stacked;
     }
@@ -112,14 +149,14 @@ public final class GraphGeometry {
     public int minimumHeight() {
         int band = automationLanes == 0 ? 0 : AutomationTimelineLayer.bandHeight(automationLanes);
         if (!stacked || layerLayouts.isEmpty())
-            return band == 0 ? MINIMUM_HEIGHT : Math.max(MINIMUM_HEIGHT, DrawConstants.GRAPH_TOP_SPACE
+            return band + reservedTotal == 0 ? MINIMUM_HEIGHT : Math.max(MINIMUM_HEIGHT, DrawConstants.GRAPH_TOP_SPACE
                     + DrawConstants.GRAPH_BOTTOM_SPACE + DrawConstants.GRAPH_BOTTOM_AXIS_SPACE * (propagatedLayers.size() + 1)
-                    + band + MIN_SHARED_HEIGHT);
+                    + band + reservedTotal + MIN_SHARED_HEIGHT);
 
         return DrawConstants.GRAPH_TOP_SPACE + DrawConstants.GRAPH_BOTTOM_SPACE
                 + DrawConstants.GRAPH_BOTTOM_AXIS_SPACE * (propagatedLayers.size() + 1)
                 + MINIMUM_STACKED_LAYER_HEIGHT * layerLayouts.size()
-                + STACKED_SEPARATOR * (layerLayouts.size() - 1) + band;
+                + STACKED_SEPARATOR * (layerLayouts.size() - 1) + band + reservedTotal;
     }
 
     public List<LayerLayout> getLayerLayouts() {
@@ -217,6 +254,82 @@ public final class GraphGeometry {
                 return layout;
         }
         return null;
+    }
+
+    // However the shares rounded, the panels end up filling the strip area exactly: never past it
+    private static void fitTotal(int[] heights, int total) {
+        int sum = 0;
+        for (int h : heights)
+            sum += h;
+        while (sum > total) {
+            int tallest = 0;
+            for (int i = 1; i < heights.length; i++)
+                if (heights[i] > heights[tallest])
+                    tallest = i;
+            if (heights[tallest] <= 1)
+                break;
+            heights[tallest]--;
+            sum--;
+        }
+        if (sum < total)
+            heights[heights.length - 1] += total - sum;
+    }
+
+    // Lift panels under the minimum, taking the height from the tallest ones so the total stays put
+    private static void enforceMinimum(int[] heights, int total) {
+        for (int i = 0; i < heights.length; i++)
+            heights[i] = Math.max(heights[i], MIN_STRIP_HEIGHT);
+        int excess = 0;
+        for (int h : heights)
+            excess += h;
+        excess -= total;
+        while (excess > 0) {
+            int tallest = 0;
+            for (int i = 1; i < heights.length; i++)
+                if (heights[i] > heights[tallest])
+                    tallest = i;
+            if (heights[tallest] <= MIN_STRIP_HEIGHT)
+                break;
+            heights[tallest]--;
+            excess--;
+        }
+    }
+
+    /** The gap between stacked panels i and i+1 under p (a few pixels of slack either side), or -1. */
+    public int separatorAt(Point p) {
+        if (!stacked || p.x < area.x || p.x > graphRight())
+            return -1;
+        for (int i = 0; i + 1 < layerLayouts.size(); i++) {
+            Rectangle r = layerLayouts.get(i).area;
+            int gapTop = r.y + r.height;
+            if (p.y >= gapTop - 3 && p.y <= gapTop + STACKED_SEPARATOR + 3)
+                return i;
+        }
+        return -1;
+    }
+
+    /**
+     * Drag the gap between stacked panels i and i+1 by dy pixels: one grows, the other shrinks by
+     * as much, and neither goes below a usable height. Weights stay proportional to pixel heights.
+     */
+    public void resizeStrips(int i, int dy) {
+        if (i < 0 || i + 1 >= layerLayouts.size())
+            return;
+        LayerLayout a = layerLayouts.get(i);
+        LayerLayout b = layerLayouts.get(i + 1);
+        int ha = a.area.height;
+        int hb = b.area.height;
+        dy = Math.clamp(dy, MIN_STRIP_HEIGHT - ha, hb - MIN_STRIP_HEIGHT);
+        if (dy == 0)
+            return;
+        a.layer.setStackWeight(a.layer.getStackWeight() * (ha + dy) / ha);
+        b.layer.setStackWeight(b.layer.getStackWeight() * (hb - dy) / hb);
+    }
+
+    /** Back to equal heights. */
+    public void equalizeStrips() {
+        for (LayerLayout layout : layerLayouts)
+            layout.layer.setStackWeight(1);
     }
 
     public YAxisHit yAxisHit(Point p) {

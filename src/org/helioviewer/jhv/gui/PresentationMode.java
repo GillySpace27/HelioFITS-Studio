@@ -83,7 +83,7 @@ public final class PresentationMode {
             savedRightCollapsed = org.helioviewer.jhv.gui.component.RightSidebar.getInstance().isCollapsed();
             savedEastVisible = MainFrame.isEastVisible();
             Keep keep = keepFor(false);
-            MainFrame.setChromeVisible(false, keep.left(), keep.right(), savedEastVisible);
+            MainFrame.setChromeVisible(false, keep.left(), keep.right(), keep.timeline(), savedEastVisible);
             if (!keep.palettes())
                 org.helioviewer.jhv.gui.component.Palette.setFloatingVisible(false);
 
@@ -159,7 +159,7 @@ public final class PresentationMode {
                 }
                 fullScreenOn = null;
             }
-            MainFrame.setChromeVisible(true, false, false, savedEastVisible);
+            MainFrame.setChromeVisible(true, false, false, false, savedEastVisible);
             org.helioviewer.jhv.gui.component.Palette.setFloatingVisible(true);
             MainFrame.setSidebarCollapsed(savedSidebarCollapsed);
             MainFrame.setSidebarHandleVisible(true);
@@ -192,9 +192,11 @@ public final class PresentationMode {
     public static final String KEEP_LEFT = "presentation.keepLeftSidebar";
     public static final String KEEP_RIGHT = "presentation.keepRightSidebar";
     public static final String KEEP_PALETTES = "presentation.keepFloatingPalettes";
+    /** The timelines pane at the bottom; on by default, a talk about a time series needs it. */
+    public static final String KEEP_TIMELINE = "presentation.keepTimeline";
 
-    /** What presentation mode leaves up. All three are true on two screens; see {@link #keepFor}. */
-    public record Keep(boolean left, boolean right, boolean palettes) {}
+    /** What presentation mode leaves up. All four are true on two screens; see {@link #keepFor}. */
+    public record Keep(boolean left, boolean right, boolean palettes, boolean timeline) {}
 
     /**
      * What stays on screen, given how many screens are in play.
@@ -210,8 +212,9 @@ public final class PresentationMode {
      * <p>Pure, so the check can pin both rules without a projector.
      */
     public static Keep keepFor(boolean dual) {
-        return dual ? new Keep(true, true, true)
-                : new Keep(flag(KEEP_LEFT, false), flag(KEEP_RIGHT, false), flag(KEEP_PALETTES, true));
+        return dual ? new Keep(true, true, true, true)
+                : new Keep(flag(KEEP_LEFT, false), flag(KEEP_RIGHT, false), flag(KEEP_PALETTES, true),
+                        flag(KEEP_TIMELINE, true));
     }
 
     public static boolean flag(String key, boolean fallback) {

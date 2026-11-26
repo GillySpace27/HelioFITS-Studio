@@ -38,7 +38,7 @@ class BandCacheFull implements BandCache {
     }
 
     @Override
-    public float[] getBounds(long start, long end) {
+    public float[] getBounds(long start, long end, boolean positiveOnly) {
         float min = Float.POSITIVE_INFINITY;
         float max = Float.NEGATIVE_INFINITY;
 
@@ -46,7 +46,7 @@ class BandCacheFull implements BandCache {
             DateValue dv = dateVals.get(i);
             if (dv.milli > end)
                 break;
-            if (dv.value != YAxis.BLANK) {
+            if (dv.value != YAxis.BLANK && (!positiveOnly || dv.value > 0)) {
                 min = Math.min(dv.value, min);
                 max = Math.max(dv.value, max);
             }

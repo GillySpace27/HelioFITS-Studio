@@ -78,6 +78,7 @@ public final class CometLayer extends AbstractLayer {
     /** The longest orbit window, whole days: three years (estimate), unless the movie itself is longer. */
     static final long MAX_WINDOW = 1096 * DAY;
     private static final double DOT_FRACTION = 0.012; // of the camera width, as GridLayer's planets
+    public static final double SCALE_MIN = 0.25, SCALE_MAX = 4;
     private static final double HALO = 2.5; // the lit dot's halo, times the dot (judgement)
     private static final int HALO_ALPHA = 90;
 
@@ -87,6 +88,8 @@ public final class CometLayer extends AbstractLayer {
     private boolean lightTime = true;
     private boolean showOrbit = true;
     private boolean showDot = true;
+    private double orbitWidth = 1; // times GridMath.LINEWIDTH, as the grid's line scales
+    private double dotScale = 1; // times DOT_FRACTION, as the planets' size
     private int orbitSpanDays = DEFAULT_SPAN_DAYS;
 
     private volatile CometEphemeris path;
@@ -127,6 +130,8 @@ public final class CometLayer extends AbstractLayer {
         lightTime = jo.optBoolean("lightTime", true);
         showOrbit = jo.optBoolean("showOrbit", true);
         showDot = jo.optBoolean("showDot", true);
+        orbitWidth = Math.clamp(jo.optDouble("orbitWidth", 1), SCALE_MIN, SCALE_MAX);
+        dotScale = Math.clamp(jo.optDouble("dotScale", 1), SCALE_MIN, SCALE_MAX);
         orbitSpanDays = Math.clamp(jo.optInt("orbitSpanDays", DEFAULT_SPAN_DAYS), 1, MAX_SPAN_DAYS);
         setEnabled(true);
     }
@@ -181,6 +186,8 @@ public final class CometLayer extends AbstractLayer {
         jo.put("lightTime", lightTime);
         jo.put("showOrbit", showOrbit);
         jo.put("showDot", showDot);
+        jo.put("orbitWidth", orbitWidth);
+        jo.put("dotScale", dotScale);
         jo.put("orbitSpanDays", orbitSpanDays);
     }
 
@@ -249,6 +256,24 @@ public final class CometLayer extends AbstractLayer {
 
     public void setShowDot(boolean b) {
         showDot = b;
+        DisplayController.display();
+    }
+
+    public double orbitWidth() {
+        return orbitWidth;
+    }
+
+    public void setOrbitWidth(double v) {
+        orbitWidth = Math.clamp(v, SCALE_MIN, SCALE_MAX);
+        DisplayController.display();
+    }
+
+    public double dotScale() {
+        return dotScale;
+    }
+
+    public void setDotScale(double v) {
+        dotScale = Math.clamp(v, SCALE_MIN, SCALE_MAX);
         DisplayController.display();
     }
 
@@ -593,16 +618,16 @@ public final class CometLayer extends AbstractLayer {
                 builtFrame = now.milli;
                 builtRgb = rgb.clone();
             }
-            orbitLine.renderLine(vp, GridMath.LINEWIDTH);
+            orbitLine.renderLine(vp, GridMath.LINEWIDTH * orbitWidth);
         }
         double cameraWidth = mv.cameraWidth(vp);
         Vec3 w = showDot && cameraWidth > 0 ? p.world(now.milli, now) : null; // geometric: where it is, not where it was seen
         if (w == null)
             return;
         if (CometStyle.lit(comet.designation()) && !ExportMovie.isRecording()) // Identify's highlight, never in a recording
-            dotBuf.putVertex((float) w.x, (float) w.y, (float) w.z, (float) (HALO * DOT_FRACTION * cameraWidth),
+            dotBuf.putVertex((float) w.x, (float) w.y, (float) w.z, (float) (HALO * DOT_FRACTION * dotScale * cameraWidth),
                     new byte[]{(byte) rgb[0], (byte) rgb[1], (byte) rgb[2], (byte) HALO_ALPHA});
-        dotBuf.putVertex((float) w.x, (float) w.y, (float) w.z, (float) (DOT_FRACTION * cameraWidth),
+        dotBuf.putVertex((float) w.x, (float) w.y, (float) w.z, (float) (DOT_FRACTION * dotScale * cameraWidth),
                 new byte[]{(byte) rgb[0], (byte) rgb[1], (byte) rgb[2], (byte) 255});
         dot.uploadAndClear(dotBuf);
         // A position, not a surface: depth-tested it would vanish behind the Sun's sphere exactly when that is worth seeing (GridLayer's planets)

@@ -11,6 +11,7 @@ import org.helioviewer.jhv.app.Message;
 import org.helioviewer.jhv.layers.ImageLayer;
 import org.helioviewer.jhv.thread.EDTQueue;
 import org.helioviewer.jhv.thread.Task;
+import org.helioviewer.jhv.timelines.IntervalTimelineLayer;
 import org.helioviewer.jhv.timelines.Timelines;
 import org.helioviewer.jhv.timelines.band.BandImporter;
 
@@ -53,14 +54,25 @@ class LoadRequest {
 
     private record LoadRequestCDF(List<URI> uriList) implements Callable<Void> {
         @Override
-        public Void call() {
+        public Void call() throws Exception {
+            List<String> failed = new java.util.concurrent.CopyOnWriteArrayList<>();
+            long[] union = {Long.MAX_VALUE, Long.MIN_VALUE};
             uriList.parallelStream().forEach(uri -> {
                 try {
-                    BandImporter.loadCdf(uri);
+                    long[] range = BandImporter.loadCdfRange(uri);
+                    synchronized (union) {
+                        union[0] = Math.min(union[0], range[0]);
+                        union[1] = Math.max(union[1], range[1]);
+                    }
                 } catch (Exception e) {
                     Log.warn(uri.toString(), e);
+                    failed.add(e.getMessage() == null ? uri.getPath() : e.getMessage());
                 }
             });
+            if (union[0] <= union[1]) // one interval covering every file, not whichever finished last
+                java.awt.EventQueue.invokeLater(() -> org.helioviewer.jhv.timelines.draw.DrawController.setSelectedInterval(union[0], union[1]));
+            if (!failed.isEmpty()) // onFailureCDF shows it; the files that did load stay loaded
+                throw new Exception(String.join("\n", failed));
             return null;
         }
     }
@@ -83,6 +95,15 @@ class LoadRequest {
                 APIRequest req = APIRequest.fromRequestJson(ji.getJSONObject(i));
                 EDTQueue.invokeAndWait(() -> ImageLayer.create(null).load(req));
             }
+        }
+
+        JSONArray jv = jo.optJSONArray("org.helioviewer.jhv.request.intervals");
+        if (jv != null) {
+            List<IntervalTimelineLayer> parsed = new java.util.ArrayList<>();
+            for (int i = 0; i < jv.length(); i++) // all of them first: a bad one must not leave the others added
+                parsed.add(IntervalTimelineLayer.fromJson(jv.getJSONObject(i)));
+            for (IntervalTimelineLayer layer : parsed)
+                EDTQueue.invokeAndWait(() -> Timelines.getLayers().add(layer));
         }
 
         JSONArray jt = jo.optJSONArray("org.helioviewer.jhv.request.timeline");

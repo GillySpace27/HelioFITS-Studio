@@ -33,11 +33,13 @@ public class BandReaderCdf {
     private record DecodedVariable(DatesValues datesValues, float scaleMin, float scaleMax, String scaleType,
                                    String units, String[] labels) {}
 
-    private record CDFVariable(Variable variable, Map<String, String> attributes) {}
+    record CDFVariable(Variable variable, Map<String, String> attributes) {}
 
     static List<BandData> read(URI uri) throws Exception {
         uri = NetFileCache.get(uri).uri(); // tbd : sniff type
         CdfContent cdf = new CdfContent(new CdfReader(new File(uri)));
+        if (ImapCdfReader.isImap(cdf))
+            return ImapCdfReader.read(cdf, uri);
 
         List<String> descriptors = new ArrayList<>();
         for (GlobalAttribute attr : cdf.getGlobalAttributes()) {
@@ -273,7 +275,7 @@ public class BandReaderCdf {
         return magnitude;
     }
 
-    private static String[][] readCDFVariableString(Variable v) throws IOException {
+    static String[][] readCDFVariableString(Variable v) throws IOException {
         DataType dataType = v.getDataType();
         int groupSize = dataType.getGroupSize();
         Object abuf = v.createRawValueArray();
@@ -298,7 +300,7 @@ public class BandReaderCdf {
         return !Float.isFinite(v) || v == fillVal ? YAxis.BLANK : v;
     }
 
-    private static float[][] readCDFVariableFloat(Variable v, float fillVal) throws IOException {
+    static float[][] readCDFVariableFloat(Variable v, float fillVal) throws IOException {
         DataType dataType = v.getDataType();
         Object abuf = v.createRawValueArray();
         int numAxes = Array.getLength(abuf);

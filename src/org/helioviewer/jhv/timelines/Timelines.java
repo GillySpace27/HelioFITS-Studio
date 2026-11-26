@@ -11,6 +11,7 @@ import org.helioviewer.jhv.gui.Interfaces;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.movie.Player;
 import org.helioviewer.jhv.timelines.band.BandReaderHapi;
+import org.helioviewer.jhv.timelines.band.ImapCatalog;
 import org.helioviewer.jhv.timelines.chart.PlotPanel;
 import org.helioviewer.jhv.timelines.draw.DrawController;
 import org.helioviewer.jhv.timelines.gui.TimelineDialog;
@@ -34,15 +35,25 @@ public class Timelines implements Interfaces.MainContentPanelPlugin {
         layers.add(new BodiesTimelineLayer()); // when the Moon and planets are in a field (docs/identify.md)
     }
 
+    public static org.helioviewer.jhv.timelines.gui.TimelinePanel getPanel() {
+        return timelinePanel;
+    }
+
     public static TimelineLayers getLayers() {
         return layers;
     }
 
     public static void requestCatalog() {
+        // IMAP needs no server: show it at once, then again beside the HAPI servers when they answer.
+        ImapCatalog.setStatusSink(td::setStatus);
+        BandReaderHapi.CatalogData imap = ImapCatalog.catalogData();
+        td.setCatalogs(imap.datasets());
+        timelinePanel.setPredefinedGroups(imap.predefinedGroups());
         BandReaderHapi.requestCatalog(Timelines::catalogsLoaded);
     }
 
-    private static void catalogsLoaded(BandReaderHapi.CatalogData catalogData) {
+    private static void catalogsLoaded(BandReaderHapi.CatalogData hapi) {
+        BandReaderHapi.CatalogData catalogData = ImapCatalog.merge(hapi);
         td.setCatalogs(catalogData.datasets());
         TimelineLayers.fetchBands();
         timelinePanel.setPredefinedGroups(catalogData.predefinedGroups());

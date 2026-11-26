@@ -35,6 +35,7 @@ final class ExternalEphemeris {
         put(new Source("ACE", Kind.HELIOFLEET, "ace_geo", "HelioFleet, from 2010"));
         put(new Source("Wind", Kind.HELIOFLEET, "wind_geo", "HelioFleet, from 2010"));
         put(new Source("DSCOVR", Kind.HELIOFLEET, "dscovr_geo", "HelioFleet, from 2015-02-11"));
+        put(new Source("IMAP", Kind.HORIZONS, "-43", "JPL Horizons, from 2025-09-24"));
         put(new Source("Ulysses", Kind.HORIZONS, "-55", "JPL Horizons, from 1990-10-06"));
         put(new Source("MESSENGER", Kind.HORIZONS, "-236", "JPL Horizons, 2004-08-03 to 2015-05-01"));
     }

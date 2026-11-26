@@ -32,6 +32,8 @@ import org.helioviewer.jhv.gui.component.JHVSlider;
 import org.helioviewer.jhv.gui.component.JHVSpinner;
 import org.helioviewer.jhv.gui.component.TerminatedFormatterFactory;
 import org.helioviewer.jhv.layers.GridLayer;
+import org.helioviewer.jhv.layers.Layer;
+import org.helioviewer.jhv.layers.Layers;
 
 
 @SuppressWarnings("serial")
@@ -75,6 +77,46 @@ public final class GridLayerOptions extends JPanel {
     /** The planet controls on their own, for the 3D Scene pane: same widgets, bound to the same layer. */
     public static JPanel planetControls(GridLayer layer) {
         return new GridLayerOptions().planetSection(layer);
+    }
+
+    /**
+     * The buoy controls, for a timeline row's options. The buoys belong to the grid layer, which a
+     * session restore replaces, so each toggle looks the current one up when it is used.
+     */
+    public static JPanel buoyControls() {
+        return new GridLayerOptions().buoySection();
+    }
+
+    private static org.helioviewer.jhv.layers.grid.DataBuoys currentBuoys() {
+        for (Layer l : Layers.getLayers())
+            if (l instanceof GridLayer g)
+                return g.getBuoys();
+        return new org.helioviewer.jhv.layers.grid.DataBuoys(); // no grid layer: nothing to drive
+    }
+
+    private JPanel buoySection() {
+        org.helioviewer.jhv.layers.grid.DataBuoys now = currentBuoys();
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints c = new GridBagConstraints();
+        c.anchor = GridBagConstraints.LINE_START;
+        c.gridx = 0;
+        c.gridy = 0;
+        JCheckBox show = createToggle("Show buoys", now.isShow(), v -> { currentBuoys().setShow(v); org.helioviewer.jhv.display.DisplayController.display(); });
+        show.setToolTipText("A ring in the 3D scene at the place each timeline row's spacecraft was, in the row's line colour. Pick the spacecraft on the row if it is guessed wrong.");
+        panel.add(show, c);
+        c.gridy = 1;
+        JCheckBox labels = createToggle("Always show names", now.isAlwaysLabels(), v -> { currentBuoys().setAlwaysLabels(v); org.helioviewer.jhv.display.DisplayController.display(); });
+        labels.setToolTipText("Off: a short code beside each ring, the full name and the rows it feeds when the pointer is on it.");
+        panel.add(labels, c);
+        c.gridy = 2;
+        JCheckBox halo = createToggle("Halo on spacecraft models", now.isModelHalo(), v -> { currentBuoys().setModelHalo(v); org.helioviewer.jhv.display.DisplayController.display(); });
+        halo.setToolTipText("Where a model layer is placed at the spacecraft, a larger ring around the model replaces the small ring. Off: the small ring everywhere.");
+        panel.add(halo, c);
+        c.gridy = 3;
+        JCheckBox trails = createToggle("Trails", now.isTrails(), v -> { currentBuoys().setTrails(v); org.helioviewer.jhv.display.DisplayController.display(); });
+        trails.setToolTipText("The spacecraft's path over the movie's time span, in the row's colour.");
+        panel.add(trails, c);
+        return panel;
     }
 
     private JPanel gridSection(GridLayer layer) {
@@ -250,9 +292,14 @@ public final class GridLayerOptions extends JPanel {
         c.gridy = 1;
         c.gridx = 0;
         c.anchor = GridBagConstraints.LINE_END;
+        JCheckBox earth = createToggle("Earth", layer.isShowEarth(), layer::setShowEarth);
+        earth.setToolTipText("The Earth dot and its name, on their own: independent of the other planets and of the grid. Drawn once, at Earth's place.");
+        panel.add(earth, c);
+        c.gridx = 1;
+        c.anchor = GridBagConstraints.LINE_START;
+        c.gridwidth = 2;
         JCheckBox follow = createToggle("Follow solar rotation", layer.isPlanetsFollowRotation(), layer::setPlanetsFollowRotation);
         follow.setToolTipText("On: Earth sits on the observer marker and the planets register with the imagery, so a planet bright in a coronagraph frame lands on its marker. Off: an inertial layout where each planet moves at its own orbital rate, good for watching Mercury lap Earth, but nothing lines up with the picture.");
-        c.gridwidth = 2;
         panel.add(follow, c);
         c.gridwidth = 1;
 
@@ -323,6 +370,30 @@ public final class GridLayerOptions extends JPanel {
         comboBox.setRenderer(new ColorRenderer());
         comboBox.addActionListener(e -> layer.setPlanetColor(comboBox.getSelectedItem() instanceof Colors c ? c : null));
         return comboBox;
+    }
+
+    /** The viewpoint marker's style and colour on their own, for the Viewpoint palette: same widgets, bound to the same layer. */
+    public static JPanel viewpointMarkerControls(GridLayer layer) {
+        JPanel rows = new JPanel(new GridBagLayout());
+        rows.setOpaque(false);
+        addAdjustmentRow(rows, "Viewpoint marker ", createViewpointMarkerBox(layer), 0);
+        addAdjustmentRow(rows, "Marker colour ", createViewpointColorBox(layer), 1);
+        return rows;
+    }
+
+    /** How the observer (the viewpoint, wherever "Drive the viewpoint" has put it) is marked in the 3D scene. */
+    private static JComboBox<org.helioviewer.jhv.layers.grid.ViewpointMarker.Style> createViewpointMarkerBox(GridLayer layer) {
+        JComboBox<org.helioviewer.jhv.layers.grid.ViewpointMarker.Style> comboBox =
+                new JComboBox<>(org.helioviewer.jhv.layers.grid.ViewpointMarker.Style.values());
+        comboBox.setSelectedItem(layer.getViewpointMarker());
+        comboBox.setToolTipText("The mark at the observer's place in the 3D Helioradial scene, which is where the viewpoint sits: hidden, a dot, a camera or an eye. Separate from the Earth dot.");
+        comboBox.addActionListener(e -> layer.setViewpointMarker(
+                (org.helioviewer.jhv.layers.grid.ViewpointMarker.Style) Objects.requireNonNull(comboBox.getSelectedItem())));
+        return comboBox;
+    }
+
+    private static JComboBox<Colors> createViewpointColorBox(GridLayer layer) {
+        return createSurfaceColorBox(layer.getViewpointMarkerColor(), layer::setViewpointMarkerColor);
     }
 
     /** A 0.25x to 4x multiplier, for line widths and mesh density alike. */

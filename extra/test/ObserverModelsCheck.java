@@ -33,6 +33,9 @@ public final class ObserverModelsCheck {
         expect(ObserverModels.halfSize(0) == 0.6 * Sun.MeanEarthDistance, "the outside view frames at least 0.6 au either side");
         expect(ObserverModels.halfSize(Sun.MeanEarthDistance) == 1.25 * Sun.MeanEarthDistance, "and holds an observer at 1 au with a margin");
 
+        expect(ObserverModels.offeredSource("IMAP") != null && ObserverModels.offeredSource("IMAP").startsWith("https://www.jhuapl.edu/")
+                && ObserverModels.offeredSource("ACE") == null, "IMAP's model is offered for import from its maintainers; nothing else is");
+
         if (failures != 0) {
             System.out.println("ObserverModelsCheck: " + failures + " failure(s)");
             System.exit(1);

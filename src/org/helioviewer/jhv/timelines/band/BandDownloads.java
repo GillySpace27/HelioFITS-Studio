@@ -42,12 +42,14 @@ final class BandDownloads {
 
     static boolean hasCatalog(Band band) {
         String baseUrl = band.getBandType().getBaseUrl();
+        if (ImapSource.handles(baseUrl))
+            return ImapSource.hasCatalog(baseUrl);
         return !baseUrl.isEmpty() && BandReaderHapi.hasCatalog(baseUrl);
     }
 
     static void start(Band band, List<Interval> intervals) {
         String baseUrl = band.getBandType().getBaseUrl();
-        BandReaderHapi.DatasetRef dataset = BandReaderHapi.dataset(baseUrl);
+        BandReaderHapi.DatasetRef dataset = ImapSource.handles(baseUrl) ? ImapSource.dataset(baseUrl) : BandReaderHapi.dataset(baseUrl);
         for (Interval interval : intervals) {
             RequestKey key = new RequestKey(dataset.key(), interval);
             Download download = findActiveDownload(key, band.getBandType(), band.isFullResolution());
@@ -117,8 +119,10 @@ final class BandDownloads {
             download.subscribers.forEach((type, band) -> download.requestedResolutions.put(type, band.isFullResolution()));
             activeDownloads.add(download);
             try {
-                Callable<List<BandData>> request =
-                        BandReaderHapi.dataRequest(download.requestedResolutions, interval.start(), interval.end());
+                boolean imap = download.subscribers.keySet().stream().anyMatch(type -> ImapSource.handles(type.getBaseUrl()));
+                Callable<List<BandData>> request = imap
+                        ? ImapSource.dataRequest(download.requestedResolutions, interval.start(), interval.end())
+                        : BandReaderHapi.dataRequest(download.requestedResolutions, interval.start(), interval.end());
                 download.future = Task.submit(downloadPool, request,
                         data -> acceptData(download, data),
                         t -> downloadFailed(download, t));

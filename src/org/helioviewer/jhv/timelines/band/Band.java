@@ -9,6 +9,7 @@ import java.awt.Stroke;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Path2D;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.function.LongUnaryOperator;
@@ -59,7 +60,7 @@ public final class Band extends TimelineLayer {
     private final boolean fullResolution;
     private final BandOptions optionsPanel = new BandOptions(this);
 
-    private final YAxis yAxis;
+    private YAxis yAxis; // replaced when the scale flips between linear and log
     private final int[] warnPixels;
     private final LatestWorker<GraphData> graphWorker = new LatestWorker<>(graphPool);
 
@@ -69,6 +70,12 @@ public final class Band extends TimelineLayer {
     private Color graphColor = bandColors.getNextColor();
     private PropagationModel propagationModel = new PropagationModel.Delay(0);
     private boolean multicolor;
+    private volatile BandType.Level[] levels; // the type's colour levels until the user edits them
+    @Nullable
+    private String spacecraftKey; // the buoy's spacecraft, picked on the row; null infers it from the name
+    private boolean autoFit; // y range follows the visible data
+    private boolean logScale;
+    private boolean imapRefused; // the status line shows the IMAP zoom-in message for this band
 
     public Band(BandType _bandType) {
         this(_bandType, false);
@@ -77,11 +84,24 @@ public final class Band extends TimelineLayer {
     public Band(BandType _bandType, boolean _fullResolution) {
         bandType = _bandType;
         fullResolution = _fullResolution;
-        multicolor = bandType.hasLevels();
-        yAxis = new YAxis(bandType.getMin(), bandType.getMax(), YAxis.generateScale(bandType.getScale(), bandType.getUnitLabel()));
+        levels = bandType.levels();
+        multicolor = levels.length > 0;
+        logScale = "logarithmic".equalsIgnoreCase(bandType.getScale());
+        yAxis = newAxis(logScale, bandType.getMin(), bandType.getMax());
         warnPixels = new int[bandType.getWarningLevels().length];
         requestCache = new RequestCache();
         bandCache = createBandCache();
+        optionsPanel.syncAxis(); // the panel is built in a field initializer, before there is a band to read
+    }
+
+    // The type's own range; a log axis cannot start at or below zero, so it gets 1 to 10 until data arrives
+    private double[] defaultRange(boolean log) {
+        return !log || bandType.getMin() > 0 ? new double[]{bandType.getMin(), bandType.getMax()} : new double[]{1, 10};
+    }
+
+    private YAxis newAxis(boolean log, double start, double end) {
+        String type = log ? "logarithmic" : "logarithmic".equalsIgnoreCase(bandType.getScale()) ? "linear" : bandType.getScale();
+        return new YAxis(start, end, YAxis.generateScale(type, bandType.getUnitLabel()));
     }
 
     private BandCache createBandCache() {
@@ -117,12 +137,25 @@ public final class Band extends TimelineLayer {
         jo.put("fullResolution", fullResolution);
         jo.put("color", new JSONObject().put("r", graphColor.getRed()).put("g", graphColor.getGreen()).put("b", graphColor.getBlue()));
         jo.put("multicolor", multicolor);
+        if (!Arrays.equals(levels, bandType.levels())) { // only an edited set is written; the type's own come from its JSON
+            JSONArray ja = new JSONArray();
+            for (BandType.Level l : levels)
+                ja.put(new JSONObject().put("min", l.min()).put("max", l.max()).put("color", String.format("#%06X", l.color().getRGB() & 0xFFFFFF)));
+            jo.put("levels", ja);
+        }
+        if (spacecraftKey != null)
+            jo.put("spacecraft", spacecraftKey);
+        jo.put("stackWeight", getStackWeight());
+        jo.put("yLog", logScale);
+        jo.put("yAuto", autoFit);
+        jo.put("yMin", yAxis.start());
+        jo.put("yMax", yAxis.end());
     }
 
-    public static TimelineLayer deserialize(JSONObject jo) throws Exception { // has to be implemented for state
+    public static TimelineLayer deserialize(JSONObject jo) { // has to be implemented for state
         JSONObject jobt = jo.optJSONObject("bandType");
         if (jobt == null)
-            throw new Exception("Missing bandType: " + jo);
+            throw new org.json.JSONException("Missing bandType: " + jo);
         Band band = new Band(new BandType(jobt), jo.optBoolean("fullResolution", false));
 
         JSONObject jcolor = jo.optJSONObject("color");
@@ -132,7 +165,23 @@ public final class Band extends TimelineLayer {
             int b = Math.clamp(jcolor.optInt("b", 0), 0, 255);
             band.setDataColor(new Color(r, g, b));
         }
-        band.multicolor = band.hasLevelColors() && jo.optBoolean("multicolor", band.bandType.hasLevels());
+        JSONArray jl = jo.optJSONArray("levels");
+        if (jl != null) {
+            ArrayList<BandType.Level> list = new ArrayList<>();
+            for (int i = 0; i < jl.length(); i++) {
+                JSONObject l = jl.optJSONObject(i);
+                if (l != null && l.has("min") && l.has("max"))
+                    try {
+                        list.add(new BandType.Level(l.getDouble("min"), l.getDouble("max"), Colors.parseColor(l.optString("color", "#000000"))));
+                    } catch (NumberFormatException ignored) { // a damaged level is dropped, the rest stay
+                    }
+            }
+            band.levels = list.toArray(BandType.Level[]::new);
+        }
+        band.multicolor = band.hasLevelColors() && jo.optBoolean("multicolor", band.hasLevelColors());
+        band.spacecraftKey = jo.optString("spacecraft", null);
+        band.restoreAxis(jo);
+        band.setStackWeight((float) jo.optDouble("stackWeight", 1));
         return band;
     }
 
@@ -140,12 +189,37 @@ public final class Band extends TimelineLayer {
         enabled = restored.enabled;
         graphColor = restored.graphColor;
         multicolor = restored.multicolor;
+        levels = restored.levels;
+        spacecraftKey = restored.spacecraftKey;
+        autoFit = restored.autoFit;
+        setStackWeight(restored.getStackWeight());
+        if (restored.logScale != logScale) {
+            logScale = restored.logScale;
+            dropData(); // values cached under the other scale's clip are not the same set
+        }
+        yAxis = restored.yAxis;
+        optionsPanel.syncAxis();
+    }
+
+    // yLog/yAuto/yMin/yMax are absent from states saved before the controls existed: keep the type's defaults then
+    private void restoreAxis(JSONObject jo) {
+        boolean log = !bandType.isBarPlot() && jo.optBoolean("yLog", logScale);
+        double min = jo.optDouble("yMin", Double.NaN);
+        double max = jo.optDouble("yMax", Double.NaN);
+        boolean usable = min < max && Double.isFinite(min) && Double.isFinite(max) && (!log || min > 0);
+        logScale = log;
+        double[] range = defaultRange(log);
+        yAxis = usable ? newAxis(log, min, max) : newAxis(log, range[0], range[1]);
+        autoFit = jo.optBoolean("yAuto", false);
     }
 
     @Override
     public void resetAxis() {
-        yAxis.reset(bandType.getMin(), bandType.getMax());
+        autoFit = false;
+        double[] range = defaultRange(yAxis.isLog());
+        yAxis.reset(range[0], range[1]);
         updateGraph();
+        optionsPanel.syncAxis();
     }
 
     @Override
@@ -154,16 +228,92 @@ public final class Band extends TimelineLayer {
         long start = propagationModel.getObservationTime(timeAxis.start());
         long end = propagationModel.getObservationTime(timeAxis.end());
 
-        float[] bounds = bandCache.getBounds(start, end);
-        if (bounds[0] == bounds[1]) {
-            resetAxis();
-            return;
-        }
-
+        float[] bounds = bandCache.getBounds(start, end, yAxis.isLog());
         if (Float.isFinite(bounds[0]) && Float.isFinite(bounds[1])) {
-            yAxis.reset(bounds[0], bounds[1]);
+            fitToVisibleData(); // pads a flat line too, rather than falling back to the type's range
             updateGraph();
+            notifyStateChanged();
         }
+    }
+
+    public boolean isAutoFit() {
+        return autoFit;
+    }
+
+    /** While on, every redraw fits the y range to the data in view. */
+    public void setAutoFit(boolean _autoFit) {
+        autoFit = _autoFit;
+        updateGraph();
+        optionsPanel.syncAxis();
+        notifyStateChanged();
+    }
+
+    public boolean isLogScale() {
+        return logScale;
+    }
+
+    /** Linear or log y axis. The cached data is dropped and fetched again, and the range is fitted to the new data. */
+    public void setLogScale(boolean log) {
+        if (log == logScale || bandType.isBarPlot()) // bars hang from zero, which a log axis cannot show
+            return;
+        logScale = log;
+        autoFit = true;
+        double[] range = defaultRange(log);
+        yAxis = newAxis(log, range[0], range[1]);
+        dropData();
+        DrawController.layoutChanged(); // the layout holds the old axis
+        fetchData(DrawController.selectedAxis);
+        optionsPanel.syncAxis();
+        notifyStateChanged();
+    }
+
+    public double yMin() {
+        return yAxis.start();
+    }
+
+    public double yMax() {
+        return yAxis.end();
+    }
+
+    /** A range typed by the user. Turns auto-fit off; false when the range cannot be shown on this scale. */
+    public boolean setYRange(double min, double max) {
+        if (!(min < max) || !Double.isFinite(min) || !Double.isFinite(max) || (yAxis.isLog() && min <= 0))
+            return false;
+        autoFit = false;
+        yAxis.reset(min, max);
+        updateGraph();
+        optionsPanel.syncAxis();
+        notifyStateChanged();
+        return true;
+    }
+
+    // The data in view fills the axis, with a margin so extremes do not sit on the frame.
+    private void fitToVisibleData() {
+        TimeAxis timeAxis = DrawController.selectedAxis;
+        long start = propagationModel.getObservationTime(timeAxis.start());
+        long end = propagationModel.getObservationTime(timeAxis.end());
+        float[] b = bandCache.getBounds(start, end, yAxis.isLog());
+        if (!Float.isFinite(b[0]) || !Float.isFinite(b[1]))
+            return; // nothing in view: keep the range rather than collapse it
+        double lo = yAxis.scale(b[0]);
+        double hi = yAxis.scale(b[1]);
+        if (bandType.isBarPlot()) { // bars hang from zero
+            lo = Math.min(lo, 0);
+            hi = Math.max(hi, 0);
+        }
+        double pad = (hi - lo) * 0.05;
+        if (pad == 0)
+            pad = yAxis.isLog() ? 0.5 : Math.max(Math.abs(lo) * 0.05, 1e-3); // a flat line still needs a span
+        yAxis.reset(yAxis.invScale(lo - pad), yAxis.invScale(hi + pad));
+        optionsPanel.syncAxis();
+    }
+
+    private void dropData() {
+        graphWorker.invalidate();
+        graphData = EMPTY_GRAPH_DATA;
+        BandDownloads.stop(this);
+        requestCache = new RequestCache();
+        bandCache = createBandCache();
     }
 
     public BandType getBandType() {
@@ -200,7 +350,31 @@ public final class Band extends TimelineLayer {
     }
 
     public boolean hasLevelColors() {
-        return bandType.hasLevels();
+        return levels.length > 0;
+    }
+
+    /** The colour of {@code value}: the first level that holds it, or null. */
+    Color levelColor(double value) {
+        for (BandType.Level l : levels)
+            if (value >= l.min() && value <= l.max())
+                return l.color();
+        return null;
+    }
+
+    BandType.Level[] levels() {
+        return levels.clone();
+    }
+
+    BandType.Level[] defaultLevels() {
+        return bandType.levels();
+    }
+
+    /** Replaces the colour levels; an empty set turns the colouring off. */
+    void setLevels(BandType.Level[] set) {
+        levels = set.clone();
+        multicolor = levels.length > 0;
+        updateGraph();
+        notifyStateChanged();
     }
 
     public boolean hasWarningLevels() {
@@ -285,7 +459,7 @@ public final class Band extends TimelineLayer {
             float[] vals = line.values;
             Color pathColor = null;
             for (int i = 0; i < xp.length - 1; i++) {
-                Color segmentColor = vals != null ? bandType.getLevelColor(vals[i]) : null;
+                Color segmentColor = vals != null ? levelColor(vals[i]) : null;
                 if (segmentColor == null)
                     segmentColor = graphColor;
                 if (!segmentColor.equals(pathColor)) {
@@ -318,6 +492,8 @@ public final class Band extends TimelineLayer {
             graphWorker.invalidate();
             return;
         }
+        if (autoFit)
+            fitToVisibleData();
         YAxis.Mapper yMapper = geometry.yMapper(yAxis, drawArea);
 
         BandType.WarningLevel[] wls = bandType.getWarningLevels();
@@ -368,7 +544,7 @@ public final class Band extends TimelineLayer {
                 int valueY = yMapper.dataToPixel(dv.value);
                 int top = Math.min(valueY, baselineY);
                 int bottom = Math.max(valueY, baselineY);
-                Color levelColor = useMulticolor ? bandType.getLevelColor(dv.value) : null;
+                Color levelColor = useMulticolor ? levelColor(dv.value) : null;
                 bars.add(new Bar(left, top, right, bottom, levelColor));
             }
         }
@@ -435,10 +611,25 @@ public final class Band extends TimelineLayer {
     private void updateData(long start, long end) {
         if (!BandDownloads.hasCatalog(this))
             return;
+        if (gateImap(start, end)) // before the reservation, so zooming in later still loads
+            return;
 
         List<Interval> intervals = reserveDownloadIntervals(start, end);
         if (!intervals.isEmpty())
             BandDownloads.start(this, intervals);
+    }
+
+    // An IMAP product with a span cap (MAG) is not requested, and nothing is reserved, while the view is wider.
+    private boolean gateImap(long start, long end) {
+        String refusal = ImapSource.refusal(bandType.getBaseUrl(), start, end);
+        if (refusal != null) {
+            imapRefused = true;
+            ImapCatalog.status(refusal);
+        } else if (imapRefused) {
+            imapRefused = false;
+            ImapCatalog.status("");
+        }
+        return refusal != null;
     }
 
     List<Interval> reserveDownloadIntervals(long start, long end) {
@@ -484,8 +675,11 @@ public final class Band extends TimelineLayer {
     }
 
     @Override
-    public void yaxisChanged() {
+    public void yaxisChanged() { // the user dragged or scrolled the axis: they have taken over
+        autoFit = false;
+        notifyStateChanged(); // the range moved, so a saved state must follow
         updateGraph();
+        optionsPanel.syncAxis();
     }
 
     boolean addToCache(float[] values, long[] dates) {
@@ -508,6 +702,26 @@ public final class Band extends TimelineLayer {
     @Override
     public long getObservationTime(long ts) {
         return propagationModel.getObservationTime(ts);
+    }
+
+    /** The spacecraft this row's data came from, for its buoy in the 3D scene: the pick, else a guess from the name. */
+    @Nullable
+    public org.helioviewer.jhv.layers.grid.DataBuoys.Craft getSpacecraft() {
+        if (spacecraftKey != null)
+            return org.helioviewer.jhv.layers.grid.DataBuoys.byKey(spacecraftKey);
+        return org.helioviewer.jhv.layers.grid.DataBuoys.infer(getName() + " " + bandType.getName());
+    }
+
+    @Nullable
+    String getSpacecraftKey() {
+        return spacecraftKey;
+    }
+
+    /** Null means automatic; "none" means this row has no buoy. */
+    void setSpacecraftKey(@Nullable String key) {
+        spacecraftKey = key;
+        org.helioviewer.jhv.display.DisplayController.display();
+        notifyStateChanged();
     }
 
     void setPropagationModel(PropagationModel _propagationModel) {

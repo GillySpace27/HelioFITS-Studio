@@ -316,7 +316,10 @@ public final class Layers {
 
     public static void render(MapView mv, Viewport vp) {
         if (!mv.mode().usesWarpSurface()) {
-            inDrawOrder(layer -> RenderGuard.run(layer.getName(), () -> layer.render(mv, vp)));
+            inDrawOrder(layer -> {
+                RenderGuard.run(layer.getName(), () -> layer.render(mv, vp));
+                identifyRings(layer, mv, vp);
+            });
             return;
         }
         // Helioradial in 3D: each image is a surface mesh, and with "Each image at its observer"
@@ -334,6 +337,7 @@ public final class Layers {
                 GL.glDepthMask(false);
                 RenderGuard.run(layer.getName(), () -> layer.render(mv, vp));
                 GL.glDepthMask(true);
+                identifyRings(layer, mv, vp);
                 return;
             }
             if (!depthWritten[0] && !(layer instanceof StarLayer s && !s.isOnTop())) {
@@ -356,7 +360,16 @@ public final class Layers {
     }
 
     public static void renderScale(MapView mv, Viewport vp) {
-        inDrawOrder(layer -> RenderGuard.run(layer.getName(), () -> layer.renderScale(mv, vp)));
+        inDrawOrder(layer -> {
+            RenderGuard.run(layer.getName(), () -> layer.renderScale(mv, vp));
+            identifyRings(layer, mv, vp);
+        });
+    }
+
+    /** An image layer's Identify rings go down right after it, so layers above it cover them. */
+    private static void identifyRings(Layer layer, MapView mv, Viewport vp) {
+        if (layer instanceof ImageLayer && captureOnly == null)
+            RenderGuard.run("identify rings", () -> org.helioviewer.jhv.identify.IdentifyGlow.renderAfter(layer.getName(), mv, vp));
     }
 
     /**

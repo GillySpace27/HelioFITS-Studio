@@ -136,6 +136,45 @@ public final class UIGlobals {
         foreColor = theme.get(Theme.Token.Foreground);
         backColor = theme.get(Theme.Token.Background);
 
+        timelineColors(theme);
+    }
+
+    private static final java.util.concurrent.atomic.AtomicBoolean TIMELINE_EXPORT = new java.util.concurrent.atomic.AtomicBoolean();
+
+    /** Export friendly timelines: the pane and its header take the canvas's background (black, or white with View > Use White Background). */
+    public static boolean isTimelineExport() {
+        return TIMELINE_EXPORT.get();
+    }
+
+    public static void setTimelineExport(boolean on) {
+        TIMELINE_EXPORT.set(on);
+        timelineColors(Theme.current());
+        refreshThemed();
+    }
+
+    /** The timeline colours: the theme's, or, when export friendly, the canvas's background with a contrasting ink. */
+    public static void timelineColors(Theme theme) {
+        timelineThemeColors(theme);
+        if (!TIMELINE_EXPORT.get())
+            return;
+        boolean white = org.helioviewer.jhv.display.Display.whiteBackground;
+        Color bg = white ? Color.WHITE : Color.BLACK, ink = white ? Color.BLACK : Color.WHITE, rule = new Color(128, 128, 128);
+        TL_AVAILABLE_INTERVAL_BACKGROUND_COLOR = bg;
+        TL_SELECTED_INTERVAL_BACKGROUND_COLOR = bg;
+        TL_TEXT_BACKGROUND_COLOR = bg;
+        TL_TEXT_COLOR = ink;
+        TL_LABEL_TEXT_COLOR = ink;
+        TL_TICK_LINE_COLOR = rule;
+        TL_BORDER_COLOR = rule;
+    }
+
+    /** The canvas's background when export friendly, else null (the theme's own). */
+    @Nullable
+    public static Color timelineExportBackground() {
+        return TIMELINE_EXPORT.get() ? (org.helioviewer.jhv.display.Display.whiteBackground ? Color.WHITE : Color.BLACK) : null;
+    }
+
+    private static void timelineThemeColors(Theme theme) {
         TL_AVAILABLE_INTERVAL_BACKGROUND_COLOR = theme.get(Theme.Token.TimelinePlot);
         TL_SELECTED_INTERVAL_BACKGROUND_COLOR = theme.get(Theme.Token.TimelineInterval);
         TL_INTERVAL_BORDER_COLOR = theme.get(Theme.Token.TimelineIntervalBorder);

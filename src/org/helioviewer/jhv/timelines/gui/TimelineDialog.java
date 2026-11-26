@@ -2,6 +2,7 @@ package org.helioviewer.jhv.timelines.gui;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.awt.EventQueue;
 import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
@@ -18,7 +19,9 @@ import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
+import javax.swing.BoxLayout;
 import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTree;
@@ -28,11 +31,13 @@ import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
+import org.helioviewer.jhv.app.Log;
 import org.helioviewer.jhv.gui.ComponentUtils;
 import org.helioviewer.jhv.gui.Interfaces;
 import org.helioviewer.jhv.gui.MainFrame;
 import org.helioviewer.jhv.timelines.TimelineLayers;
 import org.helioviewer.jhv.timelines.band.BandDataset;
+import org.helioviewer.jhv.timelines.band.ImapCatalog;
 import org.helioviewer.jhv.timelines.band.BandType;
 
 import com.jidesoft.dialog.ButtonPanel;
@@ -47,6 +52,8 @@ public final class TimelineDialog extends StandardDialog implements Interfaces.S
     private final DefaultTreeModel treeModel = new DefaultTreeModel(root);
     private final JTree tree = new JTree(treeModel);
     private final JCheckBox fullResolution = new JCheckBox("Full time resolution");
+    private final JLabel footer = new JLabel(" "); // IMAP attribution and heavy-group note for the selection
+    private final JLabel status = new JLabel(" "); // IMAP load status, such as "zoom in to load"
     private final AbstractAction load = new AbstractAction() {
         @Override
         public void actionPerformed(ActionEvent e) {
@@ -112,7 +119,13 @@ public final class TimelineDialog extends StandardDialog implements Interfaces.S
         content.setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
         content.add(scrollPane);
         fullResolution.setToolTipText("Load original HAPI samples without one-minute rebinning.");
-        content.add(fullResolution, BorderLayout.PAGE_END);
+        tree.addTreeSelectionListener(e -> updateFooter());
+        JPanel south = new JPanel();
+        south.setLayout(new BoxLayout(south, BoxLayout.Y_AXIS));
+        south.add(fullResolution);
+        south.add(footer);
+        south.add(status);
+        content.add(south, BorderLayout.PAGE_END);
         return content;
     }
 
@@ -160,6 +173,33 @@ public final class TimelineDialog extends StandardDialog implements Interfaces.S
         treeModel.reload();
         if (root.getChildCount() > 0)
             tree.expandPath(new TreePath(((DefaultMutableTreeNode) root.getFirstChild()).getPath()));
+    }
+
+    /** Shows an IMAP load message (any thread); also logged, since the dialog is usually closed. */
+    public void setStatus(String text) {
+        Log.info(text);
+        EventQueue.invokeLater(() -> status.setText(text == null || text.isBlank() ? " " : html(text)));
+    }
+
+    // The attribution of the first selected IMAP band, and the note when a heavy (MAG) band is selected.
+    private void updateFooter() {
+        StringBuilder sb = new StringBuilder();
+        boolean heavy = false;
+        for (BandType type : selectedBandTypes()) {
+            if (sb.isEmpty()) {
+                String attribution = ImapCatalog.attribution(type);
+                if (attribution != null)
+                    sb.append(attribution);
+            }
+            heavy |= ImapCatalog.isHeavy(type);
+        }
+        if (heavy)
+            sb.append(' ').append(ImapCatalog.heavyNote());
+        footer.setText(sb.isEmpty() ? " " : html(sb.toString()));
+    }
+
+    private static String html(String text) {
+        return "<html><body style='width:330px'>" + text.replace("&", "&amp;").replace("<", "&lt;") + "</body></html>";
     }
 
     private List<BandType> selectedBandTypes() {
