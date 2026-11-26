@@ -5,6 +5,7 @@
 ## HelioFITS Studio 0.9.3 (unreleased)
 
 ### New
+- Timelines: an IMAP (NASA SPDF) catalog, available at once with no server: merged hourly field, speed, density and temperature, SWAPI 1-minute proton and alpha plasma, and MAG 1-minute means (heavy; at most 14 days visible), plus an IMAP solar wind stack and a data-credit line when an IMAP band is selected.
 - Opening an export record (.hfrec) on a computer where its local files are not at the recorded paths now finds them in the FITS library by their SHA-256 and replays from the library's copies; the notes in the replay window say how many were found.
 
 - The 3D Scene pane gains a switch for all 3D layers at once, an Add layer menu (comet, 3D model, point cloud), and the planet controls, moved there from the grid layer. Each spacecraft model has its own Track (orbit line, span in days) and Field of view toggles, like the comets.

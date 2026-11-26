@@ -231,6 +231,11 @@
       "id": "activity",
       "title": "What is still running",
       "text": "The spinner at the bottom left turns while anything downloads, loads or computes, and becomes a check when everything has landed. Click it for the Task Manager: the running work, anything that did not land, and the export queue."
+    },
+    {
+      "id": "imap-timelines",
+      "title": "IMAP solar wind timelines",
+      "text": "The New Timeline Layer list has an IMAP (NASA SPDF) group that needs no HAPI server: hourly merged field, speed, density and temperature, SWAPI 1-minute plasma, and MAG 1-minute means (zoom in to 14 days or less). The predefined list has an IMAP solar wind stack."
     }
   ]
 }
