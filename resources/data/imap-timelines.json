@@ -1,0 +1,475 @@
+{
+ "catalog": "IMAP (NASA SPDF)",
+ "attribution": "IMAP data: NASA GSFC/SPDF; merged hourly files from SPDF/OMNIWeb (please acknowledge NASA's Space Physics Data Facility and OMNIWeb).",
+ "note": "Starting-view y ranges are estimates, not instrument facts. Real-time i-ALiRT data is not supported.",
+ "products": {
+  "coho-hr": {
+   "kind": "coho",
+   "title": "IMAP merged MAG + proton, 1 h",
+   "dir": "https://spdf.gsfc.nasa.gov/pub/data/imap/coho1hr_magplasma/ascii/",
+   "file": "imap_merged_hr<YYYY>.txt",
+   "readme": "https://spdf.gsfc.nasa.gov/pub/data/imap/coho1hr_magplasma/ascii/aareadme_imap_coho",
+   "short": "IMAP 1 h"
+  },
+  "swapi-proton": {
+   "kind": "cdf",
+   "title": "IMAP SWAPI L3a proton solar wind, 1 min",
+   "dir": "https://spdf.gsfc.nasa.gov/pub/data/imap/swapi/l3a/proton-sw/",
+   "instrument": "swapi",
+   "level": "l3a",
+   "descriptor": "proton-sw",
+   "maxSpanDays": 0,
+   "bytesPerDay": 175000,
+   "short": "IMAP SWAPI"
+  },
+  "swapi-alpha": {
+   "kind": "cdf",
+   "title": "IMAP SWAPI L3a alpha solar wind, 1 min",
+   "dir": "https://spdf.gsfc.nasa.gov/pub/data/imap/swapi/l3a/alpha-sw/",
+   "instrument": "swapi",
+   "level": "l3a",
+   "descriptor": "alpha-sw",
+   "maxSpanDays": 0,
+   "bytesPerDay": 175000,
+   "short": "IMAP SWAPI"
+  },
+  "mag-rtn": {
+   "kind": "cdf",
+   "title": "IMAP MAG L2 RTN, 1 min means",
+   "dir": "https://spdf.gsfc.nasa.gov/pub/data/imap/mag/l2/norm-rtn/",
+   "instrument": "mag",
+   "level": "l2",
+   "descriptor": "norm-rtn",
+   "maxSpanDays": 14,
+   "bytesPerDay": 3700000,
+   "short": "IMAP MAG"
+  },
+  "mag-gse": {
+   "kind": "cdf",
+   "title": "IMAP MAG L2 GSE, 1 min means",
+   "dir": "https://spdf.gsfc.nasa.gov/pub/data/imap/mag/l2/norm-gse/",
+   "instrument": "mag",
+   "level": "l2",
+   "descriptor": "norm-gse",
+   "maxSpanDays": 14,
+   "bytesPerDay": 3700000,
+   "short": "IMAP MAG"
+  },
+  "mag-gsm": {
+   "kind": "cdf",
+   "title": "IMAP MAG L2 GSM, 1 min means",
+   "dir": "https://spdf.gsfc.nasa.gov/pub/data/imap/mag/l2/norm-gsm/",
+   "instrument": "mag",
+   "level": "l2",
+   "descriptor": "norm-gsm",
+   "maxSpanDays": 14,
+   "bytesPerDay": 3700000,
+   "short": "IMAP MAG"
+  }
+ },
+ "groups": [
+  {
+   "title": "Merged 1 h (default)",
+   "heavy": false,
+   "bands": [
+    {
+     "var": "B_R",
+     "label": "B_R (RTN)",
+     "unit": "nT",
+     "range": [
+      -15,
+      15
+     ],
+     "scale": "linear",
+     "product": "coho-hr"
+    },
+    {
+     "var": "B_T",
+     "label": "B_T (RTN)",
+     "unit": "nT",
+     "range": [
+      -15,
+      15
+     ],
+     "scale": "linear",
+     "product": "coho-hr"
+    },
+    {
+     "var": "B_N",
+     "label": "B_N (RTN)",
+     "unit": "nT",
+     "range": [
+      -15,
+      15
+     ],
+     "scale": "linear",
+     "product": "coho-hr"
+    },
+    {
+     "var": "B_mag",
+     "label": "<|B|> (mean of |B|)",
+     "unit": "nT",
+     "range": [
+      0,
+      20
+     ],
+     "scale": "linear",
+     "product": "coho-hr"
+    },
+    {
+     "var": "V",
+     "label": "V (spacecraft frame)",
+     "unit": "km/s",
+     "range": [
+      250,
+      800
+     ],
+     "scale": "linear",
+     "product": "coho-hr"
+    },
+    {
+     "var": "V_R",
+     "label": "V_R (Sun frame)",
+     "unit": "km/s",
+     "range": [
+      250,
+      800
+     ],
+     "scale": "linear",
+     "product": "coho-hr"
+    },
+    {
+     "var": "V_T",
+     "label": "V_T (Sun frame)",
+     "unit": "km/s",
+     "range": [
+      -100,
+      100
+     ],
+     "scale": "linear",
+     "product": "coho-hr"
+    },
+    {
+     "var": "V_N",
+     "label": "V_N (Sun frame)",
+     "unit": "km/s",
+     "range": [
+      -100,
+      100
+     ],
+     "scale": "linear",
+     "product": "coho-hr"
+    },
+    {
+     "var": "N_p",
+     "label": "N_p",
+     "unit": "cm^-3",
+     "range": [
+      0.1,
+      100
+     ],
+     "scale": "logarithmic",
+     "product": "coho-hr"
+    },
+    {
+     "var": "T_p",
+     "label": "T_p",
+     "unit": "K",
+     "range": [
+      10000.0,
+      1000000.0
+     ],
+     "scale": "logarithmic",
+     "product": "coho-hr"
+    }
+   ]
+  },
+  {
+   "title": "SWAPI 1 min",
+   "heavy": false,
+   "bands": [
+    {
+     "var": "proton_sw_speed_sun",
+     "label": "Proton speed (Sun frame)",
+     "unit": "km/s",
+     "range": [
+      250,
+      800
+     ],
+     "scale": "linear",
+     "product": "swapi-proton"
+    },
+    {
+     "var": "proton_sw_density",
+     "label": "Proton density",
+     "unit": "cm^-3",
+     "range": [
+      0.1,
+      100
+     ],
+     "scale": "logarithmic",
+     "product": "swapi-proton"
+    },
+    {
+     "var": "proton_sw_temperature",
+     "label": "Proton temperature",
+     "unit": "K",
+     "range": [
+      10000.0,
+      1000000.0
+     ],
+     "scale": "logarithmic",
+     "product": "swapi-proton"
+    },
+    {
+     "var": "proton_sw_velocity_rtn_sun_R",
+     "label": "Proton V_R (Sun frame)",
+     "unit": "km/s",
+     "range": [
+      250,
+      800
+     ],
+     "scale": "linear",
+     "product": "swapi-proton"
+    },
+    {
+     "var": "proton_sw_velocity_rtn_sun_T",
+     "label": "Proton V_T (Sun frame)",
+     "unit": "km/s",
+     "range": [
+      -100,
+      100
+     ],
+     "scale": "linear",
+     "product": "swapi-proton"
+    },
+    {
+     "var": "proton_sw_velocity_rtn_sun_N",
+     "label": "Proton V_N (Sun frame)",
+     "unit": "km/s",
+     "range": [
+      -100,
+      100
+     ],
+     "scale": "linear",
+     "product": "swapi-proton"
+    },
+    {
+     "var": "alpha_sw_speed_sun",
+     "label": "Alpha speed (Sun frame)",
+     "unit": "km/s",
+     "range": [
+      250,
+      800
+     ],
+     "scale": "linear",
+     "product": "swapi-alpha"
+    },
+    {
+     "var": "alpha_sw_density",
+     "label": "Alpha density",
+     "unit": "cm^-3",
+     "range": [
+      0.001,
+      10
+     ],
+     "scale": "logarithmic",
+     "product": "swapi-alpha"
+    },
+    {
+     "var": "alpha_sw_temperature",
+     "label": "Alpha temperature",
+     "unit": "K",
+     "range": [
+      10000.0,
+      10000000.0
+     ],
+     "scale": "logarithmic",
+     "product": "swapi-alpha"
+    },
+    {
+     "var": "alpha_sw_velocity_rtn_sun_R",
+     "label": "Alpha V_R (Sun frame)",
+     "unit": "km/s",
+     "range": [
+      250,
+      800
+     ],
+     "scale": "linear",
+     "product": "swapi-alpha"
+    },
+    {
+     "var": "alpha_sw_velocity_rtn_sun_T",
+     "label": "Alpha V_T (Sun frame)",
+     "unit": "km/s",
+     "range": [
+      -100,
+      100
+     ],
+     "scale": "linear",
+     "product": "swapi-alpha"
+    },
+    {
+     "var": "alpha_sw_velocity_rtn_sun_N",
+     "label": "Alpha V_N (Sun frame)",
+     "unit": "km/s",
+     "range": [
+      -100,
+      100
+     ],
+     "scale": "linear",
+     "product": "swapi-alpha"
+    }
+   ]
+  },
+  {
+   "title": "MAG 1-min means (heavy)",
+   "heavy": true,
+   "bands": [
+    {
+     "var": "b_rtn_R",
+     "label": "B_R (RTN)",
+     "unit": "nT",
+     "range": [
+      -15,
+      15
+     ],
+     "scale": "linear",
+     "product": "mag-rtn"
+    },
+    {
+     "var": "b_rtn_T",
+     "label": "B_T (RTN)",
+     "unit": "nT",
+     "range": [
+      -15,
+      15
+     ],
+     "scale": "linear",
+     "product": "mag-rtn"
+    },
+    {
+     "var": "b_rtn_N",
+     "label": "B_N (RTN)",
+     "unit": "nT",
+     "range": [
+      -15,
+      15
+     ],
+     "scale": "linear",
+     "product": "mag-rtn"
+    },
+    {
+     "var": "magnitude",
+     "label": "|B| (RTN)",
+     "unit": "nT",
+     "range": [
+      0,
+      20
+     ],
+     "scale": "linear",
+     "product": "mag-rtn"
+    },
+    {
+     "var": "b_gse_x",
+     "label": "B_x (GSE)",
+     "unit": "nT",
+     "range": [
+      -15,
+      15
+     ],
+     "scale": "linear",
+     "product": "mag-gse"
+    },
+    {
+     "var": "b_gse_y",
+     "label": "B_y (GSE)",
+     "unit": "nT",
+     "range": [
+      -15,
+      15
+     ],
+     "scale": "linear",
+     "product": "mag-gse"
+    },
+    {
+     "var": "b_gse_z",
+     "label": "B_z (GSE)",
+     "unit": "nT",
+     "range": [
+      -15,
+      15
+     ],
+     "scale": "linear",
+     "product": "mag-gse"
+    },
+    {
+     "var": "magnitude",
+     "label": "|B| (GSE)",
+     "unit": "nT",
+     "range": [
+      0,
+      20
+     ],
+     "scale": "linear",
+     "product": "mag-gse"
+    },
+    {
+     "var": "b_gsm_x",
+     "label": "B_x (GSM)",
+     "unit": "nT",
+     "range": [
+      -15,
+      15
+     ],
+     "scale": "linear",
+     "product": "mag-gsm"
+    },
+    {
+     "var": "b_gsm_y",
+     "label": "B_y (GSM)",
+     "unit": "nT",
+     "range": [
+      -15,
+      15
+     ],
+     "scale": "linear",
+     "product": "mag-gsm"
+    },
+    {
+     "var": "b_gsm_z",
+     "label": "B_z (GSM)",
+     "unit": "nT",
+     "range": [
+      -15,
+      15
+     ],
+     "scale": "linear",
+     "product": "mag-gsm"
+    },
+    {
+     "var": "magnitude",
+     "label": "|B| (GSM)",
+     "unit": "nT",
+     "range": [
+      0,
+      20
+     ],
+     "scale": "linear",
+     "product": "mag-gsm"
+    }
+   ]
+  }
+ ],
+ "predefined": {
+  "IMAP solar wind": [
+   "imap:coho-hr#B_R",
+   "imap:coho-hr#B_T",
+   "imap:coho-hr#B_N",
+   "imap:coho-hr#B_mag",
+   "imap:coho-hr#V",
+   "imap:coho-hr#N_p",
+   "imap:coho-hr#T_p"
+  ]
+ }
+}

@@ -7,3 +7,4 @@ LibraryStoreCheck HFCORE_HOME, APPDATA or XDG_CONFIG_HOME is set, so the library
 FirstLoadFitCheck SPICE natives are not available on this platform
 SiblingsCheck HFS_HOME, HFCORE_HOME, APPDATA or XDG_CONFIG_HOME is set, so homes do not follow user.home
 SessionProjectionRestoreCheck SPICE natives are not available on this platform
+ImapLiveProbeCheck set IMAP_LIVE=1
