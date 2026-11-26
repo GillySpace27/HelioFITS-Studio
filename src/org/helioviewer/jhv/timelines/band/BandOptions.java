@@ -114,7 +114,15 @@ class BandOptions extends JPanel {
 
     // The spacecraft picker, and beside it a switch that puts the craft's 3D model at its position
     private static JPanel spacecraftRow(Band band) {
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
+        // sync runs when the row is shown, not while the Band is still being constructed (its name is not set yet)
+        Runnable[] syncRef = new Runnable[1];
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0)) {
+            @Override
+            public void addNotify() {
+                super.addNotify();
+                syncRef[0].run();
+            }
+        };
         JComboBox<String> picker = spacecraftPicker(band);
         javax.swing.JToggleButton model = new javax.swing.JToggleButton("Show model");
         Runnable sync = () -> {
@@ -133,7 +141,7 @@ class BandOptions extends JPanel {
                 org.helioviewer.jhv.layers.ObserverModels.toggle(craft.target(), sync);
         });
         picker.addActionListener(e -> sync.run()); // a new spacecraft changes what the switch means
-        sync.run();
+        syncRef[0] = sync;
         row.add(picker);
         row.add(model);
         return row;
