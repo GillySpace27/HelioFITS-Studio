@@ -71,6 +71,7 @@ public final class Band extends TimelineLayer {
     private boolean multicolor;
     private boolean autoFit; // y range follows the visible data
     private boolean logScale;
+    private boolean imapRefused; // the status line shows the IMAP zoom-in message for this band
 
     public Band(BandType _bandType) {
         this(_bandType, false);
@@ -557,10 +558,25 @@ public final class Band extends TimelineLayer {
     private void updateData(long start, long end) {
         if (!BandDownloads.hasCatalog(this))
             return;
+        if (gateImap(start, end)) // before the reservation, so zooming in later still loads
+            return;
 
         List<Interval> intervals = reserveDownloadIntervals(start, end);
         if (!intervals.isEmpty())
             BandDownloads.start(this, intervals);
+    }
+
+    // An IMAP product with a span cap (MAG) is not requested, and nothing is reserved, while the view is wider.
+    private boolean gateImap(long start, long end) {
+        String refusal = ImapSource.refusal(bandType.getBaseUrl(), start, end);
+        if (refusal != null) {
+            imapRefused = true;
+            ImapCatalog.status(refusal);
+        } else if (imapRefused) {
+            imapRefused = false;
+            ImapCatalog.status("");
+        }
+        return refusal != null;
     }
 
     List<Interval> reserveDownloadIntervals(long start, long end) {
