@@ -25,7 +25,7 @@ import org.helioviewer.jhv.layers.Layers;
 /**
  * The demo scene (HS-10): a new session holding the bundled 2025-08-14 ~09:00 UTC frames of SDO/AIA
  * 171 and 193, Proba-3/ASPIICS, SOHO/LASCO C2 and C3 and PUNCH ({@link TourSamples#DEMO_NAMES}),
- * with RHEF on the AIA layer. Nothing to download, so it opens offline; it reads only files the jar carries.
+ * with RHEF on AIA 171 and the LASCO layers. Nothing to download, so it opens offline; it reads only files the jar carries.
  */
 public final class DemoScene {
 
@@ -53,17 +53,32 @@ public final class DemoScene {
         for (File f : files) {
             boolean aia = f == files.get(0);
             chain = chain.thenCompose(x -> Commands.loadImage(f.toURI()))
-                    .thenAccept(layer -> {
-                        if (aia)
-                            EventQueue.invokeLater(() -> applyFilter(layer));
-                        else if (f.getName().startsWith("aspiics"))
-                            EventQueue.invokeLater(() -> stretchAspiics(layer));
-                    });
+                    .thenAccept(layer -> EventQueue.invokeLater(() -> style(f.getName(), layer, aia)));
         }
         chain.exceptionally(e -> {
             Log.warn("The demo scene's samples did not all load", e);
             return null;
         });
+    }
+
+    /** The white-light family shares one colour table so the nested discs read as one corona. */
+    static final String CORONA_LUT = "PUNCH";
+
+    /** The demo's look for one layer, by file name: RHEF on AIA 171 and the LASCO frames, one colour table for all white light. */
+    static void style(String file, @Nullable ImageLayer layer, boolean aia) {
+        if (layer == null)
+            return;
+        boolean white = !file.startsWith("aia");
+        if (white)
+            layer.getDisplaySettings().setLUT(org.helioviewer.jhv.image.lut.LUT.get(CORONA_LUT), false);
+        if (file.startsWith("aspiics"))
+            stretchAspiics(layer);
+        else if (aia || file.startsWith("lasco"))
+            applyFilter(layer);
+        else {
+            Layers.fireLayerUpdated(layer);
+            DisplayController.render(1);
+        }
     }
 
     /**
