@@ -111,6 +111,13 @@ public enum Directories {
             return HOME.getPath() + "Studies" + File.separator;
         }
     },
+    // Timeline presets the user saved from the Timeline Manager (presets.json)
+    TIMELINES {
+        @Override
+        public String getPath() {
+            return HOME.getPath() + "Timelines" + File.separator;
+        }
+    },
     // 3D models the 3D Model Manager downloaded (ModelAssets): checked against their SHA-256, never evicted.
     MODELS {
         @Override

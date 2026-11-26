@@ -143,10 +143,10 @@ public final class Band extends TimelineLayer {
         jo.put("yMax", yAxis.end());
     }
 
-    public static TimelineLayer deserialize(JSONObject jo) throws Exception { // has to be implemented for state
+    public static TimelineLayer deserialize(JSONObject jo) { // has to be implemented for state
         JSONObject jobt = jo.optJSONObject("bandType");
         if (jobt == null)
-            throw new Exception("Missing bandType: " + jo);
+            throw new org.json.JSONException("Missing bandType: " + jo);
         Band band = new Band(new BandType(jobt), jo.optBoolean("fullResolution", false));
 
         JSONObject jcolor = jo.optJSONObject("color");
