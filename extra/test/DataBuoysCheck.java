@@ -36,6 +36,15 @@ public final class DataBuoysCheck {
         expect("a row with no name finds none", DataBuoys.infer(null) == null);
         expect("byKey finds a craft and not 'none'", DataBuoys.byKey("psp") != null && DataBuoys.byKey("none") == null);
 
+        // L1 spacecraft (a few per cent apart) share a chip; Earth's L1 and Solar Orbiter do not
+        java.util.List<org.helioviewer.jhv.math.Vec3> pts = java.util.List.of(
+                new org.helioviewer.jhv.math.Vec3(214, 0, 0), new org.helioviewer.jhv.math.Vec3(211, 1, 0),
+                new org.helioviewer.jhv.math.Vec3(213, -2, 1), new org.helioviewer.jhv.math.Vec3(100, 80, 0));
+        java.util.List<java.util.List<Integer>> cl = DataBuoys.cluster(pts, 0.03);
+        expect("three L1 positions merge into one chip, the fourth stays alone",
+                cl.size() == 2 && cl.get(0).equals(java.util.List.of(0, 1, 2)) && cl.get(1).equals(java.util.List.of(3)));
+        expect("hover starts empty", DataBuoys.ROW_HOVER.get() == null && DataBuoys.BUOY_HOVER.get().isEmpty());
+
         DataBuoys fresh = new DataBuoys();
         expect("defaults: buoys on, names on hover, halo on, trails off",
                 fresh.isShow() && !fresh.isAlwaysLabels() && fresh.isModelHalo() && !fresh.isTrails());
