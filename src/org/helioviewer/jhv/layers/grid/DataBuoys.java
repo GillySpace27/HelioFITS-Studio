@@ -74,6 +74,7 @@ public final class DataBuoys {
             new Craft("ace", "ACE", "ACE", new String[]{"ace"}),
             new Craft("wind", "Wind", "W", new String[]{"wind swe", "wind mfi", "wind 3dp", "wind waves"}),
             new Craft("dscovr", "DSCOVR", "D", new String[]{"dscovr"}),
+            new Craft("imap", "IMAP", "IM", new String[]{"imap"}),
     };
 
     public static Craft[] craft() {

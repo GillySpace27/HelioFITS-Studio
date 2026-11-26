@@ -32,6 +32,7 @@ public final class DataBuoysCheck {
         expect("'space' is not ACE", key("Space weather index") == null);
         expect("'solar wind' alone is not Wind", key("Solar wind speed") == null);
         expect("Wind with its instrument", "wind".equals(key("Wind SWE proton density")));
+        expect("IMAP rows find IMAP", "imap".equals(key("IMAP SWAPI proton speed")) && "imap".equals(key("IMAP MAG |B|")));
         expect("GOES has no spacecraft here", key("GOES XRS long") == null);
         expect("a row with no name finds none", DataBuoys.infer(null) == null);
         expect("byKey finds a craft and not 'none'", DataBuoys.byKey("psp") != null && DataBuoys.byKey("none") == null);

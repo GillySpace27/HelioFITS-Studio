@@ -130,7 +130,9 @@ itself (`io/JplHorizons.java`), Sun-centred km in the same frame, up to 2000 sam
 interval. Both are interpolated linearly, rotated into the Carrington frame with the bundled SPICE
 kernels, and for the geocentric ones offset by Earth's kernel position. On 2024-06-01 HelioFleet's
 ACE, Wind and DSCOVR positions agreed with Horizons queried directly to within 120 km (measured with
-both services that day; a solar radius is 695,700 km). Hinode and RHESSI, in low Earth orbit and in
+both services that day; a solar radius is 695,700 km). IMAP (Horizons id -43, read from the Horizons
+API on 2026-11-25: trajectory from 2025-09-24, predicted past 2026-11-01) is placed from the Horizons API like
+Ulysses; no 3D model for it is listed. Hinode and RHESSI, in low Earth orbit and in
 neither source, are drawn at Earth.
 
 The point cloud JSON layout is **unconfirmed** in this list; read `plugins/pointcloud/PointCloudLoader.java`
