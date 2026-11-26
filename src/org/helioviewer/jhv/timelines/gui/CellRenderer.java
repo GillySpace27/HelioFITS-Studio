@@ -13,6 +13,7 @@ import javax.swing.table.DefaultTableCellRenderer;
 
 import org.helioviewer.jhv.gui.component.BusyIndicator;
 import org.helioviewer.jhv.gui.component.Buttons;
+import org.helioviewer.jhv.layers.grid.DataBuoys;
 import org.helioviewer.jhv.timelines.TimelineLayer;
 import org.helioviewer.jhv.timelines.band.Band;
 
@@ -115,6 +116,13 @@ class CellRenderer {
                     label.setToolTipText(layerName + ": No data for selected interval");
                 }
                 label.setText(layerName);
+                // The buoy under the pointer in the 3D scene is this row's: light the row
+                if (layer instanceof Band band && !isSelected) {
+                    var craft = band.getSpacecraft();
+                    boolean lit = craft != null && DataBuoys.BUOY_HOVER.get().contains(craft.key());
+                    label.setBackground(lit ? table.getSelectionBackground().brighter() : table.getBackground());
+                    label.setOpaque(true);
+                }
             }
             return label;
         }

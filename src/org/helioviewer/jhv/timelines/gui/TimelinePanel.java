@@ -37,6 +37,7 @@ import org.helioviewer.jhv.gui.component.Buttons;
 import org.helioviewer.jhv.gui.component.TableValue;
 import org.helioviewer.jhv.timelines.TimelineLayer;
 import org.helioviewer.jhv.timelines.TimelineLayers;
+import org.helioviewer.jhv.layers.grid.DataBuoys;
 import org.helioviewer.jhv.timelines.band.Band;
 import org.helioviewer.jhv.timelines.band.BandType;
 import org.helioviewer.jhv.timelines.draw.DrawController;
@@ -241,7 +242,22 @@ public final class TimelinePanel extends JPanel {
                 refreshSelectedOptionsPanel();
         });
 
+        // The 3D scene's buoys and these rows light each other: the row under the pointer names its spacecraft, a buoy under the pointer lights its rows
+        DataBuoys.LISTENERS.add(grid::repaint);
+        grid.addMouseMotionListener(new MouseAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                TableValue v = TableValue.tableValueAtPoint(grid, e.getPoint());
+                var craft = v != null && v.value instanceof Band band ? band.getSpacecraft() : null;
+                setRowHover(craft == null ? null : craft.key());
+            }
+        });
         grid.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseExited(MouseEvent e) {
+                setRowHover(null);
+            }
+
             @Override
             public void mouseClicked(MouseEvent e) {
                 TableValue v = TableValue.tableValueAtPoint(grid, e.getPoint());
@@ -304,6 +320,11 @@ public final class TimelinePanel extends JPanel {
         int row = Math.min(preferredRow, rowCount - 1);
         grid.getSelectionModel().setSelectionInterval(row, row);
         refreshSelectedOptionsPanel();
+    }
+
+    private static void setRowHover(String key) {
+        if (!java.util.Objects.equals(DataBuoys.ROW_HOVER.getAndSet(key), key))
+            org.helioviewer.jhv.display.DisplayController.display();
     }
 
     private void refreshSelectedOptionsPanel() {

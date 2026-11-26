@@ -160,9 +160,17 @@ public final class DataBuoys {
 
     private static final double RING_FRACTION = 0.012; // of the camera width, as the planet markers
     private static final int SEGMENTS = 40;
+    private static final double MERGE_FRACTION = 0.03;
     private static final int TRAIL_SAMPLES = 64;
     private static final double TEXT_SCALE = 1.0;
     private static final double HOVER_PX = 14;
+
+    /** The spacecraft the pointer is on in the timeline list, so its buoy stands out. */
+    public static final java.util.concurrent.atomic.AtomicReference<String> ROW_HOVER = new java.util.concurrent.atomic.AtomicReference<>();
+    /** The spacecraft of the buoy under the pointer (several where buoys are merged), so their rows light up. */
+    public static final java.util.concurrent.atomic.AtomicReference<List<String>> BUOY_HOVER = new java.util.concurrent.atomic.AtomicReference<>(List.of());
+    /** Told when {@link #BUOY_HOVER} changes: the timeline list repaints itself. */
+    public static final List<Runnable> LISTENERS = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     private final Map<String, ModelEphemeris> ephemerides = new LinkedHashMap<>();
     private final GLSLLine lines = new GLSLLine(true);
@@ -171,43 +179,61 @@ public final class DataBuoys {
     private final BufVertex pointBuf = new BufVertex();
 
     /** Where each buoy last landed on the canvas, for the pointer; rebuilt every frame. */
-    private record Spot(String key, double x, double y) {}
+    private record Spot(List<String> keys, double x, double y) {}
 
     private volatile List<Spot> spots = List.of();
-    private volatile String hovered;
+    private volatile List<String> hovered = List.of();
     private final Hover hover = new Hover();
 
     private final class Hover implements InputMouseListener {
         @Override
         public void mouseMoved(PointerEvent e) {
-            String near = null;
+            List<String> near = List.of();
             double best = HOVER_PX * HOVER_PX;
             for (Spot s : spots) {
                 double d = (s.x() - e.x()) * (s.x() - e.x()) + (s.y() - e.y()) * (s.y() - e.y());
                 if (d < best) {
                     best = d;
-                    near = s.key();
+                    near = s.keys();
                 }
             }
-            if (!java.util.Objects.equals(near, hovered)) {
-                hovered = near;
-                DisplayController.display();
-            }
+            setHovered(near);
         }
 
         @Override
         public void mouseExited(PointerEvent e) {
-            if (hovered != null) {
-                hovered = null;
-                DisplayController.display();
-            }
+            setHovered(List.of());
         }
     }
 
-    /** Name of the buoy under the pointer, or null: a row's panel can use it to light the row. */
-    @Nullable
-    public String hoveredKey() {
-        return hovered;
+    private void setHovered(List<String> keys) {
+        if (keys.equals(hovered))
+            return;
+        hovered = keys;
+        BUOY_HOVER.set(keys);
+        LISTENERS.forEach(Runnable::run);
+        DisplayController.display();
+    }
+
+    /** Indices of points that sit within {@code frac} of their distance from the Sun of an earlier point: L1 spacecraft, one chip. */
+    static List<List<Integer>> cluster(List<Vec3> pts, double frac) {
+        List<List<Integer>> out = new ArrayList<>();
+        for (int i = 0; i < pts.size(); i++) {
+            Vec3 a = pts.get(i);
+            List<Integer> home = null;
+            for (List<Integer> c : out) {
+                Vec3 b = pts.get(c.get(0));
+                double d = Math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y) + (a.z - b.z) * (a.z - b.z));
+                if (d <= frac * Math.sqrt(b.x * b.x + b.y * b.y + b.z * b.z)) {
+                    home = c;
+                    break;
+                }
+            }
+            if (home == null)
+                out.add(home = new ArrayList<>());
+            home.add(i);
+        }
+        return out;
     }
 
     public void init() {
@@ -260,25 +286,40 @@ public final class DataBuoys {
         List<Spot> found = new ArrayList<>();
         List<Group> placed = new ArrayList<>();
         List<Vec3> where = new ArrayList<>();
-        Vector3f ndc = new Vector3f();
         for (Group g : groups) {
             ModelEphemeris eph = ephemeris(g.craft());
             Position p = eph.at(time);
             if (p == null || !(p.distance > 0))
                 continue;
-            Vec3 w = ModelPlacement.toWorld(p);
-            byte[] col = Colors.bytes(g.color());
-            boolean halo = modelHalo && hasModel(g.craft());
             if (trails)
-                putTrail(eph, time, col);
-            putRing(w, halo ? 1.9 * radius : radius, axes, col);
+                putTrail(eph, time, Colors.bytes(g.color()));
+            placed.add(g);
+            where.add(ModelPlacement.toWorld(p));
+        }
+
+        // Spacecraft this close together (ACE, Wind, DSCOVR at L1) share one ring and one chip.
+        List<List<Group>> chips = new ArrayList<>();
+        List<Vec3> chipAt = new ArrayList<>();
+        Vector3f ndc = new Vector3f();
+        String rowHover = ROW_HOVER.get();
+        for (List<Integer> idx : cluster(where, MERGE_FRACTION)) {
+            List<Group> members = new ArrayList<>();
+            idx.forEach(i -> members.add(placed.get(i)));
+            Vec3 w = where.get(idx.get(0));
+            boolean halo = modelHalo && members.stream().anyMatch(m -> hasModel(m.craft()));
+            boolean lit = rowHover != null && members.stream().anyMatch(m -> m.craft().key().equals(rowHover));
+            byte[] col = Colors.bytes(members.get(0).color());
+            double r = (halo ? 1.9 : 1) * radius * (lit ? 1.5 : 1);
+            putRing(w, r, axes, col);
+            if (lit)
+                putRing(w, r * 1.3, axes, col);
             if (!halo)
-                pointBuf.putVertex((float) w.x, (float) w.y, (float) w.z, (float) (0.4 * radius), col);
+                pointBuf.putVertex((float) w.x, (float) w.y, (float) w.z, (float) (0.4 * radius * (lit ? 1.5 : 1)), col);
             Transform.toNdc((float) w.x, (float) w.y, (float) w.z, ndc);
             if (Float.isFinite(ndc.x) && Float.isFinite(ndc.y))
-                found.add(new Spot(g.craft().key(), vp.x + (ndc.x + 1) * .5 * vp.width, vp.yAWT + (1 - ndc.y) * .5 * vp.height));
-            placed.add(g);
-            where.add(w);
+                found.add(new Spot(members.stream().map(m -> m.craft().key()).toList(), vp.x + (ndc.x + 1) * .5 * vp.width, vp.yAWT + (1 - ndc.y) * .5 * vp.height));
+            chips.add(members);
+            chipAt.add(w);
         }
         spots = found;
 
@@ -287,7 +328,7 @@ public final class DataBuoys {
         lines.renderLine(vp, GLSLLine.LINEWIDTH_BASIC * 1.5);
         points.uploadAndClear(pointBuf);
         points.renderPoints(pixelFactor);
-        drawNames(placed, where, axes, radius);
+        drawNames(chips, chipAt, axes, radius, rowHover);
         GL.glEnable(GL.DEPTH_TEST);
     }
 
@@ -331,22 +372,28 @@ public final class DataBuoys {
     }
 
     /** Code beside every ring, the full name and its rows on hover (or always, by the setting). */
-    private void drawNames(List<Group> placed, List<Vec3> where, double[][] axes, double radius) {
-        if (placed.isEmpty())
+    private void drawNames(List<List<Group>> chips, List<Vec3> where, double[][] axes, double radius, @Nullable String rowHover) {
+        if (chips.isEmpty())
             return;
         Vector3f right = new Vector3f((float) axes[0][0], (float) axes[0][1], (float) axes[0][2]);
         Vector3f up = new Vector3f((float) axes[1][0], (float) axes[1][1], (float) axes[1][2]);
         Vector3f origin = new Vector3f();
         SdfTextRenderer renderer = GLText.renderer();
         float scale = (float) (radius * 1.6 * TEXT_SCALE / renderer.getFontSize());
+        List<String> hot = hovered;
         GL.glDisable(GL.CULL_FACE);
         renderer.begin3DRendering();
-        for (int i = 0; i < placed.size(); i++) {
-            Group g = placed.get(i);
+        for (int i = 0; i < chips.size(); i++) {
+            List<Group> members = chips.get(i);
             Vec3 w = where.get(i);
-            boolean on = alwaysLabels || g.craft().key().equals(hovered);
-            String text = on ? g.craft().target() + ": " + String.join(", ", g.rows()) : g.craft().code();
-            java.awt.Color c = g.color();
+            boolean on = alwaysLabels || members.stream().anyMatch(m -> hot.contains(m.craft().key()) || m.craft().key().equals(rowHover));
+            String text;
+            if (on) {
+                text = String.join("; ", members.stream().map(m -> m.craft().target() + ": " + String.join(", ", m.rows())).toList());
+            } else {
+                text = String.join("+", members.stream().map(m -> m.craft().code()).toList());
+            }
+            java.awt.Color c = members.get(0).color();
             renderer.setColor(new float[]{c.getRed() / 255f, c.getGreen() / 255f, c.getBlue() / 255f, 1});
             double d = 1.6 * radius;
             origin.set((float) (w.x + d * (axes[0][0] + axes[1][0])), (float) (w.y + d * (axes[0][1] + axes[1][1])),
