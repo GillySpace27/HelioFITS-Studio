@@ -86,7 +86,7 @@ final class ImageLayerLoader {
         loadFuture = Task.submitBackground("request", () -> {
                     List<APIRequest> parts = req.chunks();
                     if (parts.size() > 1)
-                        return loadChunks(req, parts, view -> EventQueue.invokeLater(() -> onPreview(view, gen)));
+                        return loadChunks(req, parts, gen, view -> EventQueue.invokeLater(() -> onPreview(view, gen)));
                     statusSink.accept("Querying server…");
                     URI uri = requestAPI(req.toJpipRequest());
                     if (uri == null)
@@ -524,7 +524,21 @@ final class ImageLayerLoader {
      * thinned 1000 frames.
      */
     @Nullable
-    private View loadChunks(APIRequest req, List<APIRequest> parts, Consumer<View> preview) throws Exception {
+    private View loadChunks(APIRequest req, List<APIRequest> parts, int gen, Consumer<View> preview) throws Exception {
+        List<String> refusals = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        try {
+            return loadChunks(req, parts, refusals, preview);
+        } finally {
+            // Also on a failure of a later piece: the earlier refusals are part of the story. A load
+            // that was cancelled or replaced has nothing to say.
+            String refused = gen == loadGeneration && !Thread.currentThread().isInterrupted() ? refusalSummary(refusals, parts.size()) : null;
+            if (refused != null)
+                Message.err("Error getting the data", refused);
+        }
+    }
+
+    @Nullable
+    private View loadChunks(APIRequest req, List<APIRequest> parts, List<String> refusals, Consumer<View> preview) throws Exception {
         ManyView movie = null;
         FrameBatch batch = null;
         ChunkLoading.Mode mode = ChunkLoading.current();
@@ -532,7 +546,7 @@ final class ImageLayerLoader {
         if (mode == ChunkLoading.Mode.ALL) { // every query in flight at once
             java.util.concurrent.ExecutorService pool = org.helioviewer.jhv.thread.AppThread.createIdleExecutor("Chunk-Query", Math.min(parts.size(), org.helioviewer.jhv.thread.FetchGate.width()));
             for (APIRequest part : parts)
-                queries.add(pool.submit(() -> requestAPI(part.toJpipRequest())));
+                queries.add(pool.submit(() -> requestAPI(part.toJpipRequest(), refusals::add)));
             pool.shutdown(); // the queries already submitted still run
         }
         View previous = null;
@@ -545,7 +559,7 @@ final class ImageLayerLoader {
             APIRequest part = parts.get(i);
             URI uri;
             try {
-                uri = mode == ChunkLoading.Mode.ALL ? queries.get(i).get() : requestAPI(part.toJpipRequest());
+                uri = mode == ChunkLoading.Mode.ALL ? queries.get(i).get() : requestAPI(part.toJpipRequest(), refusals::add);
             } catch (java.util.concurrent.ExecutionException e) {
                 throw e.getCause() instanceof Exception cause ? cause : e;
             }
@@ -568,6 +582,22 @@ final class ImageLayerLoader {
         if (batch != null)
             batch.flush();
         return movie;
+    }
+
+    /** One report for the pieces of a chunked request the server refused, or null when none was. */
+    @Nullable
+    static String refusalSummary(List<String> refusals, int pieces) {
+        List<String> all;
+        synchronized (refusals) {
+            all = List.copyOf(refusals);
+        }
+        if (all.isEmpty())
+            return null;
+        List<String> distinct = all.stream().distinct().toList();
+        String text = String.join("\n", distinct.stream().limit(3).toList());
+        if (distinct.size() > 3)
+            text += "\n(and " + (distinct.size() - 3) + " other answers)";
+        return all.size() == 1 && pieces == 1 ? text : "The server refused " + all.size() + " of " + pieces + " pieces of this request:\n" + text;
     }
 
     private static final long CHUNK_WAIT_LIMIT_MS = 5 * 60_000; // a stalled piece must not hold the rest of the layer for ever
@@ -656,10 +686,22 @@ final class ImageLayerLoader {
 
     @Nullable
     private static URI requestAPI(String url) throws Exception {
+        return requestAPI(url, null);
+    }
+
+    /**
+     * @param refusals when not null, a refusal by the server is recorded here instead of shown, so
+     *                 a layer asked for in many pieces reports once (issue 298: one dialog per
+     *                 piece, hundreds of them, each a modal that had to be closed by hand)
+     */
+    @Nullable
+    private static URI requestAPI(String url, @Nullable Consumer<String> refusals) throws Exception {
         try {
-            return parseAPIResponse(JSONUtils.get(new URI(url)));
+            return parseAPIResponse(JSONUtils.get(new URI(url)), refusals);
         } catch (SocketTimeoutException e) {
             Log.error("Socket timeout while requesting JPIP URL", e);
+            // Never folded into the refusals: a timeout is not the server's answer, and the dialog
+            // wants the exception (MessageHandler drops an identical one still on screen).
             Message.err("Connection timed out", "The server did not respond while loading the layer. Try again in a moment.", e);
         } catch (Exception e) {
             throw new Exception("Invalid response for " + url, e);
@@ -668,7 +710,7 @@ final class ImageLayerLoader {
     }
 
     @Nullable
-    private static URI parseAPIResponse(JSONObject data) throws Exception {
+    private static URI parseAPIResponse(JSONObject data, @Nullable Consumer<String> refusals) throws Exception {
         if (!data.isNull("frames")) {
             JSONArray arr = data.getJSONArray("frames");
             data.put("frames", arr.length()); // don't log timestamps, modifies input
@@ -682,7 +724,10 @@ final class ImageLayerLoader {
         String error = data.optString("error", null);
         if (error != null) {
             Log.error(error);
-            Message.err("Error getting the data", error);
+            if (refusals != null)
+                refusals.accept(error);
+            else
+                Message.err("Error getting the data", error);
             return null;
         }
         return new URI(data.getString("uri"));
