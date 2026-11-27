@@ -2,7 +2,7 @@
 
 # Revision history
 
-## HelioFITS Studio 0.9.4
+## HelioFITS Studio 0.9.4 (pre-release, 2026-11-26)
 
 Includes the changes prepared as 0.9.3, which was never released. They are listed separately below; the git tag snapshot/0.9.3 marks that state.
 
@@ -67,7 +67,7 @@ Includes the changes prepared as 0.9.3, which was never released. They are liste
 - Stars sit on their own pixels: in Orthographic and Helioradial in 3D the Stars overlay was placed with the wrong formula off the Sun line (35 arcsec at 4 degrees in both angles, about 100 arcsec at 5.6 degrees, more further out) and, in 3D Helioradial, on the plane of sky instead of the surface the corona is drawn on. They are now placed where the imagery shows the same direction, in the frame of the active image layer, Helioradial (flat) draws them too, and orbiting the camera no longer turns them away from the imagery; the star under the pointer and its Highlight All ring follow.
 - The download review window lists each ticked event group as a row (assumed 15 events a day over the session's range, labelled as assumed), with the same Download, Postpone and Cancel choices. A long range can now trip the guard on events alone. Postponed groups stay ticked but request nothing until you tick them again; Cancel unticks them.
 
-## HelioFITS Studio 0.9.2
+## HelioFITS Studio 0.9.2 (pre-release, 2026-11-12)
 
 ### Changes
 - The Image Layers and Playback and Recording sections start open on a fresh install; a fold state already saved in your settings is kept.
@@ -166,7 +166,7 @@ Includes the changes prepared as 0.9.3, which was never released. They are liste
 - The sidebars' top-level sections are easier to tell apart, and it is on by default. Managers > Theme Manager has a Visibility section with an Easier to find panels checkbox and four options under it: stronger section headers (a stronger band where the title can still be read on it, a thicker rule and more space under each section), an accent stripe on the leading edge of each header, section numbers (1, 2, 3 in the order the sections appear, only where there are two or more), and a highlight on the header under the pointer. Each applies at once and is remembered in the settings, so it follows whichever theme is chosen. Turning the checkbox off restores the previous look exactly.
 - The theme editor has a new colour, Section header text (strong), for the section titles when Stronger section headers is on. It starts as a muted complement of the theme's accent, so it is clearly a different hue; it is held to 3.5:1 on its band (the plain title keeps 4.5:1), so the hue stays visible on the built-in themes. Click its swatch to choose any colour.
 
-## HelioFITS Studio 0.9.1
+## HelioFITS Studio 0.9.1 (pre-release, 2026-11-04)
 
 ### 3D model layers
 - A model layer (Layers > Open Model Layer) has options: place it at Sun centre as before, or at the real position of a planet or spacecraft at the frame's time. Placed models are drawn at true size, with Units for files that are not in metres, an Enlarge slider up to 10^10x and a minimum on-screen size so a spacecraft stays visible at its real distance; a status line says how much larger than true size it is drawn. Positions come from the bundled SPICE kernels, or the ROB position service for Parker Solar Probe, SOHO, SDO, STEREO Behind, BepiColombo and PROBA-2. Models with heliocentric metadata are unchanged. Sessions keep the placement.
@@ -214,7 +214,7 @@ Includes the changes prepared as 0.9.3, which was never released. They are liste
 - A parameter study no longer leaves one extra `HFStudio_<time>` folder in the export folder for every variant; each picture or movie is moved into the study's run folder.
 - Helioradial and Helioradial Unrolled no longer draw the image black on Windows. The fix is checked on the Windows runner that tests every change; it has not yet been seen on a physical Windows computer. If your image is still black there, use Orthographic, HPC or Latitudinal and tell us.
 
-## HelioFITS Studio 0.9.0
+## HelioFITS Studio 0.9.0 (pre-release, 2026-11-03)
 
 ### Command registry
 - Every command now has one stable id, a plain description, a note of what it changes (read, write, destructive or interface only) and a JSON Schema for its arguments and result, and every one is run through one place that checks the arguments first. Help > Search Controls (Cmd-K), the guided tours and the Welcome window run commands that way. docs/commands.json lists them all in the shape of an MCP tools list, so an MCP server, an API or a command line can be added later without a second list of verbs. Help > Search Controls now shows each command's keyboard shortcut and, for a control, the tours that show it. Three commands take arguments (seekFrame, seekTime, rotateView90) and two read (listCommands, describeControl).
